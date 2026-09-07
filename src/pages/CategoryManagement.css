@@ -1,0 +1,161 @@
+/* ===== Category Management Page Styles ===== */
+
+/* Inactive orange badge variant */
+.admin-status-badge.inactive-orange {
+  background-color: #fff3e0;
+  color: #ef6c00;
+}
+
+/* View Category Banner Card */
+.category-banner-card {
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+}
+
+.category-banner-card.active {
+  background-color: #f1f8e9;
+  border-color: #d4e157;
+}
+
+.category-banner-card.inactive {
+  background-color: #fffde7;
+  border-color: #ffe082;
+}
+
+.category-banner-img {
+  width: 120px;
+  height: 80px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.category-banner-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.category-banner-name {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.category-banner-subcats {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555555;
+}
+
+/* Sub-categories Grid */
+.subcat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-top: 16px;
+}
+
+.subcat-card {
+  background-color: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.subcat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.subcat-card-img {
+  width: 100%;
+  height: 140px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.subcat-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.subcat-card-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.subcat-card-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.subcat-card-products {
+  font-size: 12px;
+  color: #78909c;
+  font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .subcat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .subcat-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Interactivity Enhancements for Stats Cards */
+.stat-card.clickable {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card.clickable:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+}
+
+.stat-card.active-filter {
+  outline: none;
+  border-top: 4px solid currentColor !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12) !important;
+}
+
+.stat-card.active-filter:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18) !important;
+}
+
+.admin-status-badge.clickable {
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.admin-status-badge.clickable:hover {
+  opacity: 0.85;
+  transform: scale(1.05);
+}
+
+.admin-status-badge.clickable:active {
+  transform: scale(0.95);
+}

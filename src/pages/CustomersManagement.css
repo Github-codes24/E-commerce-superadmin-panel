@@ -1,0 +1,199 @@
+/* ===== Customers Management Page Styles ===== */
+
+/* Calendar Dropdown */
+.calendar-card-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background-color: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  width: 280px;
+  padding: 16px;
+  z-index: 100;
+  margin-top: 8px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.calendar-selects {
+  display: flex;
+  gap: 8px;
+}
+
+.calendar-select {
+  border: 1px solid #cfd8dc;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: var(--admin-font);
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  background-color: #ffffff;
+  cursor: pointer;
+}
+
+.calendar-btn-nav {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #546e7a;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #90a4ae;
+  margin-bottom: 8px;
+}
+
+.calendar-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: 6px;
+  text-align: center;
+}
+
+.calendar-day-cell {
+  font-size: 13px;
+  font-weight: 600;
+  color: #37474f;
+  padding: 8px 0;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0 auto;
+  transition: background-color 0.2s;
+}
+
+.calendar-day-cell:hover {
+  background-color: #f1f3f4;
+}
+
+.calendar-day-cell.selected {
+  background-color: #a8d572;
+  color: #0e1e05;
+}
+
+.calendar-day-cell.empty {
+  cursor: default;
+  color: #cfd8dc;
+}
+
+/* Customer Profile Orders List */
+.order-history-card-item {
+  background-color: #f5f5f5;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid var(--border-light);
+  margin-bottom: 16px;
+}
+
+.order-card-left-block {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.order-product-thumbnail {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--border-light);
+}
+
+.order-info-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.order-number-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2e7d32;
+}
+
+.order-product-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.order-attributes-text {
+  font-size: 12px;
+  color: #78909c;
+  font-weight: 500;
+}
+
+.order-price-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.discount-green-arrow {
+  color: #2e7d32;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.price-text-bold {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.order-status-right-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.order-status-label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.order-status-label.delivered {
+  color: #2e7d32;
+}
+
+.order-status-label.placed {
+  color: #1976d2;
+}
+
+.order-status-label.cancelled {
+  color: #d32f2f;
+}
+
+.order-time-ago {
+  font-size: 12px;
+  color: #90a4ae;
+}

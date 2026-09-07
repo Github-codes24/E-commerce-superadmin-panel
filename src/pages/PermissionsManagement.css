@@ -1,0 +1,456 @@
+/* ===== Permissions Management Redesign Styles ===== */
+
+.permissions-page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeIn 0.4s ease-out;
+  padding: 24px 32px;
+  background-color: #fafafa;
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Header Content Row */
+.permissions-content-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.title-area h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.5px;
+}
+
+.title-area p {
+  color: #444444;
+  font-size: 14px;
+  margin: 0;
+}
+
+.save-changes-btn {
+  background-color: #a3cc66;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 24px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(163, 204, 102, 0.2);
+}
+
+.save-changes-btn:hover {
+  background-color: #92b956;
+}
+
+/* Layout Grid */
+.permissions-layout-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  position: relative;
+}
+
+/* Table styling matching screen: bold border and light green header */
+.table-container {
+  background-color: #ffffff;
+  border: 1.5px solid #1a1a1a;
+  border-radius: 0px;
+  overflow: hidden;
+}
+
+.permissions-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+/* Header styling */
+.table-header-row th {
+  background-color: #c5e396;
+  color: #000000;
+  font-size: 17px;
+  font-weight: 700;
+  padding: 20px 24px;
+  border-bottom: 1.5px solid #1a1a1a;
+}
+
+.col-actions {
+  width: 40%;
+  text-align: left;
+}
+
+.col-role {
+  width: 20%;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Group row header for modules */
+.module-group-header-row td {
+  padding: 14px 24px;
+  background-color: #ffffff;
+  border-bottom: 1.5px solid #1a1a1a;
+}
+
+.module-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.module-name-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.module-icon {
+  color: #000000;
+}
+
+.module-name {
+  font-weight: 700;
+  font-size: 16px;
+  color: #000000;
+}
+
+/* Edit button as a boxed outline pencil */
+.edit-module-btn {
+  background: none;
+  border: 1.5px solid #1a1a1a;
+  cursor: pointer;
+  color: #000000;
+  padding: 5px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.edit-module-btn:hover {
+  background-color: #f4f4f5;
+  transform: scale(1.05);
+}
+
+/* Rows showing the permissions */
+.permission-item-row td {
+  padding: 18px 24px;
+  border-bottom: none;
+  font-size: 15px;
+  color: #888888;
+}
+
+.permission-name-cell {
+  font-weight: 500;
+  padding-left: 56px !important;
+}
+
+/* Ensure the last permission row in a module has a stronger divider border */
+.permission-item-row.last-in-group td {
+  border-bottom: 1.5px solid #1a1a1a;
+}
+
+/* Custom check boxes in Table */
+.checkbox-cell {
+  vertical-align: middle;
+}
+
+.custom-checkbox {
+  display: inline-block;
+  position: relative;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.custom-checkbox input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.checkmark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 20px;
+  width: 20px;
+  background-color: #ffffff;
+  border: 1.5px solid #a1a1aa;
+  border-radius: 5px;
+  transition: all 0.2s ease;
+}
+
+.custom-checkbox:hover input ~ .checkmark {
+  border-color: #000000;
+}
+
+.custom-checkbox input:checked ~ .checkmark {
+  background-color: #ffffff;
+  border-color: #000000;
+}
+
+.checkmark:after {
+  content: "";
+  position: absolute;
+  display: none;
+  left: 6px;
+  top: 2px;
+  width: 5px;
+  height: 10px;
+  border: solid #000000;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.custom-checkbox input:checked ~ .checkmark:after {
+  display: block;
+}
+
+/* Side Drawer/Popup Overlays */
+.permissions-drawer-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.2);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.permissions-drawer-container {
+  width: 380px;
+  background-color: #ffffff;
+  height: 100vh;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border-left: 1px solid #e4e4e7;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1.5px solid #27272a;
+}
+
+.drawer-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.drawer-title-wrapper h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #18181b;
+}
+
+.drawer-icon {
+  color: #18181b;
+}
+
+.drawer-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #71717a;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.drawer-close-btn:hover {
+  background-color: #f4f4f5;
+  color: #18181b;
+}
+
+.drawer-body {
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.drawer-permissions-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+}
+
+.drawer-permission-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e4e4e7;
+}
+
+.drawer-permission-item:last-child {
+  border-bottom: none;
+}
+
+.perm-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #3f3f46;
+}
+
+.delete-perm-btn {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.delete-perm-btn:hover {
+  background-color: #fef2f2;
+}
+
+.add-permission-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #18181b;
+}
+
+.add-permission-form input {
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #e4e4e7;
+  outline: none;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.add-permission-form input:focus {
+  border-color: #a3cc66;
+}
+
+.add-perm-btn-submit {
+  background-color: #fafafa;
+  border: 1px solid #e4e4e7;
+  color: #18181b;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.add-perm-btn-submit:hover {
+  background-color: #f4f4f5;
+}
+
+.drawer-footer {
+  padding: 16px 20px;
+  border-top: 1px solid #e4e4e7;
+}
+
+.drawer-save-btn {
+  width: 100%;
+  background-color: #a3cc66;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.drawer-save-btn:hover {
+  background-color: #92b956;
+}
+
+/* Floating Toast alert */
+.permissions-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background-color: #e8f5e9;
+  border: 1px solid #c8e6c9;
+  color: #2e7d32;
+  padding: 12px 20px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  animation: toastFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 1100;
+}
+
+@keyframes toastFadeIn {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  .permissions-content-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .save-changes-btn {
+    width: 100%;
+  }
+  .permissions-drawer-container {
+    width: 100%;
+  }
+}

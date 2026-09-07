@@ -1,0 +1,153 @@
+/* ===== Vendors Management Page Styles ===== */
+
+.form-section-card {
+  background-color: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.form-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 20px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f3f4;
+  text-transform: capitalize;
+}
+
+.vendor-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.vendor-name-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vendor-name-text {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-dark);
+}
+
+.btn-link-action {
+  background: none;
+  border: none;
+  color: #5e5ff5;
+  font-family: var(--admin-font);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  width: fit-content;
+}
+
+.btn-link-action:hover {
+  text-decoration: underline;
+}
+
+/* Date input wrapper with calendar icon */
+.date-input-wrapper {
+  position: relative;
+  display: flex;
+  width: 100%;
+}
+
+.date-input-wrapper input {
+  width: 100%;
+  padding-right: 40px !important;
+}
+
+.date-input-icon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #78909c;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+/* Hide default browser date picker icons */
+.date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
+  background: transparent;
+  bottom: 0;
+  color: transparent;
+  cursor: pointer;
+  height: auto;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: auto;
+}
+
+/* Vendor Audit Panels */
+.vendor-audit-card {
+  padding: 16px 20px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.vendor-audit-card.approved {
+  background-color: #c8e5cc;
+  color: #1b5e20;
+}
+
+.vendor-audit-card.rejected {
+  background-color: #f8d7da;
+  color: #c62828;
+}
+
+.vendor-audit-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #000000;
+  text-transform: capitalize;
+}
+
+.audit-user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.audit-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.audit-user-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.audit-user-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #000000;
+}
+
+.audit-user-role {
+  font-size: 11px;
+  color: #555555;
+  font-weight: 500;
+}

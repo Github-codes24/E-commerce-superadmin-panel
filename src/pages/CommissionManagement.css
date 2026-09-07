@@ -1,0 +1,364 @@
+/* Commission Management Layout */
+.commission-management-view {
+  animation: fadeIn 0.3s ease-in-out;
+  padding: 8px 0;
+}
+
+.commission-title-header {
+  margin-bottom: 24px;
+}
+
+.commission-title-header h1 {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.commission-title-header p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Panel Main Card */
+.commission-main-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+  overflow: hidden;
+}
+
+/* Filters Bar */
+.commission-filters-bar {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* Custom Green Add Button */
+.add-commission-green-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #9ccc65; /* Soft green */
+  color: #1b5e20; /* Dark green */
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-family: var(--admin-font);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.add-commission-green-btn:hover {
+  background-color: #8bc34a;
+  transform: translateY(-1px);
+}
+
+.add-commission-green-btn:active {
+  transform: translateY(0);
+}
+
+/* Table Style Adjustments */
+.commission-table thead th {
+  background-color: #f1f8e9 !important; /* Soft light green-yellow background matching the mockup */
+  color: #33691e;
+  font-weight: 700;
+}
+
+.commission-table tbody tr {
+  transition: background-color 0.2s;
+}
+
+.commission-table tbody tr:hover {
+  background-color: #f9fbe7; /* Subtle hover state */
+}
+
+/* Badges */
+.commission-status-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.commission-status-badge.active {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.commission-status-badge.inactive {
+  background-color: #fff3e0;
+  color: #ef6c00;
+}
+
+.commission-status-badge.viewed {
+  align-self: flex-start;
+}
+
+/* Actions Row styling */
+.commission-actions-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+}
+
+.commission-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.commission-action-btn:hover {
+  background-color: #f1f8e9;
+}
+
+.commission-action-btn.delete:hover {
+  background-color: #ffebee;
+}
+
+/* Add / Edit Form Modal box styling */
+.commission-form-modal-box {
+  background-color: #ffffff;
+  border-radius: 16px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
+  animation: modalSlideUp 0.3s ease-out;
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+.commission-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px dashed var(--border-light);
+}
+
+.commission-modal-header h2 {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.commission-modal-close {
+  background-color: #c5e1a5; /* Soft light-green round button background */
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #1b5e20;
+  transition: background-color 0.2s;
+}
+
+.commission-modal-close:hover {
+  background-color: #a5d6a7;
+}
+
+.commission-modal-form {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.commission-modal-row {
+  display: flex;
+  gap: 16px;
+}
+
+.commission-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.commission-modal-field.flex-1 {
+  flex: 1;
+}
+
+.commission-modal-field label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.commission-modal-field input[type="text"],
+.commission-modal-field input[type="number"] {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #cfd8dc;
+  border-radius: 8px;
+  font-family: var(--admin-font);
+  font-size: 13px;
+  outline: none;
+  background-color: #fcfdfc;
+  transition: border-color 0.2s;
+}
+
+.commission-modal-field input:focus {
+  border-color: #9ccc65;
+}
+
+/* Premium toggle switch */
+.status-toggle-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px dashed var(--border-light);
+  padding-top: 16px;
+}
+
+.toggle-label-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.premium-toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+}
+
+.premium-toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.premium-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cfd8dc;
+  transition: .3s;
+  border-radius: 24px;
+}
+
+.premium-toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+
+.premium-toggle-switch input:checked + .premium-toggle-slider {
+  background-color: #4caf50;
+}
+
+.premium-toggle-switch input:checked + .premium-toggle-slider:before {
+  transform: translateX(24px);
+}
+
+/* Modal action buttons */
+.commission-modal-buttons {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.commission-btn-cancel {
+  flex: 1;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background-color: #dcedc8; /* Soft yellow-green */
+  color: #33691e;
+  font-family: var(--admin-font);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  text-align: center;
+}
+
+.commission-btn-cancel:hover {
+  background-color: #c5e1a5;
+}
+
+.commission-btn-submit {
+  flex: 1;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background-color: #9ccc65;
+  color: #1b5e20;
+  font-family: var(--admin-font);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  text-align: center;
+}
+
+.commission-btn-submit:hover {
+  background-color: #8bc34a;
+}
+
+/* View Commission Modal styling */
+.commission-view-modal-box {
+  background-color: #ffffff;
+  border-radius: 16px;
+  max-width: 450px;
+  width: 90%;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
+  animation: modalSlideUp 0.3s ease-out;
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+.commission-view-content {
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.commission-view-details {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+}
+
+.commission-view-row {
+  display: flex;
+  gap: 24px;
+  font-size: 14px;
+}
+
+.view-label {
+  color: var(--text-dark);
+  font-weight: 800;
+  width: 90px;
+}
+
+.view-value {
+  color: var(--text-dark);
+  font-weight: 500;
+}

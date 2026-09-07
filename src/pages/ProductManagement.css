@@ -1,0 +1,264 @@
+/* ===== Product Management Page Styles ===== */
+
+/* Product-specific status badge overrides */
+.admin-status-badge.inactive {
+  background-color: #f3e5f5;
+  color: #8e24aa;
+}
+
+.admin-status-badge.out-of-stock {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+/* Form Split Layout: left main, right side panel */
+.form-split-layout {
+  display: grid;
+  grid-template-columns: 0.8fr 1fr;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+.additional-info-panel {
+  background-color: #f1f8e9;
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid #d4e157;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.additional-info-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #000000;
+  margin-bottom: 8px;
+}
+
+/* Product table thumbnail */
+.product-thumbnail-img {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--border-light);
+}
+
+/* View Product Image Slider */
+.product-slider-container {
+  position: relative;
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  background-color: #ffffff;
+  height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.slider-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: rgba(255, 255, 255, 0.8);
+  border: 1px solid #cfd8dc;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #37474f;
+  cursor: pointer;
+  z-index: 5;
+  transition: background-color 0.2s;
+}
+
+.slider-nav-btn:hover {
+  background-color: #ffffff;
+}
+
+.slider-nav-btn.prev {
+  left: 16px;
+}
+
+.slider-nav-btn.next {
+  right: 16px;
+}
+
+.slider-main-img {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+}
+
+.product-thumbnails-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  justify-content: center;
+}
+
+.product-thumbnail-item {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  border: 1px solid #cfd8dc;
+  object-fit: cover;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.product-thumbnail-item.active {
+  border-color: #a8d572;
+  border-width: 2px;
+}
+
+/* Product Properties Card */
+.product-props-card {
+  background-color: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 24px;
+  margin-top: 24px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.product-props-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.1);
+}
+
+.product-props-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 16px;
+}
+
+.product-props-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.product-prop-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.product-prop-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-subtle);
+}
+
+.product-prop-value {
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+/* Stock/Sales stats cards */
+.prod-stats-card {
+  background-color: rgba(198, 231, 140, 1);
+  border-radius: 8px;
+  padding: 16px 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: none;
+  box-shadow: 0 8px 24px rgba(168, 204, 106, 0.55);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.prod-stats-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(168, 204, 106, 0.7);
+}
+
+.prod-stats-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: #000000;
+}
+
+.prod-stats-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555555;
+  text-transform: capitalize;
+}
+
+/* Tags / Additional Info */
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 16px;
+}
+
+.tag-pill-badge {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  text-transform: capitalize;
+}
+
+.avail-status-tag {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.avail-status-tag.in-stock {
+  color: #2e7d32;
+}
+
+.avail-status-tag.out-of-stock {
+  color: #d32f2f;
+}
+
+/* Save/Reset buttons (product-specific) */
+.btn-reset-white {
+  background-color: #ffffff;
+  color: #000000;
+  border: 1px solid #000000;
+  padding: 12px 48px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--admin-font);
+  transition: background-color 0.2s;
+}
+
+.btn-reset-white:hover {
+  background-color: #f5f5f5;
+}
+
+.btn-save-green {
+  background-color: #a8d572;
+  color: #0e1e05;
+  border: none;
+  padding: 12px 48px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--admin-font);
+  transition: background-color 0.2s, opacity 0.2s;
+}
+
+.btn-save-green:hover {
+  background-color: #97c362;
+}
