@@ -6,55 +6,84 @@ import './CategoryManagement.css'
 function CategoryManagement() {
   // Initial Categories List Data
   const [categoriesList, setCategoriesList] = useState(() => {
-    const saved = localStorage.getItem('zyvora_categoriesList')
-    return saved ? JSON.parse(saved) : [
-      { id: 2, name: 'Beauty', subcatsCount: 5, productsCount: 76, status: 'inactive', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-      { id: 3, name: 'Home', subcatsCount: 4, productsCount: 543, status: 'active', image: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-      { id: 4, name: 'Mobiles', subcatsCount: 2, productsCount: 268, status: 'active', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-      { id: 5, name: 'Electronics', subcatsCount: 128, productsCount: 2450, status: 'active', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-      { id: 6, name: 'Perfumes', subcatsCount: 7, productsCount: 101, status: 'active', image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-      { id: 7, name: 'Handmades', subcatsCount: 2, productsCount: 420, status: 'active', image: 'https://images.unsplash.com/photo-1576016770956-debb63d90029?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-    ]
+    try {
+      const saved = localStorage.getItem('zyvora_categoriesList')
+      return saved ? JSON.parse(saved) : [
+        { id: 2, name: 'Beauty', subcatsCount: 5, productsCount: 76, status: 'inactive', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+        { id: 3, name: 'Home', subcatsCount: 4, productsCount: 543, status: 'active', image: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+        { id: 4, name: 'Mobiles', subcatsCount: 2, productsCount: 268, status: 'active', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+        { id: 5, name: 'Electronics', subcatsCount: 128, productsCount: 2450, status: 'active', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+        { id: 6, name: 'Perfumes', subcatsCount: 7, productsCount: 101, status: 'active', image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+        { id: 7, name: 'Handmades', subcatsCount: 2, productsCount: 420, status: 'active', image: 'https://images.unsplash.com/photo-1576016770956-debb63d90029?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+      ]
+    } catch {
+      return [
+        { id: 2, name: 'Beauty', subcatsCount: 5, productsCount: 76, status: 'inactive', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+        { id: 3, name: 'Home', subcatsCount: 4, productsCount: 543, status: 'active', image: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+        { id: 4, name: 'Mobiles', subcatsCount: 2, productsCount: 268, status: 'active', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+        { id: 5, name: 'Electronics', subcatsCount: 128, productsCount: 2450, status: 'active', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+        { id: 6, name: 'Perfumes', subcatsCount: 7, productsCount: 101, status: 'active', image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+        { id: 7, name: 'Handmades', subcatsCount: 2, productsCount: 420, status: 'active', image: 'https://images.unsplash.com/photo-1576016770956-debb63d90029?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+      ]
+    }
   })
 
   // Sub-categories mock database
   const [subcategoriesData, setSubcategoriesData] = useState(() => {
-    const saved = localStorage.getItem('zyvora_subcategoriesData')
-    return saved ? JSON.parse(saved) : [
-      { id: 1, parentCategory: 'Electronics', name: 'Mobiles', productsCount: 245, status: 'active', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=150&h=150', createdDate: '2026-05-10' },
-      { id: 2, parentCategory: 'Electronics', name: 'Laptops', productsCount: 120, status: 'active', image: 'https://images.unsplash.com/photo-1496181130204-7552cc142438?auto=format&fit=crop&q=80&w=150&h=150', createdDate: '2026-05-11' },
-      { id: 3, parentCategory: 'Electronics', name: 'TVs', productsCount: 85, status: 'active', image: 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&q=80&w=150&h=150', createdDate: '2026-05-12' },
-      { id: 4, parentCategory: 'Electronics', name: 'Cameras', productsCount: 64, status: 'active', image: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&q=80&w=150&h=150', createdDate: '2026-05-13' },
-      ...Array.from({ length: 124 }, (_, i) => ({
-        id: i + 5,
-        parentCategory: 'Electronics',
-        name: `Subcat Option ${i + 5}`,
-        productsCount: Math.floor(Math.random() * 80) + 10,
-        status: i % 7 === 0 ? 'inactive' : 'active',
-        image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&q=80&w=150&h=150',
-        createdDate: '2026-05-14'
-      }))
-    ]
+    try {
+      const saved = localStorage.getItem('zyvora_subcategoriesData')
+      return saved ? JSON.parse(saved) : [
+        { id: 1, parentCategory: 'Electronics', name: 'Mobiles', productsCount: 245, status: 'active', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=150&h=150', createdDate: '2026-05-10' },
+        { id: 2, parentCategory: 'Electronics', name: 'Laptops', productsCount: 120, status: 'active', image: 'https://images.unsplash.com/photo-1496181130204-7552cc142438?auto=format&fit=crop&q=80&w=150&h=150', createdDate: '2026-05-11' },
+        { id: 3, parentCategory: 'Electronics', name: 'TVs', productsCount: 85, status: 'active', image: 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&q=80&w=150&h=150', createdDate: '2026-05-12' },
+        { id: 4, parentCategory: 'Electronics', name: 'Cameras', productsCount: 64, status: 'active', image: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&q=80&w=150&h=150', createdDate: '2026-05-13' },
+        ...Array.from({ length: 124 }, (_, i) => ({
+          id: i + 5,
+          parentCategory: 'Electronics',
+          name: `Subcat Option ${i + 5}`,
+          productsCount: Math.floor(Math.random() * 80) + 10,
+          status: i % 7 === 0 ? 'inactive' : 'active',
+          image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&q=80&w=150&h=150',
+          createdDate: '2026-05-14'
+        }))
+      ]
+    } catch {
+      return [
+        { id: 1, parentCategory: 'Electronics', name: 'Mobiles', productsCount: 245, status: 'active', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=150&h=150', createdDate: '2026-05-10' },
+        { id: 2, parentCategory: 'Electronics', name: 'Laptops', productsCount: 120, status: 'active', image: 'https://images.unsplash.com/photo-1496181130204-7552cc142438?auto=format&fit=crop&q=80&w=150&h=150', createdDate: '2026-05-11' },
+        { id: 3, parentCategory: 'Electronics', name: 'TVs', productsCount: 85, status: 'active', image: 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&q=80&w=150&h=150', createdDate: '2026-05-12' },
+        { id: 4, parentCategory: 'Electronics', name: 'Cameras', productsCount: 64, status: 'active', image: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&q=80&w=150&h=150', createdDate: '2026-05-13' },
+      ]
+    }
   })
 
   // Products mock database
   const [productsData, setProductsData] = useState(() => {
-    const saved = localStorage.getItem('zyvora_productsData')
-    return saved ? JSON.parse(saved) : [
-      { id: 1, subcatName: 'Mobiles', parentCategory: 'Electronics', name: 'iPhone 15', price: 79999, stock: 120, status: 'active' },
-      { id: 2, subcatName: 'Mobiles', parentCategory: 'Electronics', name: 'Samsung S25', price: 69999, stock: 95, status: 'active' },
-      { id: 3, subcatName: 'Mobiles', parentCategory: 'Electronics', name: 'OnePlus 13', price: 59999, stock: 80, status: 'active' },
-      { id: 4, subcatName: 'Mobiles', parentCategory: 'Electronics', name: 'Google Pixel', price: 54999, stock: 60, status: 'active' },
-      ...Array.from({ length: 241 }, (_, i) => ({
-        id: i + 5,
-        subcatName: 'Mobiles',
-        parentCategory: 'Electronics',
-        name: `Device Model ${i + 5}`,
-        price: (Math.floor(Math.random() * 50) + 15) * 1000,
-        stock: Math.floor(Math.random() * 150) + 5,
-        status: i % 8 === 0 ? 'inactive' : 'active'
-      }))
-    ]
+    try {
+      const saved = localStorage.getItem('zyvora_productsData')
+      return saved ? JSON.parse(saved) : [
+        { id: 1, subcatName: 'Mobiles', parentCategory: 'Electronics', name: 'iPhone 15', price: 79999, stock: 120, status: 'active' },
+        { id: 2, subcatName: 'Mobiles', parentCategory: 'Electronics', name: 'Samsung S25', price: 69999, stock: 95, status: 'active' },
+        { id: 3, subcatName: 'Mobiles', parentCategory: 'Electronics', name: 'OnePlus 13', price: 59999, stock: 80, status: 'active' },
+        { id: 4, subcatName: 'Mobiles', parentCategory: 'Electronics', name: 'Google Pixel', price: 54999, stock: 60, status: 'active' },
+        ...Array.from({ length: 241 }, (_, i) => ({
+          id: i + 5,
+          subcatName: 'Mobiles',
+          parentCategory: 'Electronics',
+          name: `Device Model ${i + 5}`,
+          price: (Math.floor(Math.random() * 50) + 15) * 1000,
+          stock: Math.floor(Math.random() * 150) + 5,
+          status: i % 8 === 0 ? 'inactive' : 'active'
+        }))
+      ]
+    } catch {
+      return [
+        { id: 1, subcatName: 'Mobiles', parentCategory: 'Electronics', name: 'iPhone 15', price: 79999, stock: 120, status: 'active' },
+        { id: 2, subcatName: 'Mobiles', parentCategory: 'Electronics', name: 'Samsung S25', price: 69999, stock: 95, status: 'active' },
+        { id: 3, subcatName: 'Mobiles', parentCategory: 'Electronics', name: 'OnePlus 13', price: 59999, stock: 80, status: 'active' },
+        { id: 4, subcatName: 'Mobiles', parentCategory: 'Electronics', name: 'Google Pixel', price: 54999, stock: 60, status: 'active' },
+      ]
+    }
   })
 
   // Navigation and view states

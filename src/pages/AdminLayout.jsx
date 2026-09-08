@@ -57,14 +57,25 @@ function AdminLayout({ onLogout }) {
   const [confirmPassword, setConfirmPassword] = useState('')
 
   const [profileData, setProfileData] = useState(() => {
-    const saved = localStorage.getItem('profileData')
-    return saved ? JSON.parse(saved) : {
-      name: 'Michael Dell',
-      role: 'Super Admin',
-      phone: '9876543210',
-      email: 'example@123@gmail.com',
-      password: '*************',
-      avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=256&h=256'
+    try {
+      const saved = localStorage.getItem('profileData')
+      return saved ? JSON.parse(saved) : {
+        name: 'Michael Dell',
+        role: 'Super Admin',
+        phone: '9876543210',
+        email: 'example@123@gmail.com',
+        password: '*************',
+        avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=256&h=256'
+      }
+    } catch {
+      return {
+        name: 'Michael Dell',
+        role: 'Super Admin',
+        phone: '9876543210',
+        email: 'example@123@gmail.com',
+        password: '*************',
+        avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=256&h=256'
+      }
     }
   })
 

@@ -109,13 +109,21 @@ const ROLES_MAPPING = {
 
 function PermissionsManagement() {
   const [permissions, setPermissions] = useState(() => {
-    const saved = localStorage.getItem('zyvora_permissions')
-    return saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS))
+    try {
+      const saved = localStorage.getItem('zyvora_permissions')
+      return saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS))
+    } catch {
+      return JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS))
+    }
   })
 
   const [validActionsMap, setValidActionsMap] = useState(() => {
-    const saved = localStorage.getItem('zyvora_valid_actions_map')
-    return saved ? JSON.parse(saved) : VALID_ACTIONS_MAP
+    try {
+      const saved = localStorage.getItem('zyvora_valid_actions_map')
+      return saved ? JSON.parse(saved) : VALID_ACTIONS_MAP
+    } catch {
+      return VALID_ACTIONS_MAP
+    }
   })
 
   // List of active modules to display as rows (All modules from ADMIN_MODULES)

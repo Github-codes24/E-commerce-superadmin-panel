@@ -78,6 +78,9 @@ export const registerAdmin = async ({ name, fullName, email, phone, mobile, pass
   return response.data;
 };
 
+export const createAdmin = registerAdmin;
+
+
 // 10. Get All Admins (GET /api/superadmin/admins/get-all)
 export const getAllAdmins = async () => {
   const response = await api.get('/superadmin/admins/get-all');
