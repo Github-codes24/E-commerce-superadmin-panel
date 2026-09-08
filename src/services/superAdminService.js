@@ -93,6 +93,31 @@ export const getAdminById = async (id) => {
   return response.data;
 };
 
+// 12. Update Admin (PUT /api/superadmin/admins/update/:id)
+export const updateAdmin = async (id, { name, email, phone, role = 'ADMIN' }) => {
+  const response = await api.put(`/superadmin/admins/update/${id}`, {
+    name,
+    email,
+    phone,
+    role,
+  });
+  return response.data;
+};
+
+// 13. Activate / Deactivate Admin (PATCH /api/superadmin/admins/status/:id/status)
+export const updateAdminStatus = async (id, status) => {
+  const response = await api.patch(`/superadmin/admins/status/${id}/status`, {
+    status: typeof status === 'string' ? status.toUpperCase() : (status ? 'ACTIVE' : 'INACTIVE'),
+  });
+  return response.data;
+};
+
+// 14. Delete Admin (DELETE /api/superadmin/admins/delete/:id)
+export const deleteAdmin = async (id) => {
+  const response = await api.delete(`/superadmin/admins/delete/${id}`);
+  return response.data;
+};
+
 export default {
   createSuperAdmin,
   loginSuperAdmin,
@@ -106,4 +131,10 @@ export default {
   createAdmin,
   getAllAdmins,
   getAdminById,
+  updateAdmin,
+  updateAdminStatus,
+  deleteAdmin,
 };
+
+
+

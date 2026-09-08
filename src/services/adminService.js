@@ -59,10 +59,61 @@ export const getAdminById = async (id) => {
   return response.data;
 };
 
+/**
+ * 8 - Update Admin (PUT /api/superadmin/admins/update/:id)
+ * Method: PUT
+ * Endpoint: /api/superadmin/admins/update/:id
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Admin ID
+ * @param {Object} data - { name, email, phone, role }
+ */
+export const updateAdmin = async (id, { name, email, phone, role = 'ADMIN' }) => {
+  const response = await api.put(`/superadmin/admins/update/${id}`, {
+    name,
+    email,
+    phone,
+    role,
+  });
+  return response.data;
+};
+
+/**
+ * Activate / Deactivate Admin (PATCH /api/superadmin/admins/status/:id/status)
+ * Method: PATCH
+ * Endpoint: /api/superadmin/admins/status/:id/status
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Admin ID
+ * @param {string|boolean} status - 'ACTIVE' / 'INACTIVE' or boolean
+ */
+export const updateAdminStatus = async (id, status) => {
+  const response = await api.patch(`/superadmin/admins/status/${id}/status`, {
+    status: typeof status === 'string' ? status.toUpperCase() : (status ? 'ACTIVE' : 'INACTIVE'),
+  });
+  return response.data;
+};
+
+/**
+ * 10 - Delete Admin (DELETE /api/superadmin/admins/delete/:id)
+ * Method: DELETE
+ * Endpoint: /api/superadmin/admins/delete/:id
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Admin ID
+ */
+export const deleteAdmin = async (id) => {
+  const response = await api.delete(`/superadmin/admins/delete/${id}`);
+  return response.data;
+};
+
 export default {
   registerAdmin,
   createAdmin,
   createSuperAdmin,
   getAllAdmins,
   getAdminById,
+  updateAdmin,
+  updateAdminStatus,
+  deleteAdmin,
 };
+
+
+

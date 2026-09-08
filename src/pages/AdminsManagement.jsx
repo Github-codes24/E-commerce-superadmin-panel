@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, X, Edit, Trash2, RotateCw } from 'lucide-react'
-import { registerAdmin, createSuperAdmin, getAllAdmins, getAdminById } from '../services/superAdminService'
+import { registerAdmin, createSuperAdmin, getAllAdmins, getAdminById, updateAdmin, updateAdminStatus, deleteAdmin } from '../services/superAdminService'
 import './AdminsManagement.css'
 
 
@@ -11,6 +11,12 @@ function AdminsManagement() {
   const [fetchError, setFetchError] = useState(null)
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState(null)
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false)
+  const [bulkDeleteError, setBulkDeleteError] = useState('')
 
   // Fetch All Admins from Backend API
   const fetchAdmins = async () => {
@@ -348,181 +354,321 @@ function AdminsManagement() {
 
   // Open Edit Dialog
   const handleOpenEdit = (admin) => {
+    setEditError('')
     setEditingAdmin({
       ...admin,
+      id: admin.id || admin._id,
+      name: admin.name || '',
+      email: admin.email || '',
+      phone: admin.phone && admin.phone !== 'N/A' ? admin.phone : '',
+      role: admin.role || 'ADMIN',
+      gender: admin.gender || 'Male',
       isActive: admin.status === 'active'
     })
   }
 
-  // Save Edit Details Changes
-  const handleSaveEdit = (e) => {
+  // Save Edit Details Changes (PUT /api/superadmin/admins/update/:id)
+  const handleSaveEdit = async (e) => {
     e.preventDefault()
-    if (!editingAdmin.name.trim() || !editingAdmin.email.trim()) return
+    if (!editingAdmin?.name?.trim() || !editingAdmin?.email?.trim()) return
 
-    const updatedStatus = editingAdmin.isActive ? 'active' : 'inactive'
-
-    const editActivity = {
-      id: Date.now(),
-      title: 'Admin Details Updated',
-      description: `Name, email or details updated`,
-      time: 'Just now'
+    const adminId = editingAdmin.id || editingAdmin._id
+    if (!adminId) {
+      setEditError('Admin ID is missing.')
+      return
     }
 
-    // Update list
-    setAdminsList(adminsList.map((a) => {
-      if (a.id === editingAdmin.id) {
-        const updatedAdmin = {
-          ...a,
-          name: editingAdmin.name,
-          email: editingAdmin.email,
-          phone: editingAdmin.phone,
-          gender: editingAdmin.gender,
-          status: updatedStatus,
-          activities: [editActivity, ...(a.activities || [])]
-        }
-        // Sync viewed admin profile details
-        if (viewedAdmin && viewedAdmin.id === editingAdmin.id) {
-          setViewedAdmin(updatedAdmin)
-        }
-        return updatedAdmin
+    setEditLoading(true)
+    setEditError('')
+
+    try {
+      const res = await updateAdmin(adminId, {
+        name: editingAdmin.name.trim(),
+        email: editingAdmin.email.trim(),
+        phone: editingAdmin.phone ? editingAdmin.phone.trim() : '9876543210',
+        role: editingAdmin.role || 'ADMIN',
+      })
+
+      const updatedData = res?.data || res?.admin || {}
+      const updatedName = updatedData.name || updatedData.fullName || editingAdmin.name.trim()
+      const updatedEmail = updatedData.email || editingAdmin.email.trim()
+      const updatedPhone = updatedData.phone || updatedData.mobile || editingAdmin.phone
+      const updatedRole = updatedData.role || editingAdmin.role || 'ADMIN'
+      const updatedStatus = updatedData.status
+        ? (updatedData.status.toString().toLowerCase() === 'active' ? 'active' : 'inactive')
+        : (editingAdmin.isActive ? 'active' : 'inactive')
+
+      const editActivity = {
+        id: Date.now(),
+        title: 'Admin Details Updated',
+        description: res?.message || 'Updated via API (/api/superadmin/admins/update/:id)',
+        time: 'Just now'
       }
-      return a
-    }))
 
-    const globalActivity = {
-      id: Date.now(),
-      title: 'Admin Details Updated',
-      subtitle: `${editingAdmin.name} details changed`,
-      time: 'Just now'
+      // Update list state
+      setAdminsList(prevList => prevList.map((a) => {
+        if (a.id === adminId) {
+          const updatedAdmin = {
+            ...a,
+            name: updatedName,
+            email: updatedEmail,
+            phone: updatedPhone,
+            role: updatedRole,
+            gender: editingAdmin.gender || a.gender,
+            status: updatedStatus,
+            activities: [editActivity, ...(a.activities || [])]
+          }
+          return updatedAdmin
+        }
+        return a
+      }))
+
+      // Sync viewed admin profile details
+      if (viewedAdmin && (viewedAdmin.id === adminId || viewedAdmin._id === adminId)) {
+        setViewedAdmin(prev => ({
+          ...prev,
+          name: updatedName,
+          email: updatedEmail,
+          phone: updatedPhone,
+          role: updatedRole,
+          gender: editingAdmin.gender || prev.gender,
+          status: updatedStatus,
+          activities: [editActivity, ...(prev?.activities || [])]
+        }))
+      }
+
+      const globalActivity = {
+        id: Date.now(),
+        title: 'Admin Details Updated',
+        subtitle: `${updatedName} updated successfully`,
+        time: 'Just now'
+      }
+      setActivities(prev => [globalActivity, ...prev])
+
+      setEditingAdmin(null)
+      // Refresh list to stay completely in sync with backend
+      await fetchAdmins()
+    } catch (error) {
+      console.error('Update Admin Error:', error)
+      const errData = error.response?.data
+      let backendError = ''
+
+      if (errData?.errors) {
+        if (Array.isArray(errData.errors)) {
+          backendError = errData.errors.map(err => {
+            const field = err.field || (err.path ? (Array.isArray(err.path) ? err.path.join('.') : err.path) : '')
+            const fieldPrefix = field ? `${field}: ` : ''
+            return `${fieldPrefix}${err.msg || err.message || (typeof err === 'string' ? err : JSON.stringify(err))}`
+          }).join(', ')
+        } else if (typeof errData.errors === 'object') {
+          backendError = Object.entries(errData.errors).map(([key, val]) => `${key}: ${typeof val === 'object' ? JSON.stringify(val) : val}`).join(', ')
+        } else {
+          backendError = String(errData.errors)
+        }
+      }
+
+      if (!backendError) {
+        backendError = errData?.message || (typeof errData === 'string' ? errData : null) || error.message || 'Failed to update Admin.'
+      }
+
+      setEditError(backendError)
+    } finally {
+      setEditLoading(false)
     }
-    setActivities([globalActivity, ...activities])
-
-    setEditingAdmin(null)
   }
 
-  // Toggle inline status in row or profile
-  const handleToggleStatus = (id) => {
-    let adminName = ''
-    let newStatus = ''
+  // Toggle inline status in row or profile (PATCH /api/superadmin/admins/status/:id/status)
+  const handleToggleStatus = async (id) => {
+    const targetAdmin = adminsList.find(a => a.id === id)
+    if (!targetAdmin) return
 
-    setAdminsList(prevList => prevList.map(admin => {
-      if (admin.id === id) {
-        adminName = admin.name
-        newStatus = admin.status === 'active' ? 'inactive' : 'active'
-        const newAct = {
-          id: Date.now(),
-          title: `Status Toggled`,
-          description: `Status changed to ${newStatus}`,
-          time: 'Just now'
-        }
-        const updatedAdmin = {
-          ...admin,
-          status: newStatus,
-          activities: [newAct, ...(admin.activities || [])]
-        }
-        if (viewedAdmin && viewedAdmin.id === id) {
-          setViewedAdmin(updatedAdmin)
-        }
-        return updatedAdmin
+    const currentStatus = targetAdmin.status?.toLowerCase() === 'active' ? 'ACTIVE' : 'INACTIVE'
+    const newStatusBackend = currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+    const newStatusLocal = newStatusBackend === 'ACTIVE' ? 'active' : 'inactive'
+
+    try {
+      const res = await updateAdminStatus(id, newStatusBackend)
+      const resStatus = res?.data?.status
+        ? (res.data.status.toString().toLowerCase() === 'active' ? 'active' : 'inactive')
+        : newStatusLocal
+
+      const newAct = {
+        id: Date.now(),
+        title: 'Status Toggled',
+        description: res?.message || `Status changed to ${resStatus}`,
+        time: 'Just now'
       }
-      return admin
-    }))
 
-    if (adminName) {
+      setAdminsList(prevList => prevList.map(admin => {
+        if (admin.id === id) {
+          const updatedAdmin = {
+            ...admin,
+            status: resStatus,
+            activities: [newAct, ...(admin.activities || [])]
+          }
+          if (viewedAdmin && viewedAdmin.id === id) {
+            setViewedAdmin(updatedAdmin)
+          }
+          return updatedAdmin
+        }
+        return admin
+      }))
+
+      if (viewedAdmin && viewedAdmin.id === id) {
+        setViewedAdmin(prev => ({
+          ...prev,
+          status: resStatus,
+          activities: [newAct, ...(prev?.activities || [])]
+        }))
+      }
+
       const toggleActivity = {
         id: Date.now(),
         title: 'Status Toggled',
-        subtitle: `${adminName} is now ${newStatus}`,
+        subtitle: `${targetAdmin.name} is now ${resStatus}`,
         time: 'Just now'
       }
-      setActivities([toggleActivity, ...activities])
+      setActivities(prev => [toggleActivity, ...prev])
+    } catch (err) {
+      console.error('Failed to toggle admin status:', err)
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to update admin status'
+      alert(errMsg)
     }
   }
 
-  // Bulk status update
-  const handleBulkStatusChange = (newStatus) => {
+  // Bulk status update (PATCH /api/superadmin/admins/status/:id/status)
+  const handleBulkStatusChange = async (newStatus) => {
     const selectedAdmins = adminsList.filter(a => a.checked)
     if (selectedAdmins.length === 0) return
 
-    const selectedIds = selectedAdmins.map(a => a.id)
-    const adminNames = selectedAdmins.map(a => a.name).join(', ')
+    const newStatusBackend = newStatus.toUpperCase()
+    const newStatusLocal = newStatus.toLowerCase()
 
-    const bulkAct = {
-      id: Date.now(),
-      title: `Bulk Status Update`,
-      description: `Status updated to ${newStatus} via bulk operations`,
-      time: 'Just now'
-    }
+    try {
+      await Promise.all(
+        selectedAdmins.map(admin => updateAdminStatus(admin.id, newStatusBackend))
+      )
 
-    setAdminsList(prevList => prevList.map(admin => {
-      if (selectedIds.includes(admin.id)) {
-        const updatedAdmin = {
-          ...admin,
-          status: newStatus,
-          activities: [bulkAct, ...(admin.activities || [])]
-        }
-        if (viewedAdmin && viewedAdmin.id === admin.id) {
-          setViewedAdmin(updatedAdmin)
-        }
-        return updatedAdmin
+      const selectedIds = selectedAdmins.map(a => a.id)
+      const adminNames = selectedAdmins.map(a => a.name).join(', ')
+
+      const bulkAct = {
+        id: Date.now(),
+        title: `Bulk Status Update`,
+        description: `Status updated to ${newStatusLocal} via API`,
+        time: 'Just now'
       }
-      return admin
-    }))
 
-    const globalBulkActivity = {
-      id: Date.now(),
-      title: 'Bulk Status Update',
-      subtitle: `Updated status to ${newStatus} for: ${adminNames}`,
-      time: 'Just now'
+      setAdminsList(prevList => prevList.map(admin => {
+        if (selectedIds.includes(admin.id)) {
+          const updatedAdmin = {
+            ...admin,
+            status: newStatusLocal,
+            activities: [bulkAct, ...(admin.activities || [])]
+          }
+          return updatedAdmin
+        }
+        return admin
+      }))
+
+      if (viewedAdmin && selectedIds.includes(viewedAdmin.id)) {
+        setViewedAdmin(prev => ({
+          ...prev,
+          status: newStatusLocal,
+          activities: [bulkAct, ...(prev?.activities || [])]
+        }))
+      }
+
+      const globalBulkActivity = {
+        id: Date.now(),
+        title: 'Bulk Status Update',
+        subtitle: `Updated status to ${newStatusLocal} for: ${adminNames}`,
+        time: 'Just now'
+      }
+      setActivities(prev => [globalBulkActivity, ...prev])
+    } catch (err) {
+      console.error('Failed to update bulk admin status:', err)
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to update status for selected admins'
+      alert(errMsg)
+      await fetchAdmins()
     }
-    setActivities([globalBulkActivity, ...activities])
   }
 
-  // Bulk delete execution
-  const handleBulkDeleteConfirm = () => {
+  // Bulk delete execution (DELETE /api/superadmin/admins/delete/:id)
+  const handleBulkDeleteConfirm = async () => {
     const selectedAdmins = adminsList.filter(a => a.checked)
     if (selectedAdmins.length === 0) return
 
     const selectedIds = selectedAdmins.map(a => a.id)
     const adminNames = selectedAdmins.map(a => a.name).join(', ')
 
-    setAdminsList(prevList => prevList.filter(admin => !selectedIds.includes(admin.id)))
+    setBulkDeleteLoading(true)
+    setBulkDeleteError('')
 
-    if (viewedAdmin && selectedIds.includes(viewedAdmin.id)) {
-      setViewedAdmin(null)
-    }
+    try {
+      await Promise.all(
+        selectedAdmins.map(admin => deleteAdmin(admin.id))
+      )
 
-    const globalBulkActivity = {
-      id: Date.now(),
-      title: 'Bulk Admins Deleted',
-      subtitle: `Deleted: ${adminNames}`,
-      time: 'Just now'
+      setAdminsList(prevList => prevList.filter(admin => !selectedIds.includes(admin.id)))
+
+      if (viewedAdmin && selectedIds.includes(viewedAdmin.id)) {
+        setViewedAdmin(null)
+      }
+
+      const globalBulkActivity = {
+        id: Date.now(),
+        title: 'Bulk Admins Deleted',
+        subtitle: `Deleted: ${adminNames}`,
+        time: 'Just now'
+      }
+      setActivities(prev => [globalBulkActivity, ...prev])
+      setShowBulkDeleteConfirm(false)
+    } catch (err) {
+      console.error('Failed to bulk delete admins:', err)
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to delete selected admins'
+      setBulkDeleteError(errMsg)
+      await fetchAdmins()
+    } finally {
+      setBulkDeleteLoading(false)
     }
-    setActivities([globalBulkActivity, ...activities])
-    setShowBulkDeleteConfirm(false)
   }
 
-  // Confirm and Execute Deletion
-  const handleDeleteConfirm = () => {
+  // Confirm and Execute Deletion (DELETE /api/superadmin/admins/delete/:id)
+  const handleDeleteConfirm = async () => {
+    if (!deletingAdminId) return
     const adminToDelete = adminsList.find((a) => a.id === deletingAdminId)
-    if (!adminToDelete) return
+    const adminName = adminToDelete?.name || 'Admin'
 
-    setAdminsList(adminsList.filter((a) => a.id !== deletingAdminId))
+    setDeleteLoading(true)
+    setDeleteError('')
 
-    const deleteActivity = {
-      id: Date.now(),
-      title: 'Admin Account Deleted',
-      subtitle: `${adminToDelete.name} was deleted`,
-      time: 'Just now'
+    try {
+      const res = await deleteAdmin(deletingAdminId)
+
+      setAdminsList(prevList => prevList.filter((a) => a.id !== deletingAdminId))
+
+      const deleteActivity = {
+        id: Date.now(),
+        title: 'Admin Account Deleted',
+        subtitle: res?.message || `${adminName} was deleted`,
+        time: 'Just now'
+      }
+      setActivities(prev => [deleteActivity, ...prev])
+
+      // If deleting the currently viewed profile admin, reset profile navigation state
+      if (viewedAdmin && (viewedAdmin.id === deletingAdminId || viewedAdmin._id === deletingAdminId)) {
+        setViewedAdmin(null)
+      }
+
+      setDeletingAdminId(null)
+    } catch (err) {
+      console.error('Failed to delete admin:', err)
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to delete admin'
+      setDeleteError(errMsg)
+    } finally {
+      setDeleteLoading(false)
     }
-    setActivities([deleteActivity, ...activities])
-
-    // If deleting the currently viewed profile admin, reset profile navigation state
-    if (viewedAdmin && viewedAdmin.id === deletingAdminId) {
-      setViewedAdmin(null)
-    }
-
-    setDeletingAdminId(null)
   }
 
   // Filter list
@@ -804,7 +950,12 @@ function AdminsManagement() {
               />
               <div className="admin-profile-info">
                 <h3>{viewedAdmin.name}</h3>
-                <span className={`admin-status-badge ${viewedAdmin.status}`} style={{ width: 'fit-content' }}>
+                <span
+                  className={`admin-status-badge clickable ${viewedAdmin.status}`}
+                  style={{ width: 'fit-content', cursor: 'pointer' }}
+                  onClick={() => handleToggleStatus(viewedAdmin.id)}
+                  title="Click to toggle status"
+                >
                   {viewedAdmin.status}
                 </span>
               </div>
@@ -899,39 +1050,57 @@ function AdminsManagement() {
 
         {/* Edit Modal Overlay */}
         {editingAdmin && (
-          <div className="modal-overlay" onClick={() => setEditingAdmin(null)}>
+          <div className="modal-overlay" onClick={() => !editLoading && setEditingAdmin(null)}>
             <div className="modal-box" onClick={(e) => e.stopPropagation()}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #f1f3f4', paddingBottom: '12px' }}>
                 <h2 className="modal-title" style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>Edit Admin Details</h2>
                 <button
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#78909c', display: 'flex', padding: '4px' }}
-                  onClick={() => setEditingAdmin(null)}
+                  style={{ background: 'none', border: 'none', cursor: editLoading ? 'not-allowed' : 'pointer', color: '#78909c', display: 'flex', padding: '4px' }}
+                  onClick={() => !editLoading && setEditingAdmin(null)}
+                  disabled={editLoading}
                   aria-label="Close modal"
                 >
                   <X style={{ width: '20px', height: '20px' }} />
                 </button>
               </div>
 
+              {editError && (
+                <div style={{
+                  backgroundColor: '#FEF2F2',
+                  border: '1px solid #F87171',
+                  color: '#DC2626',
+                  padding: '10px 14px',
+                  borderRadius: '6px',
+                  marginBottom: '16px',
+                  fontSize: '13px',
+                  fontWeight: '500'
+                }}>
+                  ⚠️ {editError}
+                </div>
+              )}
+
               <form onSubmit={handleSaveEdit} className="modal-form">
                 <div className="modal-field">
-                  <label htmlFor="edit-name">Name</label>
+                  <label htmlFor="edit-name">Name *</label>
                   <input
                     id="edit-name"
                     type="text"
                     value={editingAdmin.name}
                     onChange={(e) => setEditingAdmin({ ...editingAdmin, name: e.target.value })}
                     required
+                    disabled={editLoading}
                   />
                 </div>
 
                 <div className="modal-field">
-                  <label htmlFor="edit-email">Email Address</label>
+                  <label htmlFor="edit-email">Email Address *</label>
                   <input
                     id="edit-email"
                     type="email"
                     value={editingAdmin.email}
                     onChange={(e) => setEditingAdmin({ ...editingAdmin, email: e.target.value })}
                     required
+                    disabled={editLoading}
                   />
                 </div>
 
@@ -940,19 +1109,36 @@ function AdminsManagement() {
                   <input
                     id="edit-phone"
                     type="tel"
+                    placeholder="e.g. 9876543211"
                     value={editingAdmin.phone}
                     onChange={(e) => setEditingAdmin({ ...editingAdmin, phone: e.target.value })}
+                    disabled={editLoading}
                   />
+                </div>
+
+                <div className="modal-field">
+                  <label htmlFor="edit-role">Role</label>
+                  <select
+                    id="edit-role"
+                    value={editingAdmin.role || 'ADMIN'}
+                    onChange={(e) => setEditingAdmin({ ...editingAdmin, role: e.target.value })}
+                    disabled={editLoading}
+                  >
+                    <option value="ADMIN">ADMIN</option>
+                    <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                    <option value="MANAGER">MANAGER</option>
+                    <option value="EDITOR">EDITOR</option>
+                  </select>
                 </div>
 
                 <div className="modal-field">
                   <label htmlFor="edit-gender">Gender</label>
                   <select
                     id="edit-gender"
-                    value={editingAdmin.gender}
+                    value={editingAdmin.gender || 'Male'}
                     onChange={(e) => setEditingAdmin({ ...editingAdmin, gender: e.target.value })}
+                    disabled={editLoading}
                   >
-                    <option value="">Select</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
@@ -963,7 +1149,8 @@ function AdminsManagement() {
                   <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-dark)', marginBottom: '4px', display: 'block' }}>Status</span>
                   <div
                     className={`status-toggle-container ${editingAdmin.isActive ? 'active' : ''}`}
-                    onClick={() => setEditingAdmin(prev => ({ ...prev, isActive: !prev.isActive }))}
+                    onClick={() => !editLoading && setEditingAdmin(prev => ({ ...prev, isActive: !prev.isActive }))}
+                    style={{ opacity: editLoading ? 0.7 : 1, cursor: editLoading ? 'not-allowed' : 'pointer' }}
                   >
                     <div className="status-toggle-pill">
                       <span className="status-toggle-text">
@@ -974,8 +1161,39 @@ function AdminsManagement() {
                 </div>
 
                 <div className="modal-buttons" style={{ marginTop: '20px', gap: '12px' }}>
-                  <button type="submit" className="save-changes-btn" style={{ width: '100%', padding: '12px 24px', backgroundColor: '#a8d572', color: '#0e1e05', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--admin-font)' }}>
-                    Save Changes
+                  <button
+                    type="button"
+                    className="btn-cancel-red"
+                    style={{ width: '50%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', cursor: editLoading ? 'not-allowed' : 'pointer' }}
+                    onClick={() => setEditingAdmin(null)}
+                    disabled={editLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="save-changes-btn"
+                    disabled={editLoading}
+                    style={{
+                      width: '50%',
+                      padding: '12px 24px',
+                      backgroundColor: '#a8d572',
+                      color: '#0e1e05',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      cursor: editLoading ? 'not-allowed' : 'pointer',
+                      fontFamily: 'var(--admin-font)',
+                      opacity: editLoading ? 0.7 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    {editLoading && <RotateCw style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />}
+                    {editLoading ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </form>
@@ -1342,17 +1560,37 @@ function AdminsManagement() {
 
       {/* Bulk Delete Confirmation Modal Overlay */}
       {showBulkDeleteConfirm && (
-        <div className="modal-overlay" onClick={() => setShowBulkDeleteConfirm(false)}>
+        <div className="modal-overlay" onClick={() => !bulkDeleteLoading && setShowBulkDeleteConfirm(false)}>
           <div className="delete-modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="delete-modal-title">Delete Selected Admins</div>
             <div className="delete-modal-subtitle">
               Are you sure you want to delete the {adminsList.filter(a => a.checked).length} selected admin accounts? This action cannot be undone.
             </div>
+
+            {bulkDeleteError && (
+              <div style={{
+                backgroundColor: '#FEF2F2',
+                border: '1px solid #F87171',
+                color: '#DC2626',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                marginBottom: '16px',
+                fontSize: '13px',
+                fontWeight: '500'
+              }}>
+                ⚠️ {bulkDeleteError}
+              </div>
+            )}
+
             <div className="delete-modal-buttons">
               <button
                 type="button"
                 className="btn-delete-cancel"
-                onClick={() => setShowBulkDeleteConfirm(false)}
+                onClick={() => {
+                  setBulkDeleteError('')
+                  setShowBulkDeleteConfirm(false)
+                }}
+                disabled={bulkDeleteLoading}
               >
                 Cancel
               </button>
@@ -1360,8 +1598,18 @@ function AdminsManagement() {
                 type="button"
                 className="btn-delete-confirm"
                 onClick={handleBulkDeleteConfirm}
+                disabled={bulkDeleteLoading}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  opacity: bulkDeleteLoading ? 0.7 : 1,
+                  cursor: bulkDeleteLoading ? 'not-allowed' : 'pointer'
+                }}
               >
-                Delete
+                {bulkDeleteLoading && <RotateCw style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />}
+                {bulkDeleteLoading ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
@@ -1370,39 +1618,57 @@ function AdminsManagement() {
 
       {/* Edit Modal Overlay */}
       {editingAdmin && (
-        <div className="modal-overlay" onClick={() => setEditingAdmin(null)}>
+        <div className="modal-overlay" onClick={() => !editLoading && setEditingAdmin(null)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #f1f3f4', paddingBottom: '12px' }}>
               <h2 className="modal-title" style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>Edit Admin Details</h2>
               <button
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#78909c', display: 'flex', padding: '4px' }}
-                onClick={() => setEditingAdmin(null)}
+                style={{ background: 'none', border: 'none', cursor: editLoading ? 'not-allowed' : 'pointer', color: '#78909c', display: 'flex', padding: '4px' }}
+                onClick={() => !editLoading && setEditingAdmin(null)}
+                disabled={editLoading}
                 aria-label="Close modal"
               >
                 <X style={{ width: '20px', height: '20px' }} />
               </button>
             </div>
 
+            {editError && (
+              <div style={{
+                backgroundColor: '#FEF2F2',
+                border: '1px solid #F87171',
+                color: '#DC2626',
+                padding: '10px 14px',
+                borderRadius: '6px',
+                marginBottom: '16px',
+                fontSize: '13px',
+                fontWeight: '500'
+              }}>
+                ⚠️ {editError}
+              </div>
+            )}
+
             <form onSubmit={handleSaveEdit} className="modal-form">
               <div className="modal-field">
-                <label htmlFor="edit-name">Name</label>
+                <label htmlFor="edit-name">Name *</label>
                 <input
                   id="edit-name"
                   type="text"
                   value={editingAdmin.name}
                   onChange={(e) => setEditingAdmin({ ...editingAdmin, name: e.target.value })}
                   required
+                  disabled={editLoading}
                 />
               </div>
 
               <div className="modal-field">
-                <label htmlFor="edit-email">Email Address</label>
+                <label htmlFor="edit-email">Email Address *</label>
                 <input
                   id="edit-email"
                   type="email"
                   value={editingAdmin.email}
                   onChange={(e) => setEditingAdmin({ ...editingAdmin, email: e.target.value })}
                   required
+                  disabled={editLoading}
                 />
               </div>
 
@@ -1411,19 +1677,36 @@ function AdminsManagement() {
                 <input
                   id="edit-phone"
                   type="tel"
+                  placeholder="e.g. 9876543211"
                   value={editingAdmin.phone}
                   onChange={(e) => setEditingAdmin({ ...editingAdmin, phone: e.target.value })}
+                  disabled={editLoading}
                 />
+              </div>
+
+              <div className="modal-field">
+                <label htmlFor="edit-role">Role</label>
+                <select
+                  id="edit-role"
+                  value={editingAdmin.role || 'ADMIN'}
+                  onChange={(e) => setEditingAdmin({ ...editingAdmin, role: e.target.value })}
+                  disabled={editLoading}
+                >
+                  <option value="ADMIN">ADMIN</option>
+                  <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                  <option value="MANAGER">MANAGER</option>
+                  <option value="EDITOR">EDITOR</option>
+                </select>
               </div>
 
               <div className="modal-field">
                 <label htmlFor="edit-gender">Gender</label>
                 <select
                   id="edit-gender"
-                  value={editingAdmin.gender}
+                  value={editingAdmin.gender || 'Male'}
                   onChange={(e) => setEditingAdmin({ ...editingAdmin, gender: e.target.value })}
+                  disabled={editLoading}
                 >
-                  <option value="">Select</option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
                   <option value="Other">Other</option>
@@ -1434,7 +1717,8 @@ function AdminsManagement() {
                 <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-dark)', marginBottom: '4px', display: 'block' }}>Status</span>
                 <div
                   className={`status-toggle-container ${editingAdmin.isActive ? 'active' : ''}`}
-                  onClick={() => setEditingAdmin(prev => ({ ...prev, isActive: !prev.isActive }))}
+                  onClick={() => !editLoading && setEditingAdmin(prev => ({ ...prev, isActive: !prev.isActive }))}
+                  style={{ opacity: editLoading ? 0.7 : 1, cursor: editLoading ? 'not-allowed' : 'pointer' }}
                 >
                   <div className="status-toggle-pill">
                     <span className="status-toggle-text">
@@ -1445,8 +1729,39 @@ function AdminsManagement() {
               </div>
 
               <div className="modal-buttons" style={{ marginTop: '20px', gap: '12px' }}>
-                <button type="submit" className="save-changes-btn" style={{ width: '100%', padding: '12px 24px', backgroundColor: '#a8d572', color: '#0e1e05', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--admin-font)' }}>
-                  Save Changes
+                <button
+                  type="button"
+                  className="btn-cancel-red"
+                  style={{ width: '50%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', cursor: editLoading ? 'not-allowed' : 'pointer' }}
+                  onClick={() => setEditingAdmin(null)}
+                  disabled={editLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="save-changes-btn"
+                  disabled={editLoading}
+                  style={{
+                    width: '50%',
+                    padding: '12px 24px',
+                    backgroundColor: '#a8d572',
+                    color: '#0e1e05',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: editLoading ? 'not-allowed' : 'pointer',
+                    fontFamily: 'var(--admin-font)',
+                    opacity: editLoading ? 0.7 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {editLoading && <RotateCw style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />}
+                  {editLoading ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>
@@ -1456,15 +1771,35 @@ function AdminsManagement() {
 
       {/* Delete Confirmation Modal Overlay */}
       {deletingAdminId && (
-        <div className="modal-overlay" onClick={() => setDeletingAdminId(null)}>
+        <div className="modal-overlay" onClick={() => !deleteLoading && setDeletingAdminId(null)}>
           <div className="delete-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="delete-modal-title">Delete</div>
-            <div className="delete-modal-subtitle">Are You Sure Want To Delete?</div>
+            <div className="delete-modal-title">Delete Admin</div>
+            <div className="delete-modal-subtitle">Are you sure you want to delete this administrator? This action cannot be undone.</div>
+
+            {deleteError && (
+              <div style={{
+                backgroundColor: '#FEF2F2',
+                border: '1px solid #F87171',
+                color: '#DC2626',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                marginBottom: '16px',
+                fontSize: '13px',
+                fontWeight: '500'
+              }}>
+                ⚠️ {deleteError}
+              </div>
+            )}
+
             <div className="delete-modal-buttons">
               <button
                 type="button"
                 className="btn-delete-cancel"
-                onClick={() => setDeletingAdminId(null)}
+                onClick={() => {
+                  setDeleteError('')
+                  setDeletingAdminId(null)
+                }}
+                disabled={deleteLoading}
               >
                 Cancel
               </button>
@@ -1472,8 +1807,18 @@ function AdminsManagement() {
                 type="button"
                 className="btn-delete-confirm"
                 onClick={handleDeleteConfirm}
+                disabled={deleteLoading}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  opacity: deleteLoading ? 0.7 : 1,
+                  cursor: deleteLoading ? 'not-allowed' : 'pointer'
+                }}
               >
-                Delete
+                {deleteLoading && <RotateCw style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />}
+                {deleteLoading ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
