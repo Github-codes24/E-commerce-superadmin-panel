@@ -118,6 +118,40 @@ export const deleteAdmin = async (id) => {
   return response.data;
 };
 
+// 15. Get All Products (GET /api/superadmin/products)
+export const getAllProducts = async (params = {}) => {
+  const response = await api.get('/superadmin/products', { params });
+  return response.data;
+};
+
+// 16. Get Product By ID (GET /api/superadmin/products/:id)
+export const getProductById = async (id) => {
+  const response = await api.get(`/superadmin/products/${id}`);
+  return response.data;
+};
+
+// 17. Create Product (POST /api/superadmin/products)
+export const createProduct = async (formData) => {
+  const response = await api.post('/superadmin/products', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+// 18. Update Product (PUT /api/superadmin/products/:id)
+export const updateProduct = async (id, data) => {
+  const response = await api.put(`/superadmin/products/${id}`, data);
+  return response.data;
+};
+
+// 19. Delete Product (DELETE /api/superadmin/products/:id)
+export const deleteProduct = async (id) => {
+  const response = await api.delete(`/superadmin/products/${id}`);
+  return response.data;
+};
+
 export default {
   createSuperAdmin,
   loginSuperAdmin,
@@ -134,7 +168,16 @@ export default {
   updateAdmin,
   updateAdminStatus,
   deleteAdmin,
+  getAllProducts,
+  getProductById,
+  createProduct,
+  updateProduct,
+  deleteProduct,
 };
+
+
+
+
 
 
 

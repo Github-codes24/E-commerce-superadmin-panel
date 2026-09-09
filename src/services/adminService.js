@@ -99,8 +99,43 @@ export const updateAdminStatus = async (id, status) => {
  * Headers: Authorization: Bearer <Token>
  * @param {string} id - Admin ID
  */
-export const deleteAdmin = async (id) => {
-  const response = await api.delete(`/superadmin/admins/delete/${id}`);
+/**
+ * 11 - Get All Products (GET /api/superadmin/products)
+ * Method: GET
+ * Endpoint: /api/superadmin/products
+ * Headers: Authorization: Bearer <Token>
+ * @param {Object} params - Query parameters (page, limit, category, etc.)
+ */
+export const getAllProducts = async (params = {}) => {
+  const response = await api.get('/superadmin/products', { params });
+  return response.data;
+};
+
+/**
+ * 13 - Create Product (POST /api/superadmin/products)
+ * Method: POST
+ * Endpoint: /api/superadmin/products
+ * Headers: Authorization: Bearer <Token>, Content-Type: multipart/form-data
+ * @param {FormData} formData - Multipart form data
+ */
+export const createProduct = async (formData) => {
+  const response = await api.post('/superadmin/products', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+// 18. Update Product (PUT /api/superadmin/products/:id)
+export const updateProduct = async (id, data) => {
+  const response = await api.put(`/superadmin/products/${id}`, data);
+  return response.data;
+};
+
+// 19. Delete Product (DELETE /api/superadmin/products/:id)
+export const deleteProduct = async (id) => {
+  const response = await api.delete(`/superadmin/products/${id}`);
   return response.data;
 };
 
@@ -113,7 +148,15 @@ export default {
   updateAdmin,
   updateAdminStatus,
   deleteAdmin,
+  getAllProducts,
+  getProductById,
+  createProduct,
+  updateProduct,
+  deleteProduct,
 };
+
+
+
 
 
 
