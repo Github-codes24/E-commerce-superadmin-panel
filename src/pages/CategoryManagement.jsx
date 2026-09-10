@@ -422,8 +422,8 @@ function CategoryManagement() {
       <div className="view-category-details" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* Header navigation back circle button */}
         <div className="form-workspace-header">
-          <button 
-            className="back-circle-btn" 
+          <button
+            className="back-circle-btn"
             aria-label="Back to categories list"
             onClick={() => {
               setViewedCategory(null)
@@ -438,9 +438,9 @@ function CategoryManagement() {
         {/* Top Banner Category Details Card */}
         <div className={`category-banner-card ${isCatActive ? 'active' : 'inactive'}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-            <img 
-              src={viewedCategory.image} 
-              alt={viewedCategory.name} 
+            <img
+              src={viewedCategory.image}
+              alt={viewedCategory.name}
               className="category-banner-img"
               onError={(e) => { e.target.src = 'https://via.placeholder.com/120x80' }}
             />
@@ -469,8 +469,8 @@ function CategoryManagement() {
         <div className="dashboard-card-panel" style={{ marginTop: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #f1f3f4', paddingBottom: '16px' }}>
             <h3 style={{ fontSize: '16px', fontWeight: '800', margin: 0, color: 'var(--text-dark)' }}>Sub-Category Details</h3>
-            <button 
-              className="edit-profile-btn" 
+            <button
+              className="edit-profile-btn"
               style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '13px' }}
               onClick={() => {
                 setSubcatFormData({ name: '', imagePreview: '', isVisible: true })
@@ -487,11 +487,11 @@ function CategoryManagement() {
           <div className="table-filter-bar" style={{ marginBottom: '20px' }}>
             <div className="table-search-wrapper" style={{ width: '280px' }}>
               <Search />
-              <input 
-                type="text" 
-                placeholder="Search Sub-Category..." 
-                value={subcatSearch} 
-                onChange={(e) => setSubcatSearch(e.target.value)} 
+              <input
+                type="text"
+                placeholder="Search Sub-Category..."
+                value={subcatSearch}
+                onChange={(e) => setSubcatSearch(e.target.value)}
               />
             </div>
             <div style={{ display: 'flex', gap: '12px' }}>
@@ -525,7 +525,7 @@ function CategoryManagement() {
                 {paginatedSubcats.length > 0 ? (
                   paginatedSubcats.map(sc => {
                     const isExpanded = expandedSubcatId === sc.id
-                    
+
                     // Filter products for this subcat
                     const rawProducts = productsData.filter(p => p.subcatName === sc.name && p.parentCategory === viewedCategory.name)
                     const filteredProducts = rawProducts.filter(p => {
@@ -544,7 +544,7 @@ function CategoryManagement() {
                       <React.Fragment key={sc.id}>
                         <tr>
                           <td style={{ textAlign: 'center' }}>
-                            <button 
+                            <button
                               type="button"
                               className="table-action-btn"
                               style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease', margin: 'auto' }}
@@ -566,7 +566,7 @@ function CategoryManagement() {
                           </td>
                           <td>{sc.productsCount} Products</td>
                           <td>
-                            <span 
+                            <span
                               className={`admin-status-badge clickable ${sc.status === 'active' ? 'active' : 'inactive-orange'}`}
                               onClick={() => handleToggleSubcatStatus(sc.id)}
                               title="Click to toggle status"
@@ -577,8 +577,8 @@ function CategoryManagement() {
                           <td>{sc.createdDate || '2026-05-14'}</td>
                           <td style={{ textAlign: 'center' }}>
                             <div className="action-icon-group">
-                              <button 
-                                className="btn-action-icon view-details" 
+                              <button
+                                className="btn-action-icon view-details"
                                 title="Edit Sub-Category"
                                 onClick={() => {
                                   setEditingSubcat(sc)
@@ -588,8 +588,8 @@ function CategoryManagement() {
                               >
                                 <Edit style={{ width: '15px', height: '15px' }} />
                               </button>
-                              <button 
-                                className="btn-action-icon delete-record" 
+                              <button
+                                className="btn-action-icon delete-record"
                                 title="Delete Sub-Category"
                                 onClick={() => {
                                   if (window.confirm("Are you sure you want to delete this sub-category?")) {
@@ -617,8 +617,8 @@ function CategoryManagement() {
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>Products under {sc.name}</h4>
-                                  <button 
-                                    className="edit-profile-btn" 
+                                  <button
+                                    className="edit-profile-btn"
                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '12px' }}
                                     onClick={() => {
                                       setProductFormData({ name: '', price: '', stock: '', isVisible: true })
@@ -635,11 +635,11 @@ function CategoryManagement() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                                   <div className="table-search-wrapper" style={{ width: '220px' }}>
                                     <Search style={{ width: '14px', height: '14px' }} />
-                                    <input 
-                                      type="text" 
-                                      placeholder="Search Product..." 
-                                      value={prodSearch} 
-                                      onChange={(e) => setProdSearch(e.target.value)} 
+                                    <input
+                                      type="text"
+                                      placeholder="Search Product..."
+                                      value={prodSearch}
+                                      onChange={(e) => setProdSearch(e.target.value)}
                                       style={{ padding: '6px 10px 6px 32px', fontSize: '12px' }}
                                     />
                                   </div>
@@ -672,8 +672,8 @@ function CategoryManagement() {
                                             <td>₹{p.price.toLocaleString()}</td>
                                             <td>{p.stock} units</td>
                                             <td>
-                                              <span 
-                                                className={`admin-status-badge clickable ${p.status === 'active' ? 'active' : 'inactive-orange'}`} 
+                                              <span
+                                                className={`admin-status-badge clickable ${p.status === 'active' ? 'active' : 'inactive-orange'}`}
                                                 style={{ fontSize: '10px', padding: '2px 8px' }}
                                                 onClick={() => handleToggleProductStatus(p.id)}
                                                 title="Click to toggle status"
@@ -683,8 +683,8 @@ function CategoryManagement() {
                                             </td>
                                             <td style={{ textAlign: 'center' }}>
                                               <div className="action-icon-group">
-                                                <button 
-                                                  className="btn-action-icon view-details" 
+                                                <button
+                                                  className="btn-action-icon view-details"
                                                   title="Edit Product"
                                                   onClick={() => {
                                                     setEditingProduct(p)
@@ -694,8 +694,8 @@ function CategoryManagement() {
                                                 >
                                                   <Edit style={{ width: '14px', height: '14px' }} />
                                                 </button>
-                                                <button 
-                                                  className="btn-action-icon delete-record" 
+                                                <button
+                                                  className="btn-action-icon delete-record"
                                                   title="Delete Product"
                                                   onClick={() => {
                                                     if (window.confirm("Are you sure you want to delete this product?")) {
@@ -771,8 +771,8 @@ function CategoryManagement() {
               Showing {Math.min(subcatStartIndex + 1, totalSubcatItems)} to {Math.min(subcatStartIndex + subcatItemsPerPage, totalSubcatItems)} of {totalSubcatItems} entries
             </div>
             <div className="offers-pagination">
-              <button 
-                className="pag-btn" 
+              <button
+                className="pag-btn"
                 onClick={() => subcatPage > 1 && setSubcatPage(subcatPage - 1)}
                 disabled={subcatPage === 1}
                 style={{ opacity: subcatPage === 1 ? 0.5 : 1, cursor: subcatPage === 1 ? 'not-allowed' : 'pointer' }}
@@ -780,7 +780,7 @@ function CategoryManagement() {
                 &lt;
               </button>
               {Array.from({ length: totalSubcatPages }, (_, i) => i + 1).map((pageNum) => (
-                <button 
+                <button
                   key={pageNum}
                   className={`pag-btn ${subcatPage === pageNum ? 'active' : ''}`}
                   onClick={() => setSubcatPage(pageNum)}
@@ -788,8 +788,8 @@ function CategoryManagement() {
                   {pageNum}
                 </button>
               ))}
-              <button 
-                className="pag-btn" 
+              <button
+                className="pag-btn"
                 onClick={() => subcatPage < totalSubcatPages && setSubcatPage(subcatPage + 1)}
                 disabled={subcatPage === totalSubcatPages}
                 style={{ opacity: subcatPage === totalSubcatPages ? 0.5 : 1, cursor: subcatPage === totalSubcatPages ? 'not-allowed' : 'pointer' }}
@@ -812,19 +812,19 @@ function CategoryManagement() {
                 </div>
                 <div className="modal-field">
                   <label className="modal-label">Sub-Category Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="Enter Sub-Category Name"
-                    className="modal-input" 
+                    className="modal-input"
                     value={subcatFormData.name}
                     onChange={(e) => setSubcatFormData({ ...subcatFormData, name: e.target.value })}
-                    required 
+                    required
                   />
                 </div>
                 <div className="modal-field">
                   <label className="modal-label">Sub-Category Image</label>
-                  <input 
-                    type="file" 
+                  <input
+                    type="file"
                     ref={subcatFileInputRef}
                     style={{ display: 'none' }}
                     accept="image/*"
@@ -851,7 +851,7 @@ function CategoryManagement() {
                 </div>
                 <div className="modal-field">
                   <label className="modal-label">Visibility</label>
-                  <div 
+                  <div
                     className={`status-toggle-container ${subcatFormData.isVisible ? 'active' : ''}`}
                     onClick={() => setSubcatFormData(prev => ({ ...prev, isVisible: !prev.isVisible }))}
                   >
@@ -885,40 +885,40 @@ function CategoryManagement() {
                 </div>
                 <div className="modal-field">
                   <label className="modal-label">Product Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="Enter Product Name"
-                    className="modal-input" 
+                    className="modal-input"
                     value={productFormData.name}
                     onChange={(e) => setProductFormData({ ...productFormData, name: e.target.value })}
-                    required 
+                    required
                   />
                 </div>
                 <div className="modal-field">
                   <label className="modal-label">Price (₹)</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     placeholder="Enter Price"
-                    className="modal-input" 
+                    className="modal-input"
                     value={productFormData.price}
                     onChange={(e) => setProductFormData({ ...productFormData, price: e.target.value })}
-                    required 
+                    required
                   />
                 </div>
                 <div className="modal-field">
                   <label className="modal-label">Stock</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     placeholder="Enter Stock Quantity"
-                    className="modal-input" 
+                    className="modal-input"
                     value={productFormData.stock}
                     onChange={(e) => setProductFormData({ ...productFormData, stock: e.target.value })}
-                    required 
+                    required
                   />
                 </div>
                 <div className="modal-field">
                   <label className="modal-label">Status</label>
-                  <div 
+                  <div
                     className={`status-toggle-container ${productFormData.isVisible ? 'active' : ''}`}
                     onClick={() => setProductFormData(prev => ({ ...prev, isVisible: !prev.isVisible }))}
                   >
@@ -945,8 +945,8 @@ function CategoryManagement() {
     return (
       <div className="admin-form-panel">
         <div className="form-workspace-header">
-          <button 
-            className="back-circle-btn" 
+          <button
+            className="back-circle-btn"
             aria-label="Back to categories list"
             onClick={() => {
               setIsAdding(false)
@@ -959,17 +959,17 @@ function CategoryManagement() {
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
+
           {/* Card 1: Category Details */}
           <div className="form-section-card" style={{ margin: 0, padding: '24px' }}>
             <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '20px', borderBottom: '1px solid #f1f3f4', paddingBottom: '10px' }}>Category Details</h3>
-            
+
             <div className="form-fields-grid" style={{ marginBottom: '20px' }}>
               <div className="form-field-item" style={{ gridColumn: 'span 2' }}>
                 <label htmlFor="cat-name">Category Name</label>
-                <input 
+                <input
                   id="cat-name"
-                  type="text" 
+                  type="text"
                   placeholder="Enter Category Name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -981,24 +981,24 @@ function CategoryManagement() {
             {/* Category Image Uploader */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-dark)', marginBottom: '8px', display: 'block' }}>Category Image</label>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                style={{ display: 'none' }} 
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
                 accept="image/*"
                 onChange={handleImageChange}
               />
 
               {formData.imagePreview ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <img 
-                    src={formData.imagePreview} 
-                    alt="Preview" 
-                    style={{ width: '150px', height: '100px', borderRadius: '12px', objectFit: 'cover', border: '1px solid #cfd8dc' }} 
+                  <img
+                    src={formData.imagePreview}
+                    alt="Preview"
+                    style={{ width: '150px', height: '100px', borderRadius: '12px', objectFit: 'cover', border: '1px solid #cfd8dc' }}
                   />
-                  <button 
-                    type="button" 
-                    className="btn-cancel-red" 
+                  <button
+                    type="button"
+                    className="btn-cancel-red"
                     style={{ padding: '8px 16px', fontSize: '12px' }}
                     onClick={() => setFormData(prev => ({ ...prev, imagePreview: '' }))}
                   >
@@ -1016,7 +1016,7 @@ function CategoryManagement() {
             {/* Visibility Slider toggle */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
               <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-dark)' }}>Visibility</span>
-              <div 
+              <div
                 className={`status-toggle-container ${formData.isVisible ? 'active' : ''}`}
                 onClick={() => setFormData(prev => ({ ...prev, isVisible: !prev.isVisible }))}
               >
@@ -1031,8 +1031,8 @@ function CategoryManagement() {
 
           {/* Form Action buttons */}
           <div className="form-actions-row" style={{ marginTop: '12px' }}>
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="btn-reset-white"
               onClick={() => {
                 setIsAdding(false)
@@ -1041,8 +1041,8 @@ function CategoryManagement() {
             >
               Cancel
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="btn-save-green"
             >
               {editingCategory ? 'Save' : 'Add'}
@@ -1072,8 +1072,8 @@ function CategoryManagement() {
             Manage all Categories available on the platform.
           </p>
         </div>
-        <button 
-          className="edit-profile-btn" 
+        <button
+          className="edit-profile-btn"
           style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
           onClick={() => {
             setEditingCategory(null)
@@ -1092,8 +1092,8 @@ function CategoryManagement() {
           const Icon = stat.icon
           const isActive = stat.filterVal === 'products' ? false : statusFilter === stat.filterVal
           return (
-            <div 
-              key={stat.id} 
+            <div
+              key={stat.id}
               className={`stat-card clickable ${isActive ? 'active-filter' : ''}`}
               style={{ backgroundColor: stat.background, borderColor: stat.color, color: stat.color }}
               onClick={() => {
@@ -1103,8 +1103,8 @@ function CategoryManagement() {
               }}
               title={`Click to filter by ${stat.label}`}
             >
-              <div 
-                className="stat-icon-wrapper" 
+              <div
+                className="stat-icon-wrapper"
                 style={{ backgroundColor: 'rgba(255,255,255,0.7)', color: stat.color }}
               >
                 <Icon />
@@ -1122,16 +1122,16 @@ function CategoryManagement() {
         <div className="table-filter-bar">
           <div className="table-search-wrapper">
             <Search />
-            <input 
-              type="text" 
-              placeholder="Search Category..." 
+            <input
+              type="text"
+              placeholder="Search Category..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
           <div>
-            <select 
+            <select
               className="status-select"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -1149,8 +1149,8 @@ function CategoryManagement() {
             <thead>
               <tr>
                 <th style={{ width: '40px', textAlign: 'center' }}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     className="admins-table-checkbox"
                     checked={categoriesList.length > 0 && categoriesList.every(c => c.checked)}
                     onChange={handleSelectAll}
@@ -1176,72 +1176,72 @@ function CategoryManagement() {
                   return paginatedCategories.map((cat, idx) => (
                     <tr key={cat.id}>
                       <td style={{ textAlign: 'center' }}>
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           className="admins-table-checkbox"
                           checked={cat.checked}
                           onChange={() => handleRowCheckbox(cat.id)}
                         />
                       </td>
                       <td>{catStartIndex + idx + 1}</td>
-                    <td>
-                      <img 
-                        src={cat.image} 
-                        alt={cat.name} 
-                        className="product-thumbnail-img"
-                        onError={(e) => { e.target.src = 'https://via.placeholder.com/50' }}
-                      />
-                    </td>
-                    <td style={{ fontWeight: '700' }}>
-                      <span 
-                        className="table-link-name"
-                        onClick={() => setViewedCategory(cat)}
-                      >
-                        {cat.name}
-                      </span>
-                    </td>
-                    <td>{subcategoriesData.filter(sc => sc.parentCategory === cat.name).length}</td>
-                    <td>{subcategoriesData.filter(sc => sc.parentCategory === cat.name).reduce((sum, sc) => sum + sc.productsCount, 0).toLocaleString()}</td>
-                    <td>
-                      <span 
-                        className={`admin-status-badge clickable ${cat.status === 'active' ? 'active' : 'inactive-orange'}`}
-                        onClick={() => handleToggleCategoryStatus(cat.id)}
-                        title="Click to toggle status"
-                      >
-                        {cat.status === 'active' ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <div className="action-icon-group">
-                        {/* Eye details view button */}
-                        <button 
-                          className="btn-action-icon view-details"
-                          title="View Category Details"
+                      <td>
+                        <img
+                          src={cat.image}
+                          alt={cat.name}
+                          className="product-thumbnail-img"
+                          onError={(e) => { e.target.src = 'https://via.placeholder.com/50' }}
+                        />
+                      </td>
+                      <td style={{ fontWeight: '700' }}>
+                        <span
+                          className="table-link-name"
                           onClick={() => setViewedCategory(cat)}
                         >
-                          <Eye style={{ width: '16px', height: '16px' }} />
-                        </button>
-                        
-                        {/* Edit details form button */}
-                        <button 
-                          className="btn-action-icon view-details"
-                          title="Edit Category"
-                          onClick={() => handleOpenEdit(cat)}
+                          {cat.name}
+                        </span>
+                      </td>
+                      <td>{subcategoriesData.filter(sc => sc.parentCategory === cat.name).length}</td>
+                      <td>{subcategoriesData.filter(sc => sc.parentCategory === cat.name).reduce((sum, sc) => sum + sc.productsCount, 0).toLocaleString()}</td>
+                      <td>
+                        <span
+                          className={`admin-status-badge clickable ${cat.status === 'active' ? 'active' : 'inactive-orange'}`}
+                          onClick={() => handleToggleCategoryStatus(cat.id)}
+                          title="Click to toggle status"
                         >
-                          <Edit style={{ width: '16px', height: '16px' }} />
-                        </button>
+                          {cat.status === 'active' ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div className="action-icon-group">
+                          {/* Eye details view button */}
+                          <button
+                            className="btn-action-icon view-details"
+                            title="View Category Details"
+                            onClick={() => setViewedCategory(cat)}
+                          >
+                            <Eye style={{ width: '16px', height: '16px' }} />
+                          </button>
 
-                        {/* Delete category button */}
-                        <button 
-                          className="btn-action-icon delete-record"
-                          title="Delete Category"
-                          onClick={() => setDeletingCategoryId(cat.id)}
-                        >
-                          <Trash2 style={{ width: '16px', height: '16px' }} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                          {/* Edit details form button */}
+                          <button
+                            className="btn-action-icon view-details"
+                            title="Edit Category"
+                            onClick={() => handleOpenEdit(cat)}
+                          >
+                            <Edit style={{ width: '16px', height: '16px' }} />
+                          </button>
+
+                          {/* Delete category button */}
+                          <button
+                            className="btn-action-icon delete-record"
+                            title="Delete Category"
+                            onClick={() => setDeletingCategoryId(cat.id)}
+                          >
+                            <Trash2 style={{ width: '16px', height: '16px' }} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   ))
                 } else {
                   return (
@@ -1272,8 +1272,8 @@ function CategoryManagement() {
               </div>
               {totalCatPages > 1 && (
                 <div className="offers-pagination">
-                  <button 
-                    className="pag-btn" 
+                  <button
+                    className="pag-btn"
                     onClick={() => categoryPage > 1 && setCategoryPage(categoryPage - 1)}
                     disabled={categoryPage === 1}
                     style={{ opacity: categoryPage === 1 ? 0.5 : 1, cursor: categoryPage === 1 ? 'not-allowed' : 'pointer' }}
@@ -1281,7 +1281,7 @@ function CategoryManagement() {
                     &lt;
                   </button>
                   {Array.from({ length: totalCatPages }, (_, i) => i + 1).map((pageNum) => (
-                    <button 
+                    <button
                       key={pageNum}
                       className={`pag-btn ${categoryPage === pageNum ? 'active' : ''}`}
                       onClick={() => setCategoryPage(pageNum)}
@@ -1289,8 +1289,8 @@ function CategoryManagement() {
                       {pageNum}
                     </button>
                   ))}
-                  <button 
-                    className="pag-btn" 
+                  <button
+                    className="pag-btn"
                     onClick={() => categoryPage < totalCatPages && setCategoryPage(categoryPage + 1)}
                     disabled={categoryPage === totalCatPages}
                     style={{ opacity: categoryPage === totalCatPages ? 0.5 : 1, cursor: categoryPage === totalCatPages ? 'not-allowed' : 'pointer' }}
@@ -1311,15 +1311,15 @@ function CategoryManagement() {
             <div className="delete-modal-title">Delete</div>
             <div className="delete-modal-subtitle">Are You Sure Want To Delete?</div>
             <div className="delete-modal-buttons">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn-delete-cancel"
                 onClick={() => setDeletingCategoryId(null)}
               >
                 Cancel
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn-delete-confirm"
                 onClick={handleDeleteConfirm}
               >

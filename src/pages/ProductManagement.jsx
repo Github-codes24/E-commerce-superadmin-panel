@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { LayoutGrid, Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, X, ChevronLeft, ChevronRight, Palette, Calendar, Layers, Tag, Package, CheckCircle2, RotateCw, Mail, Phone, AlertCircle } from 'lucide-react'
-import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct } from '../services/superAdminService'
+import { LayoutGrid, Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, X, ChevronLeft, ChevronRight, Palette, Calendar, Layers, Tag, Package, CheckCircle2, RotateCw, Mail, Phone, AlertCircle, ToggleLeft, ToggleRight, Check } from 'lucide-react'
+import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, updateProductStatus } from '../services/superAdminService'
 import './ProductManagement.css'
 
 
@@ -325,6 +325,46 @@ function ProductManagement() {
   const [activeSlideIndex, setActiveSlideIndex] = useState(0) // image slider index
   const [productDetailsLoading, setProductDetailsLoading] = useState(false)
   const [productDetailsError, setProductDetailsError] = useState(null)
+  const [statusUpdatingId, setStatusUpdatingId] = useState(null)
+  const [toastMessage, setToastMessage] = useState(null)
+
+  const showToast = (text, type = 'success') => {
+    setToastMessage({ text, type })
+    setTimeout(() => {
+      setToastMessage(prev => (prev?.text === text ? null : prev))
+    }, 4000)
+  }
+
+  const renderToast = () => {
+    if (!toastMessage) return null
+    return (
+      <div className={`product-toast-banner ${toastMessage.type}`}>
+        {toastMessage.type === 'success' ? (
+          <CheckCircle2 style={{ width: '18px', height: '18px', flexShrink: 0 }} />
+        ) : (
+          <AlertCircle style={{ width: '18px', height: '18px', flexShrink: 0 }} />
+        )}
+        <span>{toastMessage.text}</span>
+        <button
+          type="button"
+          onClick={() => setToastMessage(null)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'inherit',
+            cursor: 'pointer',
+            padding: 0,
+            marginLeft: '8px',
+            display: 'flex',
+            alignItems: 'center'
+          }}
+          aria-label="Close notification"
+        >
+          <X style={{ width: '14px', height: '14px' }} />
+        </button>
+      </div>
+    )
+  }
 
   // Fetch Single Product By ID (/api/superadmin/products/:id)
   const handleViewProduct = async (product) => {
@@ -788,6 +828,68 @@ function ProductManagement() {
     }
   }
 
+  // Toggle / Update Product Status (PATCH /api/superadmin/products/:id/status)
+  const handleToggleProductStatus = async (product) => {
+    const productId = product._id || product.id
+    if (!productId) return
+
+    // If currently active, switch to INACTIVE. If inactive/out-of-stock, switch to ACTIVE.
+    const isCurrentlyActive = (product.status || '').toLowerCase() === 'active'
+    const targetStatus = isCurrentlyActive ? 'INACTIVE' : 'ACTIVE'
+
+    // Prevent activating products with 0 stock
+    if (targetStatus === 'ACTIVE' && Number(product.stock) === 0) {
+      showToast('Product with zero stock cannot be activated.', 'error')
+      return
+    }
+
+    try {
+      setStatusUpdatingId(productId)
+
+      // Call PATCH /api/superadmin/products/:id/status if ID is a real backend ID
+      if (typeof productId === 'string' && !productId.startsWith('prod-local-') && !productId.startsWith('prod-')) {
+        const res = await updateProductStatus(productId, targetStatus)
+        const successMsg = res?.message || `Product status updated to ${targetStatus} successfully.`
+        showToast(successMsg, 'success')
+
+        const serverStatus = (res?.data?.status || targetStatus).toLowerCase()
+        const resolvedStatus = serverStatus === 'active' && Number(product.stock) === 0 ? 'out-of-stock' : serverStatus
+
+        setProductsList(prev => prev.map(p => {
+          if ((p._id && p._id === productId) || (p.id && p.id === productId)) {
+            return { ...p, status: resolvedStatus }
+          }
+          return p
+        }))
+
+        if (viewedProduct && ((viewedProduct._id && viewedProduct._id === productId) || (viewedProduct.id && viewedProduct.id === productId))) {
+          setViewedProduct(prev => prev ? { ...prev, status: resolvedStatus } : null)
+        }
+      } else {
+        // Fallback for mock/local demo dataset
+        const resolvedStatus = targetStatus === 'ACTIVE' ? (Number(product.stock) === 0 ? 'out-of-stock' : 'active') : 'inactive'
+        setProductsList(prev => prev.map(p => {
+          if (p.id === product.id || p._id === productId) {
+            return { ...p, status: resolvedStatus }
+          }
+          return p
+        }))
+
+        if (viewedProduct && (viewedProduct.id === product.id || viewedProduct._id === productId)) {
+          setViewedProduct(prev => prev ? { ...prev, status: resolvedStatus } : null)
+        }
+
+        showToast(`Product status updated to ${targetStatus} successfully.`, 'success')
+      }
+    } catch (err) {
+      console.error('Failed to update product status:', err)
+      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update product status.'
+      showToast(errorMsg, 'error')
+    } finally {
+      setStatusUpdatingId(null)
+    }
+  }
+
   // Filter products list
   const filteredProducts = productsList.filter((product) => {
     const matchesSearch =
@@ -831,6 +933,7 @@ function ProductManagement() {
 
     return (
       <div className="product-profile-view" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {renderToast()}
         {/* Header section with back chevron button */}
         <div className="form-workspace-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -950,8 +1053,12 @@ function ProductManagement() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
                 <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#000000', margin: 0, fontFamily: 'var(--admin-font)' }}>{viewedProduct.productName || viewedProduct.name}</h1>
-                <span 
-                  className={`vendor-badge ${viewedProduct.status}`} 
+                <button 
+                  type="button"
+                  className={`vendor-badge ${viewedProduct.status} clickable`} 
+                  onClick={() => handleToggleProductStatus(viewedProduct)}
+                  disabled={statusUpdatingId === (viewedProduct._id || viewedProduct.id)}
+                  title={`Click to ${viewedProduct.status === 'active' ? 'Deactivate' : 'Activate'} Product`}
                   style={{ 
                     padding: '6px 18px', 
                     fontSize: '12px', 
@@ -959,11 +1066,20 @@ function ProductManagement() {
                     borderRadius: '6px',
                     backgroundColor: viewedProduct.status === 'active' ? '#2e7d32' : viewedProduct.status === 'out-of-stock' ? '#d32f2f' : '#8e24aa',
                     color: '#ffffff',
-                    textTransform: 'capitalize'
+                    textTransform: 'capitalize',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s ease'
                   }}
                 >
-                  {viewedProduct.status === 'out-of-stock' ? 'Out Of Stock' : viewedProduct.status}
-                </span>
+                  {statusUpdatingId === (viewedProduct._id || viewedProduct.id) && (
+                    <RotateCw style={{ width: '12px', height: '12px', animation: 'spin 1s linear infinite' }} />
+                  )}
+                  <span>{viewedProduct.status === 'out-of-stock' ? 'Out Of Stock' : viewedProduct.status}</span>
+                </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
                 <div style={{ fontSize: '22px', fontWeight: '800', color: '#8e24aa', fontFamily: 'var(--admin-font)' }}>
@@ -1061,6 +1177,7 @@ function ProductManagement() {
   if (isAdding) {
     return (
       <div className="admin-form-panel">
+        {renderToast()}
         <div className="form-workspace-header">
           <button 
             className="back-circle-btn" 
@@ -1348,6 +1465,7 @@ function ProductManagement() {
 
   return (
     <div className="product-management-view" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {renderToast()}
       {/* Title Header with Add and Refresh buttons */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
@@ -1569,9 +1687,40 @@ function ProductManagement() {
                     <td>{product.vendor}</td>
                     <td>{product.category}</td>
                     <td>
-                      <span className={`admin-status-badge ${product.status}`}>
-                        {product.status === 'out-of-stock' ? 'Out Of Stock' : product.status}
-                      </span>
+                      <button
+                        type="button"
+                        className={`admin-status-badge clickable ${product.status}`}
+                        onClick={() => handleToggleProductStatus(product)}
+                        disabled={statusUpdatingId === (product._id || product.id)}
+                        title={`Click to ${product.status === 'active' ? 'Deactivate' : 'Activate'} Product`}
+                        style={{
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          textTransform: 'capitalize'
+                        }}
+                      >
+                        {statusUpdatingId === (product._id || product.id) ? (
+                          <RotateCw style={{ width: '12px', height: '12px', animation: 'spin 1s linear infinite' }} />
+                        ) : (
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              width: '6px',
+                              height: '6px',
+                              borderRadius: '50%',
+                              backgroundColor: product.status === 'active' ? '#2e7d32' : product.status === 'out-of-stock' ? '#c62828' : '#8e24aa',
+                            }}
+                          />
+                        )}
+                        <span>{product.status === 'out-of-stock' ? 'Out Of Stock' : product.status}</span>
+                      </button>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <div className="action-icon-group">

@@ -11,6 +11,67 @@
   color: #c62828;
 }
 
+.admin-status-badge.clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease-in-out;
+}
+
+.admin-status-badge.clickable:hover {
+  transform: translateY(-1px);
+  filter: brightness(0.92);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.admin-status-badge.clickable:active {
+  transform: scale(0.96);
+}
+
+.vendor-badge.clickable:hover {
+  filter: brightness(0.9);
+  transform: translateY(-1px);
+}
+
+/* Floating Status Toast Notification */
+.product-toast-banner {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  animation: slideInToast 0.3s ease-out;
+}
+
+.product-toast-banner.success {
+  background-color: #e8f5e9;
+  color: #1b5e20;
+  border: 1px solid #a5d6a7;
+}
+
+.product-toast-banner.error {
+  background-color: #ffebee;
+  color: #b71c1c;
+  border: 1px solid #ffcdd2;
+}
+
+@keyframes slideInToast {
+  from {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Form Split Layout: left main, right side panel */
 .form-split-layout {
   display: grid;
