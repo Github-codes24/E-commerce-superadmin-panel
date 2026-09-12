@@ -226,6 +226,186 @@ export const deleteCustomer = async (id) => {
   return response.data;
 };
 
+/**
+ * 26 - Get All Vendors (GET /api/superadmin/vendors)
+ * Method: GET
+ * Endpoint: /api/superadmin/vendors
+ * Headers: Authorization: Bearer <Token>
+ * @param {Object} params - { page, limit, search, approvalStatus, status }
+ */
+export const getAllVendors = async (params = {}) => {
+  const response = await api.get('/superadmin/vendors', { params });
+  return response.data;
+};
+
+/**
+ * 27 - Get Vendor By ID (GET /api/superadmin/vendors/:id)
+ * Method: GET
+ * Endpoint: /api/superadmin/vendors/:id
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Vendor ID
+ */
+export const getVendorById = async (id) => {
+  const response = await api.get(`/superadmin/vendors/${id}`);
+  return response.data;
+};
+
+/**
+ * 28 - Update Vendor (PUT /api/superadmin/vendors/:id)
+ * Method: PUT
+ * Endpoint: /api/superadmin/vendors/:id
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Vendor ID
+ * @param {Object} data - Updated vendor payload
+ */
+export const updateVendor = async (id, data) => {
+  const response = await api.put(`/superadmin/vendors/${id}`, data);
+  return response.data;
+};
+
+/**
+ * 29 - Approve Vendor (PATCH /api/superadmin/vendors/:id/approve)
+ * Method: PATCH
+ * Endpoint: /api/superadmin/vendors/:id/approve
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Vendor ID
+ */
+export const approveVendor = async (id) => {
+  const response = await api.patch(`/superadmin/vendors/${id}/approve`);
+  return response.data;
+};
+
+/**
+ * 30 - Reject Vendor (PATCH /api/superadmin/vendors/:id/reject)
+ * Method: PATCH
+ * Endpoint: /api/superadmin/vendors/:id/reject
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Vendor ID
+ */
+export const rejectVendor = async (id) => {
+  const response = await api.patch(`/superadmin/vendors/${id}/reject`);
+  return response.data;
+};
+
+/**
+ * 31 - Activate / Deactivate Vendor (PATCH /api/superadmin/vendors/:id/status)
+ * Method: PATCH
+ * Endpoint: /api/superadmin/vendors/:id/status
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Vendor ID
+ * @param {string|boolean} status - Account status ('Active' | 'Inactive')
+ */
+export const updateVendorStatus = async (id, status) => {
+  const formattedStatus = typeof status === 'boolean'
+    ? (status ? 'Active' : 'Inactive')
+    : (typeof status === 'string'
+      ? (status.toLowerCase() === 'active' ? 'Active' : 'Inactive')
+      : (status ? 'Active' : 'Inactive'));
+
+  const response = await api.patch(`/superadmin/vendors/${id}/status`, {
+    accountStatus: formattedStatus,
+  });
+  return response.data;
+};
+
+/**
+ * 32 - Delete Vendor (DELETE /api/superadmin/vendors/:id)
+ * Method: DELETE
+ * Endpoint: /api/superadmin/vendors/:id
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Vendor ID
+ */
+export const deleteVendor = async (id) => {
+  const response = await api.delete(`/superadmin/vendors/${id}`);
+  return response.data;
+};
+
+/**
+ * 33 - Get All Categories (GET /api/superadmin/categories)
+ * Method: GET
+ * Endpoint: /api/superadmin/categories
+ * Headers: Authorization: Bearer <Token>
+ * @param {Object} params - Query parameters (page, limit, status, search, etc.)
+ */
+export const getAllCategories = async (params = {}) => {
+  const response = await api.get('/superadmin/categories', { params });
+  return response.data;
+};
+
+/**
+ * 34 - Create Category (POST /api/superadmin/categories)
+ * Method: POST
+ * Endpoint: /api/superadmin/categories
+ * Headers: Authorization: Bearer <Token>
+ * @param {Object} data - { name, description, image, isActive }
+ */
+export const createCategory = async ({ name, description, image, isActive = true }) => {
+  const response = await api.post('/superadmin/categories', {
+    name,
+    description,
+    image,
+    isActive,
+  });
+  return response.data;
+};
+
+/**
+ * 35 - Get Category By ID (GET /api/superadmin/categories/:id)
+ * Method: GET
+ * Endpoint: /api/superadmin/categories/:id
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Category ID
+ */
+export const getCategoryById = async (id) => {
+  const response = await api.get(`/superadmin/categories/${id}`);
+  return response.data;
+};
+
+/**
+ * 36 - Update Category (PUT /api/superadmin/categories/:id)
+ * Method: PUT
+ * Endpoint: /api/superadmin/categories/:id
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Category ID
+ * @param {Object} data - { name, description, image, isActive }
+ */
+export const updateCategory = async (id, { name, description, image, isActive = true }) => {
+  const response = await api.put(`/superadmin/categories/${id}`, {
+    name,
+    description,
+    image,
+    isActive,
+  });
+  return response.data;
+};
+
+/**
+ * 37 - Delete Category (DELETE /api/superadmin/categories/:id)
+ * Method: DELETE
+ * Endpoint: /api/superadmin/categories/:id
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Category ID
+ */
+export const deleteCategory = async (id) => {
+  const response = await api.delete(`/superadmin/categories/${id}`);
+  return response.data;
+};
+
+/**
+ * 38 - Activate / Deactivate Category (PATCH /api/superadmin/categories/:id/status)
+ * Method: PATCH
+ * Endpoint: /api/superadmin/categories/:id/status
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Category ID
+ * @param {boolean} isActive - Category status boolean
+ */
+export const updateCategoryStatus = async (id, isActive) => {
+  const response = await api.patch(`/superadmin/categories/${id}/status`, {
+    isActive: typeof isActive === 'boolean' ? isActive : isActive === 'active',
+  });
+  return response.data;
+};
+
 export default {
   registerAdmin,
   createAdmin,
@@ -246,7 +426,27 @@ export default {
   updateCustomer,
   updateCustomerStatus,
   deleteCustomer,
+  getAllVendors,
+  getVendorById,
+  updateVendor,
+  approveVendor,
+  rejectVendor,
+  updateVendorStatus,
+  deleteVendor,
+  getAllCategories,
+  createCategory,
+  getCategoryById,
+  updateCategory,
+  deleteCategory,
+  updateCategoryStatus,
 };
+
+
+
+
+
+
+
 
 
 

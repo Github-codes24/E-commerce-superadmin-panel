@@ -1,9 +1,36 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { LayoutGrid, Package, CheckSquare, AlertTriangle, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, ChevronDown, Check, X, ChevronRight, ChevronLeft } from 'lucide-react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { LayoutGrid, Package, CheckSquare, AlertTriangle, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, ChevronDown, Check, X, ChevronRight, ChevronLeft, Loader2, RefreshCw, AlertCircle } from 'lucide-react'
+import { getAllCategories, createCategory, getCategoryById, updateCategory, deleteCategory, updateCategoryStatus, getAllProducts } from '../services/superAdminService'
 import './CategoryManagement.css'
 
 
 function CategoryManagement() {
+  // API loading & error states
+  const [loading, setLoading] = useState(false)
+  const [categoryDetailsLoading, setCategoryDetailsLoading] = useState(false)
+  const [fetchError, setFetchError] = useState(null)
+  const [isApiLoaded, setIsApiLoaded] = useState(false)
+  const [paginationData, setPaginationData] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalCategories: 0,
+    limit: 10
+  })
+
+  // Form loading & feedback states
+  const [formLoading, setFormLoading] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const [statusUpdatingId, setStatusUpdatingId] = useState(null)
+  const [successToast, setSuccessToast] = useState('')
+
+  // Filter & pagination states for Categories (main list)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [categoryPage, setCategoryPage] = useState(1)
+  const categoryItemsPerPage = 10
+
   // Initial Categories List Data
   const [categoriesList, setCategoriesList] = useState(() => {
     try {
@@ -27,6 +54,251 @@ function CategoryManagement() {
       ]
     }
   })
+
+  // Helper to get backend base URL for relative image paths
+  const getBackendBaseUrl = () => {
+    const apiBase = import.meta.env.VITE_API_BASE_URL || 'https://e-commerce-backend-1-we80.onrender.com/api'
+    return apiBase.replace(/\/api\/?$/, '')
+  }
+
+  // Helper to convert relative image paths like /uploads/... to full URL
+  const getFullImageUrl = (imgUrl) => {
+    if (!imgUrl || typeof imgUrl !== 'string') return ''
+    if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://') || imgUrl.startsWith('data:') || imgUrl.startsWith('blob:')) {
+      return imgUrl
+    }
+    const backendBase = getBackendBaseUrl()
+    const cleanPath = imgUrl.startsWith('/') ? imgUrl : `/${imgUrl}`
+    return `${backendBase}${cleanPath}`
+  }
+
+  // Helper function to extract categories list from various backend response shapes
+  const extractCategoriesList = (res) => {
+    if (!res) return []
+    if (Array.isArray(res)) return res
+    if (res.message && typeof res.message === 'object') {
+      if (Array.isArray(res.message.categories)) return res.message.categories
+      if (Array.isArray(res.message.data)) return res.message.data
+      if (Array.isArray(res.message)) return res.message
+    }
+    if (res.data && typeof res.data === 'object') {
+      if (Array.isArray(res.data.categories)) return res.data.categories
+      if (Array.isArray(res.data.data)) return res.data.data
+      if (Array.isArray(res.data)) return res.data
+    }
+    if (Array.isArray(res.categories)) return res.categories
+    return []
+  }
+
+  // Helper to extract pagination data
+  const extractPaginationData = (res) => {
+    if (!res) return null
+    if (res.message && typeof res.message === 'object' && res.message.pagination) {
+      return res.message.pagination
+    }
+    if (res.data && typeof res.data === 'object' && res.data.pagination) {
+      return res.data.pagination
+    }
+    return res.pagination || null
+  }
+
+  // Helper function to format API categories
+  const formatCategoryItem = (cat, idx, productCountsMap = {}) => {
+    let status = 'active'
+    if (typeof cat.status === 'boolean') {
+      status = cat.status ? 'active' : 'inactive'
+    } else if (typeof cat.isActive === 'boolean') {
+      status = cat.isActive ? 'active' : 'inactive'
+    } else if (typeof cat.status === 'string') {
+      status = cat.status.toLowerCase() === 'inactive' ? 'inactive' : 'active'
+    }
+
+    const rawImg = cat.image || cat.imageUrl || cat.categoryImage || cat.icon
+    const image = rawImg ? getFullImageUrl(rawImg) : 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200'
+
+    const catName = cat.name || cat.categoryName || 'Unnamed Category'
+    const subcatsCount = cat.subcategoriesCount ?? cat.subcatsCount ?? (Array.isArray(cat.subcategories) ? cat.subcategories.length : 0)
+    
+    // Live product count from backend or cross-referenced map
+    const mappedProductCount = productCountsMap[catName.toLowerCase()] ?? productCountsMap[cat._id]
+    const productsCount = cat.productsCount ?? cat.totalProducts ?? cat.productCount ?? (Array.isArray(cat.products) ? cat.products.length : (mappedProductCount !== undefined ? mappedProductCount : 0))
+
+    return {
+      id: cat._id || cat.id || `cat-${idx + 1}`,
+      rawId: cat._id || cat.id,
+      _id: cat._id || cat.id,
+      name: catName,
+      slug: cat.slug || '',
+      description: cat.description || '',
+      subcatsCount: typeof subcatsCount === 'number' ? subcatsCount : 0,
+      productsCount: typeof productsCount === 'number' ? productsCount : 0,
+      status: status,
+      isActive: status === 'active',
+      image: image,
+      checked: false,
+      rawData: cat,
+    }
+  }
+
+  // Fetch Categories from Backend API (with live backend products sync)
+  const fetchCategories = useCallback(async () => {
+    try {
+      setLoading(true)
+      setFetchError(null)
+
+      const params = {
+        page: categoryPage,
+        limit: categoryItemsPerPage,
+      }
+
+      if (statusFilter !== 'all') {
+        params.status = statusFilter === 'active' ? true : false
+      }
+
+      if (searchQuery.trim()) {
+        params.search = searchQuery.trim()
+      }
+
+      let categoriesData = []
+      let pagination = null
+
+      // 1. First fetch live products to calculate accurate product counts per category
+      const productCountsMap = {}
+      try {
+        const prodRes = await getAllProducts()
+        let products = []
+        if (prodRes?.data && Array.isArray(prodRes.data.products)) {
+          products = prodRes.data.products
+        } else if (Array.isArray(prodRes?.data)) {
+          products = prodRes.data
+        } else if (Array.isArray(prodRes?.products)) {
+          products = prodRes.products
+        } else if (Array.isArray(prodRes)) {
+          products = prodRes
+        }
+
+        products.forEach(p => {
+          const catObj = typeof p.categoryId === 'object' && p.categoryId !== null ? p.categoryId : null
+          const pCatName = (catObj?.name || (typeof p.category === 'object' ? p.category?.name : p.category) || p.categoryName || '').trim().toLowerCase()
+          if (pCatName) {
+            productCountsMap[pCatName] = (productCountsMap[pCatName] || 0) + 1
+          }
+          if (catObj?._id) {
+            productCountsMap[catObj._id] = (productCountsMap[catObj._id] || 0) + 1
+          }
+        })
+      } catch (prodErr) {
+        console.warn('Could not fetch products count mapping:', prodErr)
+      }
+
+      // 2. Fetch from categories endpoint (handles both res.message.categories and res.data.categories)
+      try {
+        const res = await getAllCategories(params)
+        categoriesData = extractCategoriesList(res)
+        pagination = extractPaginationData(res)
+
+        if (!categoriesData || categoriesData.length === 0) {
+          // Fallback without params in case backend doesn't support query filters
+          const resNoParams = await getAllCategories()
+          categoriesData = extractCategoriesList(resNoParams)
+          pagination = extractPaginationData(resNoParams)
+        }
+      } catch (catErr) {
+        console.warn('Category API with params failed, trying without params:', catErr)
+        try {
+          const resNoParams = await getAllCategories()
+          categoriesData = extractCategoriesList(resNoParams)
+          pagination = extractPaginationData(resNoParams)
+        } catch (e) {
+          console.warn('Direct categories fetch failed:', e)
+        }
+      }
+
+      // 3. If categoriesData is still empty, derive from live backend products
+      if (!categoriesData || categoriesData.length === 0) {
+        try {
+          const prodRes = await getAllProducts()
+          let products = []
+          if (prodRes?.data && Array.isArray(prodRes.data.products)) {
+            products = prodRes.data.products
+          } else if (Array.isArray(prodRes?.data)) {
+            products = prodRes.data
+          } else if (Array.isArray(prodRes?.products)) {
+            products = prodRes.products
+          } else if (Array.isArray(prodRes)) {
+            products = prodRes
+          }
+
+          if (products.length > 0) {
+            const catMap = new Map()
+
+            products.forEach((p, idx) => {
+              const catObj = typeof p.categoryId === 'object' && p.categoryId !== null ? p.categoryId : null
+              const catName = (catObj?.name || (typeof p.category === 'object' ? p.category?.name : p.category) || p.categoryName || 'General').trim()
+              const catKey = catName.toLowerCase()
+              const catId = catObj?._id || catObj?.id || p.categoryId || `cat-${idx + 1}`
+              const catStatus = (catObj?.isActive !== undefined ? catObj.isActive : (p.status !== 'inactive' && p.status !== 'INACTIVE')) ? 'active' : 'inactive'
+              const prodImg = (Array.isArray(p.images) && p.images[0]) || p.image || ''
+
+              if (!catMap.has(catKey)) {
+                catMap.set(catKey, {
+                  _id: catId,
+                  id: catId,
+                  rawId: catId,
+                  name: catName,
+                  subcatsCount: 0,
+                  productsCount: 1,
+                  status: catStatus,
+                  isActive: catStatus === 'active',
+                  image: catObj?.image ? getFullImageUrl(catObj.image) : (prodImg ? getFullImageUrl(prodImg) : 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200'),
+                  checked: false,
+                  rawData: p
+                })
+              } else {
+                const existing = catMap.get(catKey)
+                existing.productsCount += 1
+                if (!existing.image && prodImg) {
+                  existing.image = getFullImageUrl(prodImg)
+                }
+              }
+            })
+
+            categoriesData = Array.from(catMap.values())
+          }
+        } catch (prodErr) {
+          console.error('Failed to sync categories from products API:', prodErr)
+        }
+      }
+
+      if (categoriesData && categoriesData.length > 0) {
+        const formatted = categoriesData.map((item, idx) => formatCategoryItem(item, idx, productCountsMap))
+        setCategoriesList(formatted)
+        setIsApiLoaded(true)
+
+        const totalItems = pagination?.totalCategories !== undefined ? pagination.totalCategories : formatted.length
+        setPaginationData({
+          currentPage: pagination?.currentPage || 1,
+          limit: pagination?.limit || categoryItemsPerPage,
+          totalCategories: totalItems,
+          totalPages: pagination?.totalPages || Math.ceil(totalItems / categoryItemsPerPage) || 1
+        })
+      } else {
+        setCategoriesList([])
+        setIsApiLoaded(true)
+      }
+    } catch (err) {
+      console.error('Failed to fetch categories:', err)
+      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to fetch categories.'
+      setFetchError(errorMsg)
+    } finally {
+      setLoading(false)
+    }
+  }, [categoryPage, statusFilter, searchQuery, categoryItemsPerPage])
+
+  // Trigger fetch on mount and filter/page changes
+  useEffect(() => {
+    fetchCategories()
+  }, [fetchCategories])
 
   // Sub-categories mock database
   const [subcategoriesData, setSubcategoriesData] = useState(() => {
@@ -114,12 +386,6 @@ function CategoryManagement() {
     isVisible: true
   })
 
-  // Filter & pagination states for Categories (main list)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [categoryPage, setCategoryPage] = useState(1)
-  const categoryItemsPerPage = 10
-
   // Filter & pagination states for Sub-Categories inside Category Details
   const [subcatSearch, setSubcatSearch] = useState('')
   const [subcatStatusFilter, setSubcatStatusFilter] = useState('all')
@@ -136,8 +402,10 @@ function CategoryManagement() {
   // Form input states for Parent Category Form
   const [formData, setFormData] = useState({
     name: '',
+    description: '',
     isVisible: true,
-    imagePreview: ''
+    imagePreview: '',
+    imageName: ''
   })
 
   const fileInputRef = useRef(null)
@@ -163,7 +431,7 @@ function CategoryManagement() {
   }, [productsData])
 
   // Derive counts
-  const totalCount = categoriesList.length
+  const totalCount = isApiLoaded && paginationData.totalCategories !== undefined ? paginationData.totalCategories : categoriesList.length
   const activeCount = categoriesList.filter(c => c.status === 'active').length
   const inactiveCount = categoriesList.filter(c => c.status === 'inactive').length
 
@@ -189,7 +457,11 @@ function CategoryManagement() {
     if (file) {
       const reader = new FileReader()
       reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, imagePreview: reader.result }))
+        setFormData(prev => ({ 
+          ...prev, 
+          imagePreview: reader.result,
+          imageName: file.name
+        }))
       }
       reader.readAsDataURL(file)
     }
@@ -198,67 +470,251 @@ function CategoryManagement() {
   const handleResetForm = () => {
     setFormData({
       name: '',
+      description: '',
       isVisible: true,
-      imagePreview: ''
+      imagePreview: '',
+      imageName: ''
     })
+    setFormError('')
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!formData.name.trim()) return
+    if (!formData.name.trim()) {
+      setFormError('Category name is required.')
+      return
+    }
 
     const targetStatus = formData.isVisible ? 'active' : 'inactive'
+    setFormError('')
 
     if (editingCategory) {
-      // Edit mode
-      setCategoriesList(categoriesList.map(c => {
-        if (c.id === editingCategory.id) {
-          return {
-            ...c,
-            name: formData.name,
-            status: targetStatus,
-            image: formData.imagePreview || c.image
+      // Edit mode: Call PUT /api/superadmin/categories/:id
+      const catId = editingCategory.rawId || editingCategory._id || editingCategory.id
+      const payload = {
+        name: formData.name.trim(),
+        description: formData.description ? formData.description.trim() : `${formData.name.trim()} products`,
+        image: formData.imageName || formData.imagePreview || editingCategory.image || `${formData.name.trim().toLowerCase().replace(/\s+/g, '-')}.jpg`,
+        isActive: formData.isVisible
+      }
+
+      if (catId && typeof catId !== 'number' && !catId.toString().startsWith('cat-')) {
+        try {
+          setFormLoading(true)
+          const res = await updateCategory(catId, payload)
+
+          setSuccessToast(res?.message || 'Category updated successfully.')
+          setTimeout(() => setSuccessToast(''), 4000)
+
+          setCategoriesList(prev => prev.map(c => {
+            if (c.id === editingCategory.id || c.rawId === catId) {
+              return {
+                ...c,
+                name: payload.name,
+                description: payload.description,
+                status: targetStatus,
+                image: payload.image
+              }
+            }
+            return c
+          }))
+
+          fetchCategories()
+          handleResetForm()
+          setEditingCategory(null)
+          setIsAdding(false)
+        } catch (err) {
+          console.error('Failed to update category:', err)
+          const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update category.'
+          setFormError(errorMsg)
+        } finally {
+          setFormLoading(false)
+        }
+      } else {
+        // Fallback for mock items
+        setCategoriesList(categoriesList.map(c => {
+          if (c.id === editingCategory.id) {
+            return {
+              ...c,
+              name: payload.name,
+              description: payload.description,
+              status: targetStatus,
+              image: payload.image
+            }
           }
+          return c
+        }))
+        setSuccessToast('Category updated successfully.')
+        setTimeout(() => setSuccessToast(''), 4000)
+        handleResetForm()
+        setEditingCategory(null)
+        setIsAdding(false)
+      }
+    } else {
+      // Add mode: Call POST /api/superadmin/categories
+      try {
+        setFormLoading(true)
+        const payload = {
+          name: formData.name.trim(),
+          description: formData.description ? formData.description.trim() : `${formData.name.trim()} products`,
+          image: formData.imageName || formData.imagePreview || `${formData.name.trim().toLowerCase().replace(/\s+/g, '-')}.jpg`,
+          isActive: formData.isVisible
+        }
+
+        const res = await createCategory(payload)
+
+        // Show success notification
+        setSuccessToast(res?.message || 'Category created successfully.')
+        setTimeout(() => setSuccessToast(''), 4000)
+
+        // If returned data from backend, add it
+        if (res?.data) {
+          const newCat = formatCategoryItem(res.data, 0)
+          setCategoriesList(prev => [newCat, ...prev.filter(c => c.id !== newCat.id)])
+        }
+
+        // Fetch fresh categories from backend
+        fetchCategories()
+
+        handleResetForm()
+        setEditingCategory(null)
+        setIsAdding(false)
+      } catch (err) {
+        console.error('Failed to create category:', err)
+        const errorMsg = err?.response?.data?.message || err?.message || 'Failed to create category.'
+        setFormError(errorMsg)
+      } finally {
+        setFormLoading(false)
+      }
+    }
+  }
+
+  // Live fetch category by ID
+  const handleViewCategory = async (category) => {
+    setViewedCategory(category)
+    setExpandedSubcatId(null)
+
+    const catId = category.rawId || category._id || category.id
+    if (!catId || typeof catId === 'number' || (typeof catId === 'string' && catId.startsWith('cat-'))) {
+      return
+    }
+
+    try {
+      setCategoryDetailsLoading(true)
+      const res = await getCategoryById(catId)
+      const data = res?.data || res?.category || res
+
+      if (data) {
+        const rawId = data._id || data.id || category.id
+        const rawName = data.name || data.categoryName || category.name
+        const rawSlug = data.slug || ''
+        const rawDesc = data.description || category.description || ''
+        const rawProductCount = data.productCount !== undefined ? data.productCount : (data.productsCount !== undefined ? data.productsCount : category.productsCount)
+        const rawStatus = typeof data.isActive === 'boolean'
+          ? (data.isActive ? 'active' : 'inactive')
+          : (data.status ? data.status.toLowerCase() : category.status)
+
+        setViewedCategory(prev => ({
+          ...(prev || category),
+          id: rawId,
+          _id: rawId,
+          rawId: rawId,
+          name: rawName,
+          slug: rawSlug,
+          description: rawDesc,
+          productsCount: rawProductCount,
+          productCount: rawProductCount,
+          status: rawStatus,
+          image: data.image || data.imageUrl || category.image,
+          rawData: data
+        }))
+      }
+    } catch (err) {
+      console.warn('Failed to fetch full category by ID:', err?.message || err)
+    } finally {
+      setCategoryDetailsLoading(false)
+    }
+  }
+
+  const handleOpenEdit = async (category) => {
+    setEditingCategory(category)
+    setFormData({
+      name: category.name || '',
+      description: category.description || category.rawData?.description || '',
+      isVisible: category.status === 'active',
+      imagePreview: category.image || '',
+      imageName: ''
+    })
+    setFormError('')
+    setIsAdding(true)
+
+    const catId = category.rawId || category._id || category.id
+    if (catId && typeof catId !== 'number' && !catId.toString().startsWith('cat-')) {
+      try {
+        const res = await getCategoryById(catId)
+        const data = res?.data || res?.category || res
+        if (data) {
+          setFormData(prev => ({
+            ...prev,
+            name: data.name || prev.name,
+            description: data.description || prev.description,
+            isVisible: typeof data.isActive === 'boolean' ? data.isActive : prev.isVisible,
+            imagePreview: data.image || prev.imagePreview
+          }))
+        }
+      } catch (err) {
+        console.warn('Could not fetch category by ID for edit:', err?.message || err)
+      }
+    }
+  }
+
+  // Activate / Deactivate Category (PATCH /api/superadmin/categories/:id/status)
+  const handleToggleCategoryStatus = async (categoryOrId) => {
+    const category = typeof categoryOrId === 'object'
+      ? categoryOrId
+      : categoriesList.find(c => c.id === categoryOrId || c.rawId === categoryOrId || c._id === categoryOrId)
+
+    if (!category) return
+
+    const catId = category.rawId || category._id || category.id
+    const isCurrentlyActive = category.status === 'active'
+    const nextIsActive = !isCurrentlyActive
+    const nextStatus = nextIsActive ? 'active' : 'inactive'
+
+    try {
+      setStatusUpdatingId(catId)
+
+      if (catId && typeof catId !== 'number' && !catId.toString().startsWith('cat-')) {
+        const res = await updateCategoryStatus(catId, nextIsActive)
+        const successMsg = res?.message || (nextIsActive ? 'Category activated successfully.' : 'Category deactivated successfully.')
+        setSuccessToast(successMsg)
+        setTimeout(() => setSuccessToast(''), 4000)
+      } else {
+        const successMsg = nextIsActive ? 'Category activated successfully.' : 'Category deactivated successfully.'
+        setSuccessToast(successMsg)
+        setTimeout(() => setSuccessToast(''), 4000)
+      }
+
+      // Update categoriesList state
+      setCategoriesList(prev => prev.map(c => {
+        if (c.id === category.id || c.rawId === catId || c._id === catId) {
+          return { ...c, status: nextStatus, isActive: nextIsActive }
         }
         return c
       }))
-    } else {
-      // Add mode
-      const newCat = {
-        id: Date.now(),
-        name: formData.name,
-        subcatsCount: 0,
-        productsCount: 0,
-        status: targetStatus,
-        image: formData.imagePreview || 'https://via.placeholder.com/200',
-        checked: false
+
+      // Update viewedCategory if opened
+      if (viewedCategory && (viewedCategory.id === category.id || viewedCategory.rawId === catId || viewedCategory._id === catId)) {
+        setViewedCategory(prev => prev ? ({ ...prev, status: nextStatus, isActive: nextIsActive }) : null)
       }
-      setCategoriesList([newCat, ...categoriesList])
+    } catch (err) {
+      console.error('Failed to update category status:', err)
+      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update category status.'
+      setFetchError(errorMsg)
+      setTimeout(() => setFetchError(null), 5000)
+    } finally {
+      setStatusUpdatingId(null)
     }
-
-    handleResetForm()
-    setEditingCategory(null)
-    setIsAdding(false)
-  }
-
-  const handleOpenEdit = (category) => {
-    setEditingCategory(category)
-    setFormData({
-      name: category.name,
-      isVisible: category.status === 'active',
-      imagePreview: category.image
-    })
-    setIsAdding(true)
-  }
-
-  const handleToggleCategoryStatus = (id) => {
-    setCategoriesList(prev => prev.map(cat => {
-      if (cat.id === id) {
-        const nextStatus = cat.status === 'active' ? 'inactive' : 'active'
-        return { ...cat, status: nextStatus }
-      }
-      return cat
-    }))
   }
 
   const handleToggleSubcatStatus = (id) => {
@@ -281,9 +737,49 @@ function CategoryManagement() {
     }))
   }
 
-  const handleDeleteConfirm = () => {
-    setCategoriesList(categoriesList.filter(c => c.id !== deletingCategoryId))
-    setDeletingCategoryId(null)
+  const handleDeleteConfirm = async () => {
+    if (!deletingCategoryId) return
+
+    const categoryToDelete = categoriesList.find((c) => c.id === deletingCategoryId)
+    const catId = categoryToDelete?.rawId || categoryToDelete?._id || categoryToDelete?.id || deletingCategoryId
+
+    setDeleteLoading(true)
+    setDeleteError('')
+
+    // Check if real backend ID (not mock numeric)
+    if (catId && typeof catId !== 'number' && !catId.toString().startsWith('cat-')) {
+      try {
+        const res = await deleteCategory(catId)
+
+        setCategoriesList(prev => prev.filter(c => c.id !== deletingCategoryId && c.rawId !== catId))
+        setSuccessToast(res?.message || 'Category deleted successfully.')
+        setTimeout(() => setSuccessToast(''), 4000)
+
+        // If currently viewing details of this deleted category, reset viewedCategory
+        if (viewedCategory && (viewedCategory.id === deletingCategoryId || viewedCategory.rawId === catId || viewedCategory._id === catId)) {
+          setViewedCategory(null)
+        }
+
+        setDeletingCategoryId(null)
+        fetchCategories()
+      } catch (err) {
+        console.error('Failed to delete category:', err)
+        const errMsg = err?.response?.data?.message || err?.message || 'Cannot delete category. Products are associated with this category.'
+        setDeleteError(errMsg)
+      } finally {
+        setDeleteLoading(false)
+      }
+    } else {
+      // Fallback for mock items
+      setCategoriesList(prev => prev.filter(c => c.id !== deletingCategoryId))
+      setSuccessToast('Category deleted successfully.')
+      setTimeout(() => setSuccessToast(''), 4000)
+      if (viewedCategory && viewedCategory.id === deletingCategoryId) {
+        setViewedCategory(null)
+      }
+      setDeletingCategoryId(null)
+      setDeleteLoading(false)
+    }
   }
 
   // Sub-category form submit handler
@@ -445,21 +941,49 @@ function CategoryManagement() {
               onError={(e) => { e.target.src = 'https://via.placeholder.com/120x80' }}
             />
             <div className="category-banner-info">
-              <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(255,255,255,0.7)', marginBottom: '4px' }}>Category Name</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', color: '#607d8b' }}>Category Details</div>
+                {viewedCategory.slug && (
+                  <span style={{ fontSize: '11px', background: 'rgba(0,0,0,0.06)', padding: '2px 8px', borderRadius: '6px', color: '#546e7a', fontWeight: '600' }}>
+                    slug: {viewedCategory.slug}
+                  </span>
+                )}
+                {categoryDetailsLoading && (
+                  <Loader2 className="spinning-loader" style={{ width: '14px', height: '14px', color: '#00897b' }} />
+                )}
+              </div>
               <span className="category-banner-name" style={{ fontSize: '22px', fontWeight: '800' }}>{viewedCategory.name}</span>
+              {viewedCategory.description && (
+                <p style={{ fontSize: '13px', color: '#546e7a', margin: '4px 0 0 0' }}>{viewedCategory.description}</p>
+              )}
               <div style={{ display: 'flex', gap: '20px', marginTop: '12px' }}>
                 <span className="category-banner-subcats" style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <strong>Total Sub-Categories:</strong> {subcategoriesData.filter(sc => sc.parentCategory === viewedCategory.name).length}
+                  <strong>Total Sub-Categories:</strong> {viewedCategory.subcatsCount !== undefined ? viewedCategory.subcatsCount : (subcategoriesData.filter(sc => sc.parentCategory === viewedCategory.name).length || 0)}
                 </span>
                 <span className="category-banner-subcats" style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <strong>Total Products:</strong> {subcategoriesData.filter(sc => sc.parentCategory === viewedCategory.name).reduce((sum, sc) => sum + sc.productsCount, 0).toLocaleString()}
+                  <strong>Total Products:</strong> {(viewedCategory.productsCount !== undefined ? viewedCategory.productsCount : (viewedCategory.productCount !== undefined ? viewedCategory.productCount : (subcategoriesData.filter(sc => sc.parentCategory === viewedCategory.name).reduce((sum, sc) => sum + sc.productsCount, 0) || 0))).toLocaleString()}
                 </span>
               </div>
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '12px' }}>
-            <span className={`admin-status-badge ${isCatActive ? 'active' : 'inactive-orange'}`} style={{ padding: '6px 16px', fontSize: '13px' }}>
+            <span
+              className={`admin-status-badge clickable ${isCatActive ? 'active' : 'inactive-orange'}`}
+              style={{
+                padding: '6px 16px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              onClick={() => !statusUpdatingId && handleToggleCategoryStatus(viewedCategory)}
+              title="Click to toggle status"
+            >
+              {statusUpdatingId === (viewedCategory.rawId || viewedCategory.id) && (
+                <Loader2 style={{ width: '12px', height: '12px', animation: 'spin 1s linear infinite' }} />
+              )}
               {isCatActive ? 'Active' : 'Inactive'}
             </span>
           </div>
@@ -959,6 +1483,23 @@ function CategoryManagement() {
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Form Error Banner */}
+          {formError && (
+            <div style={{
+              backgroundColor: '#ffebee',
+              color: '#c62828',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '14px',
+              border: '1px solid #ffcdd2'
+            }}>
+              <AlertCircle style={{ width: '18px', height: '18px', flexShrink: 0 }} />
+              <span>{formError}</span>
+            </div>
+          )}
 
           {/* Card 1: Category Details */}
           <div className="form-section-card" style={{ margin: 0, padding: '24px' }}>
@@ -966,14 +1507,34 @@ function CategoryManagement() {
 
             <div className="form-fields-grid" style={{ marginBottom: '20px' }}>
               <div className="form-field-item" style={{ gridColumn: 'span 2' }}>
-                <label htmlFor="cat-name">Category Name</label>
+                <label htmlFor="cat-name">Category Name *</label>
                 <input
                   id="cat-name"
                   type="text"
-                  placeholder="Enter Category Name"
+                  placeholder="e.g. Electronics, Fashion, Mobiles"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
+                />
+              </div>
+
+              <div className="form-field-item" style={{ gridColumn: 'span 2' }}>
+                <label htmlFor="cat-desc">Description</label>
+                <textarea
+                  id="cat-desc"
+                  placeholder="Enter category description..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-light, #cfd8dc)',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    resize: 'vertical'
+                  }}
                 />
               </div>
             </div>
@@ -996,14 +1557,19 @@ function CategoryManagement() {
                     alt="Preview"
                     style={{ width: '150px', height: '100px', borderRadius: '12px', objectFit: 'cover', border: '1px solid #cfd8dc' }}
                   />
-                  <button
-                    type="button"
-                    className="btn-cancel-red"
-                    style={{ padding: '8px 16px', fontSize: '12px' }}
-                    onClick={() => setFormData(prev => ({ ...prev, imagePreview: '' }))}
-                  >
-                    Remove Image
-                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {formData.imageName && (
+                      <span style={{ fontSize: '12px', color: '#607d8b' }}>{formData.imageName}</span>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-cancel-red"
+                      style={{ padding: '8px 16px', fontSize: '12px' }}
+                      onClick={() => setFormData(prev => ({ ...prev, imagePreview: '', imageName: '' }))}
+                    >
+                      Remove Image
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="image-upload-box" style={{ height: '140px' }} onClick={handleImageClick}>
@@ -1034,6 +1600,7 @@ function CategoryManagement() {
             <button
               type="button"
               className="btn-reset-white"
+              disabled={formLoading}
               onClick={() => {
                 setIsAdding(false)
                 setEditingCategory(null)
@@ -1044,8 +1611,11 @@ function CategoryManagement() {
             <button
               type="submit"
               className="btn-save-green"
+              disabled={formLoading}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: formLoading ? 0.7 : 1 }}
             >
-              {editingCategory ? 'Save' : 'Add'}
+              {formLoading && <Loader2 className="spinning-loader" style={{ width: '16px', height: '16px' }} />}
+              {editingCategory ? 'Save Changes' : (formLoading ? 'Creating Category...' : 'Create Category')}
             </button>
           </div>
 
@@ -1055,16 +1625,48 @@ function CategoryManagement() {
   }
 
   // 3. DEFAULT LIST VIEW
+  const displayTotalCount = isApiLoaded ? categoriesList.length : categoriesList.length
+  const displayActiveCount = categoriesList.filter(c => c.status === 'active').length
+  const displayInactiveCount = categoriesList.filter(c => c.status === 'inactive').length
+  const displayTotalProds = categoriesList.reduce((sum, c) => sum + (c.productsCount || 0), 0)
+
   const stats = [
-    { id: 'total-cats', label: 'Total Categories', value: totalCount, icon: LayoutGrid, background: '#ffecb3', color: '#3b82f6', filterVal: 'all' },
-    { id: 'total-prods', label: 'Total Products', value: subcategoriesData.reduce((sum, c) => sum + c.productsCount, 0), icon: Package, background: '#b2dfdb', color: '#3b82f6', filterVal: 'products' },
-    { id: 'active-cats', label: 'Active Categories', value: activeCount, icon: CheckSquare, background: '#c8e6c9', color: '#2ecc71', filterVal: 'active' },
-    { id: 'inactive-cats', label: 'Inactive Categories', value: inactiveCount, icon: AlertTriangle, background: '#ffcdd2', color: '#f43f5e', filterVal: 'inactive' }
+    { id: 'total-cats', label: 'Total Categories', value: displayTotalCount, icon: LayoutGrid, background: '#ffecb3', color: '#3b82f6', filterVal: 'all' },
+    { id: 'total-prods', label: 'Total Products', value: displayTotalProds, icon: Package, background: '#b2dfdb', color: '#3b82f6', filterVal: 'products' },
+    { id: 'active-cats', label: 'Active Categories', value: displayActiveCount, icon: CheckSquare, background: '#c8e6c9', color: '#2ecc71', filterVal: 'active' },
+    { id: 'inactive-cats', label: 'Inactive Categories', value: displayInactiveCount, icon: AlertTriangle, background: '#ffcdd2', color: '#f43f5e', filterVal: 'inactive' }
   ]
 
   return (
     <div className="category-management-view" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Title Header with Add Category button */}
+      {/* Success Notification Banner */}
+      {successToast && (
+        <div style={{
+          backgroundColor: '#e8f5e9',
+          color: '#2e7d32',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '14px',
+          border: '1px solid #c8e6c9',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Check style={{ width: '18px', height: '18px', color: '#2e7d32' }} />
+            <span>{successToast}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSuccessToast('')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2e7d32', padding: 0 }}
+          >
+            <X style={{ width: '16px', height: '16px' }} />
+          </button>
+        </div>
+      )}
+
+      {/* Title Header with Add Category and Refresh buttons */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '4px' }}>Categories</h1>
@@ -1072,19 +1674,88 @@ function CategoryManagement() {
             Manage all Categories available on the platform.
           </p>
         </div>
-        <button
-          className="edit-profile-btn"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
-          onClick={() => {
-            setEditingCategory(null)
-            handleResetForm()
-            setIsAdding(true)
-          }}
-        >
-          <Plus style={{ width: '16px', height: '16px' }} />
-          Add New Category
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn-reset-white"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}
+            onClick={fetchCategories}
+            disabled={loading}
+            title="Refresh Categories"
+          >
+            <RefreshCw style={{ width: '15px', height: '15px', animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+            <span>Refresh</span>
+          </button>
+          <button
+            className="edit-profile-btn"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
+            onClick={() => {
+              setEditingCategory(null)
+              handleResetForm()
+              setIsAdding(true)
+            }}
+          >
+            <Plus style={{ width: '16px', height: '16px' }} />
+            Add New Category
+          </button>
+        </div>
       </div>
+
+      {/* Error / Warning Notice */}
+      {fetchError && (
+        <div style={{
+          backgroundColor: '#ffebee',
+          color: '#c62828',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '14px',
+          border: '1px solid #ffcdd2',
+          flexWrap: 'wrap',
+          gap: '8px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertCircle style={{ width: '18px', height: '18px', flexShrink: 0 }} />
+            <span><strong>Notice:</strong> {fetchError.includes('jwt expired') ? 'Login session expired (jwt expired). Showing fallback categories. Please log in again to sync live data.' : fetchError}</span>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => setFetchError(null)}
+              style={{
+                backgroundColor: '#fff',
+                color: '#c62828',
+                border: '1px solid #c62828',
+                padding: '6px 12px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: '600'
+              }}
+            >
+              Dismiss
+            </button>
+            <button
+              type="button"
+              onClick={fetchCategories}
+              style={{
+                backgroundColor: '#c62828',
+                color: '#fff',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: '600'
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards Row */}
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
@@ -1099,6 +1770,7 @@ function CategoryManagement() {
               onClick={() => {
                 if (stat.filterVal !== 'products') {
                   setStatusFilter(stat.filterVal)
+                  setCategoryPage(1)
                 }
               }}
               title={`Click to filter by ${stat.label}`}
@@ -1126,7 +1798,10 @@ function CategoryManagement() {
               type="text"
               placeholder="Search Category..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setCategoryPage(1)
+              }}
             />
           </div>
 
@@ -1134,7 +1809,10 @@ function CategoryManagement() {
             <select
               className="status-select"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value)
+                setCategoryPage(1)
+              }}
             >
               <option value="all">Select Status</option>
               <option value="active">Active</option>
@@ -1167,19 +1845,31 @@ function CategoryManagement() {
             </thead>
             <tbody>
               {(() => {
-                const totalCatItems = filteredCategories.length
-                const totalCatPages = Math.ceil(totalCatItems / categoryItemsPerPage) || 1
+                if (loading) {
+                  return (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '48px', color: '#607d8b' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                          <Loader2 className="spinning-loader" style={{ width: '32px', height: '32px', color: 'var(--primary-teal, #00897b)' }} />
+                          <span style={{ fontSize: '14px', fontWeight: '500' }}>Fetching categories...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                }
+
+                const totalCatItems = isApiLoaded ? (paginationData.totalCategories !== undefined ? paginationData.totalCategories : filteredCategories.length) : filteredCategories.length
                 const catStartIndex = (categoryPage - 1) * categoryItemsPerPage
-                const paginatedCategories = filteredCategories.slice(catStartIndex, catStartIndex + categoryItemsPerPage)
+                const paginatedCategories = isApiLoaded ? filteredCategories : filteredCategories.slice(catStartIndex, catStartIndex + categoryItemsPerPage)
 
                 if (paginatedCategories.length > 0) {
                   return paginatedCategories.map((cat, idx) => (
-                    <tr key={cat.id}>
+                    <tr key={cat.id || idx}>
                       <td style={{ textAlign: 'center' }}>
                         <input
                           type="checkbox"
                           className="admins-table-checkbox"
-                          checked={cat.checked}
+                          checked={cat.checked || false}
                           onChange={() => handleRowCheckbox(cat.id)}
                         />
                       </td>
@@ -1195,19 +1885,29 @@ function CategoryManagement() {
                       <td style={{ fontWeight: '700' }}>
                         <span
                           className="table-link-name"
-                          onClick={() => setViewedCategory(cat)}
+                          onClick={() => handleViewCategory(cat)}
                         >
                           {cat.name}
                         </span>
                       </td>
-                      <td>{subcategoriesData.filter(sc => sc.parentCategory === cat.name).length}</td>
-                      <td>{subcategoriesData.filter(sc => sc.parentCategory === cat.name).reduce((sum, sc) => sum + sc.productsCount, 0).toLocaleString()}</td>
+                      <td>{cat.subcatsCount !== undefined ? cat.subcatsCount : (subcategoriesData.filter(sc => sc.parentCategory === cat.name).length || 0)}</td>
+                      <td>{(cat.productsCount !== undefined ? cat.productsCount : (cat.productCount !== undefined ? cat.productCount : (subcategoriesData.filter(sc => sc.parentCategory === cat.name).reduce((sum, sc) => sum + sc.productsCount, 0) || 0))).toLocaleString()}</td>
                       <td>
                         <span
                           className={`admin-status-badge clickable ${cat.status === 'active' ? 'active' : 'inactive-orange'}`}
-                          onClick={() => handleToggleCategoryStatus(cat.id)}
+                          onClick={() => !statusUpdatingId && handleToggleCategoryStatus(cat)}
                           title="Click to toggle status"
+                          style={{
+                            opacity: statusUpdatingId === (cat.rawId || cat.id) ? 0.6 : 1,
+                            cursor: statusUpdatingId === (cat.rawId || cat.id) ? 'wait' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
                         >
+                          {statusUpdatingId === (cat.rawId || cat.id) && (
+                            <Loader2 style={{ width: '12px', height: '12px', animation: 'spin 1s linear infinite' }} />
+                          )}
                           {cat.status === 'active' ? 'Active' : 'Inactive'}
                         </span>
                       </td>
@@ -1217,7 +1917,7 @@ function CategoryManagement() {
                           <button
                             className="btn-action-icon view-details"
                             title="View Category Details"
-                            onClick={() => setViewedCategory(cat)}
+                            onClick={() => handleViewCategory(cat)}
                           >
                             <Eye style={{ width: '16px', height: '16px' }} />
                           </button>
@@ -1259,24 +1959,24 @@ function CategoryManagement() {
 
         {/* Categories Table Footer & Pagination */}
         {(() => {
-          const totalCatItems = filteredCategories.length
-          const totalCatPages = Math.ceil(totalCatItems / categoryItemsPerPage) || 1
+          const totalCatItems = isApiLoaded ? (paginationData.totalCategories !== undefined ? paginationData.totalCategories : filteredCategories.length) : filteredCategories.length
+          const totalCatPages = isApiLoaded ? (paginationData.totalPages || 1) : (Math.ceil(totalCatItems / categoryItemsPerPage) || 1)
           const catStartIndex = (categoryPage - 1) * categoryItemsPerPage
 
-          if (totalCatItems === 0) return null
+          if (totalCatItems === 0 && !loading) return null
 
           return (
             <div className="offers-table-footer" style={{ borderTop: 'none', paddingTop: '16px' }}>
               <div className="footer-entries-text">
-                Showing {totalCatItems === 0 ? 0 : catStartIndex + 1} to {Math.min(catStartIndex + categoryItemsPerPage, totalCatItems)} of {totalCatItems} entries
+                Showing {totalCatItems === 0 ? 0 : catStartIndex + 1} to {Math.min(catStartIndex + (isApiLoaded ? categoriesList.length : categoryItemsPerPage), totalCatItems)} of {totalCatItems} entries
               </div>
               {totalCatPages > 1 && (
                 <div className="offers-pagination">
                   <button
                     className="pag-btn"
                     onClick={() => categoryPage > 1 && setCategoryPage(categoryPage - 1)}
-                    disabled={categoryPage === 1}
-                    style={{ opacity: categoryPage === 1 ? 0.5 : 1, cursor: categoryPage === 1 ? 'not-allowed' : 'pointer' }}
+                    disabled={categoryPage === 1 || loading}
+                    style={{ opacity: categoryPage === 1 || loading ? 0.5 : 1, cursor: categoryPage === 1 || loading ? 'not-allowed' : 'pointer' }}
                   >
                     &lt;
                   </button>
@@ -1285,6 +1985,7 @@ function CategoryManagement() {
                       key={pageNum}
                       className={`pag-btn ${categoryPage === pageNum ? 'active' : ''}`}
                       onClick={() => setCategoryPage(pageNum)}
+                      disabled={loading}
                     >
                       {pageNum}
                     </button>
@@ -1292,8 +1993,8 @@ function CategoryManagement() {
                   <button
                     className="pag-btn"
                     onClick={() => categoryPage < totalCatPages && setCategoryPage(categoryPage + 1)}
-                    disabled={categoryPage === totalCatPages}
-                    style={{ opacity: categoryPage === totalCatPages ? 0.5 : 1, cursor: categoryPage === totalCatPages ? 'not-allowed' : 'pointer' }}
+                    disabled={categoryPage === totalCatPages || loading}
+                    style={{ opacity: categoryPage === totalCatPages || loading ? 0.5 : 1, cursor: categoryPage === totalCatPages || loading ? 'not-allowed' : 'pointer' }}
                   >
                     &gt;
                   </button>
@@ -1306,15 +2007,48 @@ function CategoryManagement() {
 
       {/* Delete Confirmation Modal Overlay */}
       {deletingCategoryId && (
-        <div className="modal-overlay" onClick={() => setDeletingCategoryId(null)}>
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!deleteLoading) {
+              setDeleteError('')
+              setDeletingCategoryId(null)
+            }
+          }}
+        >
           <div className="delete-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="delete-modal-title">Delete</div>
-            <div className="delete-modal-subtitle">Are You Sure Want To Delete?</div>
-            <div className="delete-modal-buttons">
+            <div className="delete-modal-title">Delete Category</div>
+            <div className="delete-modal-subtitle">Are you sure you want to delete this category? This action cannot be undone.</div>
+
+            {deleteError && (
+              <div style={{
+                margin: '12px 0 6px',
+                padding: '10px 14px',
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '8px',
+                color: '#dc2626',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                textAlign: 'left',
+                lineHeight: '1.4'
+              }}>
+                <AlertCircle style={{ width: '16px', height: '16px', flexShrink: 0 }} />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div className="delete-modal-buttons" style={{ marginTop: deleteError ? '14px' : '20px' }}>
               <button
                 type="button"
                 className="btn-delete-cancel"
-                onClick={() => setDeletingCategoryId(null)}
+                onClick={() => {
+                  setDeleteError('')
+                  setDeletingCategoryId(null)
+                }}
+                disabled={deleteLoading}
               >
                 Cancel
               </button>
@@ -1322,8 +2056,18 @@ function CategoryManagement() {
                 type="button"
                 className="btn-delete-confirm"
                 onClick={handleDeleteConfirm}
+                disabled={deleteLoading}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  opacity: deleteLoading ? 0.7 : 1,
+                  cursor: deleteLoading ? 'not-allowed' : 'pointer'
+                }}
               >
-                Delete
+                {deleteLoading && <Loader2 style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />}
+                {deleteLoading ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

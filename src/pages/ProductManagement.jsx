@@ -1,186 +1,186 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { LayoutGrid, Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, X, ChevronLeft, ChevronRight, Palette, Calendar, Layers, Tag, Package, CheckCircle2, RotateCw, Mail, Phone, AlertCircle, ToggleLeft, ToggleRight, Check } from 'lucide-react'
-import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, updateProductStatus } from '../services/superAdminService'
+import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, updateProductStatus, getAllCategories } from '../services/superAdminService'
 import './ProductManagement.css'
 
 
 
 
 const DEFAULT_PRODUCTS = [
-  { 
-    id: 1, 
-    name: 'Wireless Headphones Pro', 
+  {
+    id: 1,
+    name: 'Wireless Headphones Pro',
     productName: 'Wireless Headphones Pro',
-    vendor: 'Sony Center', 
-    category: 'Electronics', 
-    status: 'active', 
-    price: '12000', 
-    stock: 48, 
-    brand: 'SoundPro', 
+    vendor: 'Sony Center',
+    category: 'Electronics',
+    status: 'active',
+    price: '12000',
+    stock: 48,
+    brand: 'SoundPro',
     brandName: 'SoundPro',
-    color: 'White & Blue', 
-    tag: 'Wireless, Headphones, Noise Cancellation, Bluetooth, Blue', 
-    returnPolicy: '7 Days Replacement', 
-    desc: 'Premium wireless headphones with active noise cancellation.', 
-    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=350&h=350', 
+    color: 'White & Blue',
+    tag: 'Wireless, Headphones, Noise Cancellation, Bluetooth, Blue',
+    returnPolicy: '7 Days Replacement',
+    desc: 'Premium wireless headphones with active noise cancellation.',
+    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
       'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1546435770-a3e426bf472b?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&q=80&w=350&h=350'
     ],
-    joinedOn: '20 April 2026', 
-    sales: 128, 
-    checked: false 
+    joinedOn: '20 April 2026',
+    sales: 128,
+    checked: false
   },
-  { 
-    id: 2, 
-    name: 'Leather Hand Bag', 
+  {
+    id: 2,
+    name: 'Leather Hand Bag',
     productName: 'Leather Hand Bag',
-    vendor: 'Chanel Classic', 
-    category: 'Bags', 
-    status: 'out-of-stock', 
-    price: '6999', 
-    stock: 0, 
-    brand: 'Chanel Classic', 
+    vendor: 'Chanel Classic',
+    category: 'Bags',
+    status: 'out-of-stock',
+    price: '6999',
+    stock: 0,
+    brand: 'Chanel Classic',
     brandName: 'Chanel Classic',
-    color: 'Brown', 
-    tag: 'Lather, Vegan, Easy to carry, Classic, Brown', 
-    returnPolicy: '7 Days Replacement', 
-    desc: 'Premium Lather Bag for everyday look and meetings.', 
-    image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&q=80&w=350&h=350', 
+    color: 'Brown',
+    tag: 'Lather, Vegan, Easy to carry, Classic, Brown',
+    returnPolicy: '7 Days Replacement',
+    desc: 'Premium Lather Bag for everyday look and meetings.',
+    image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
       'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1566150905458-1bf1fc15a690?auto=format&fit=crop&q=80&w=350&h=350'
     ],
-    joinedOn: '18 April 2026', 
-    sales: 56, 
-    checked: false 
+    joinedOn: '18 April 2026',
+    sales: 56,
+    checked: false
   },
-  { 
-    id: 3, 
-    name: 'Formal Shirt', 
+  {
+    id: 3,
+    name: 'Formal Shirt',
     productName: 'Formal Shirt',
-    vendor: 'A.K.Fashion', 
-    category: 'Fashion', 
-    status: 'active', 
-    price: '2499', 
-    stock: 85, 
-    brand: 'A.K.Fashion', 
+    vendor: 'A.K.Fashion',
+    category: 'Fashion',
+    status: 'active',
+    price: '2499',
+    stock: 85,
+    brand: 'A.K.Fashion',
     brandName: 'A.K.Fashion',
-    color: 'White', 
-    tag: 'Clothing, Formal, Cotton', 
-    returnPolicy: '15 Days Return', 
-    desc: '100% premium cotton formal shirt.', 
-    image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&q=80&w=350&h=350', 
+    color: 'White',
+    tag: 'Clothing, Formal, Cotton',
+    returnPolicy: '15 Days Return',
+    desc: '100% premium cotton formal shirt.',
+    image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
       'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1620012253295-c05cb3e65df4?auto=format&fit=crop&q=80&w=350&h=350'
     ],
-    joinedOn: '15 March 2026', 
-    sales: 90, 
-    checked: false 
+    joinedOn: '15 March 2026',
+    sales: 90,
+    checked: false
   },
-  { 
-    id: 4, 
-    name: 'Trending Summer Wear', 
+  {
+    id: 4,
+    name: 'Trending Summer Wear',
     productName: 'Trending Summer Wear',
-    vendor: 'Tommy Hilfiger', 
-    category: 'Fashion', 
-    status: 'inactive', 
-    price: '2999', 
-    stock: 50, 
-    brand: 'Tommy Hilfiger', 
+    vendor: 'Tommy Hilfiger',
+    category: 'Fashion',
+    status: 'inactive',
+    price: '2999',
+    stock: 50,
+    brand: 'Tommy Hilfiger',
     brandName: 'Tommy Hilfiger',
-    color: 'Blue', 
-    tag: 'Light, Casual, Summer Wear, Comfortable, Blue', 
-    returnPolicy: '7 Days Replacement', 
-    desc: 'Comfortable Summer wear Blue dress.', 
-    image: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=350&h=350', 
+    color: 'Blue',
+    tag: 'Light, Casual, Summer Wear, Comfortable, Blue',
+    returnPolicy: '7 Days Replacement',
+    desc: 'Comfortable Summer wear Blue dress.',
+    image: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
       'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1618244972963-dbee1a7edc95?auto=format&fit=crop&q=80&w=350&h=350'
     ],
-    joinedOn: '18 May 2026', 
-    sales: 100, 
-    checked: false 
+    joinedOn: '18 May 2026',
+    sales: 100,
+    checked: false
   },
-  { 
-    id: 5, 
-    name: 'Lamp', 
+  {
+    id: 5,
+    name: 'Lamp',
     productName: 'Lamp',
-    vendor: 'City Lights', 
-    category: 'Home', 
-    status: 'active', 
-    price: '1899', 
-    stock: 40, 
-    brand: 'City Lights', 
+    vendor: 'City Lights',
+    category: 'Home',
+    status: 'active',
+    price: '1899',
+    stock: 40,
+    brand: 'City Lights',
     brandName: 'City Lights',
-    color: 'Golden', 
-    tag: 'Lighting, Home Decor', 
-    returnPolicy: '30 Days Warranty', 
-    desc: 'Elegant desk study lamp light.', 
-    image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&q=80&w=350&h=350', 
+    color: 'Golden',
+    tag: 'Lighting, Home Decor',
+    returnPolicy: '30 Days Warranty',
+    desc: 'Elegant desk study lamp light.',
+    image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
       'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1534073828943-f801091bb18c?auto=format&fit=crop&q=80&w=350&h=350'
     ],
-    joinedOn: '12 January 2026', 
-    sales: 38, 
-    checked: false 
+    joinedOn: '12 January 2026',
+    sales: 38,
+    checked: false
   },
-  { 
-    id: 6, 
-    name: 'Neckless', 
+  {
+    id: 6,
+    name: 'Neckless',
     productName: 'Neckless',
-    vendor: 'Dass Jewellers', 
-    category: 'Jewellery', 
-    status: 'active', 
-    price: '95000', 
-    stock: 8, 
-    brand: 'Dass Jewellers', 
+    vendor: 'Dass Jewellers',
+    category: 'Jewellery',
+    status: 'active',
+    price: '95000',
+    stock: 8,
+    brand: 'Dass Jewellers',
     brandName: 'Dass Jewellers',
-    color: 'Golden Black', 
-    tag: 'Jewellery, Premium, Neckless', 
-    returnPolicy: 'No Returns', 
-    desc: 'Beautiful custom golden necklace pendant.', 
-    image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&q=80&w=350&h=350', 
+    color: 'Golden Black',
+    tag: 'Jewellery, Premium, Neckless',
+    returnPolicy: 'No Returns',
+    desc: 'Beautiful custom golden necklace pendant.',
+    image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
       'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?auto=format&fit=crop&q=80&w=350&h=350'
     ],
-    joinedOn: '28 February 2026', 
-    sales: 14, 
-    checked: false 
+    joinedOn: '28 February 2026',
+    sales: 14,
+    checked: false
   },
-  { 
-    id: 7, 
-    name: 'Smart TV', 
+  {
+    id: 7,
+    name: 'Smart TV',
     productName: 'Smart TV',
-    vendor: 'Sony Center', 
-    category: 'Electronics', 
-    status: 'out-of-stock', 
-    price: '35000', 
-    stock: 0, 
-    brand: 'Sony', 
+    vendor: 'Sony Center',
+    category: 'Electronics',
+    status: 'out-of-stock',
+    price: '35000',
+    stock: 0,
+    brand: 'Sony',
     brandName: 'Sony',
-    color: 'Black', 
-    tag: 'Electronics, Smart TV', 
-    returnPolicy: '1 Year Warranty', 
-    desc: '4K Smart TV screen.', 
-    image: 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&q=80&w=350&h=350', 
+    color: 'Black',
+    tag: 'Electronics, Smart TV',
+    returnPolicy: '1 Year Warranty',
+    desc: '4K Smart TV screen.',
+    image: 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
       'https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1461151351977-2244026b8f83?auto=format&fit=crop&q=80&w=350&h=350',
       'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?auto=format&fit=crop&q=80&w=350&h=350'
     ],
-    joinedOn: '10 January 2026', 
-    sales: 45, 
-    checked: false 
+    joinedOn: '10 January 2026',
+    sales: 45,
+    checked: false
   }
 ]
 
@@ -197,6 +197,55 @@ function ProductManagement() {
     limit: 10
   })
 
+  // Helper to get backend base URL for relative image paths
+  const getBackendBaseUrl = () => {
+    const apiBase = import.meta.env.VITE_API_BASE_URL || 'https://e-commerce-backend-1-we80.onrender.com/api'
+    return apiBase.replace(/\/api\/?$/, '')
+  }
+
+  // Helper to convert relative image paths like /uploads/... to full URL
+  const getFullImageUrl = (imgUrl) => {
+    if (!imgUrl || typeof imgUrl !== 'string') return ''
+    if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://') || imgUrl.startsWith('data:') || imgUrl.startsWith('blob:')) {
+      return imgUrl
+    }
+    const backendBase = getBackendBaseUrl()
+    const cleanPath = imgUrl.startsWith('/') ? imgUrl : `/${imgUrl}`
+    return `${backendBase}${cleanPath}`
+  }
+
+  // Smart contextual fallback image generator based on product name / category
+  const getProductFallbackImage = (item) => {
+    const name = (item?.productName || item?.name || '').toLowerCase()
+    const cat = (item?.category || item?.categoryId?.name || '').toLowerCase()
+
+    if (name.includes('chair') || cat.includes('furniture') || name.includes('sofa') || name.includes('table') || name.includes('bed') || name.includes('wood')) {
+      return 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&q=80&w=350&h=350' // Modern wooden chair
+    }
+    if (name.includes('phone') || name.includes('iphone') || name.includes('mobile') || name.includes('samsung') || name.includes('apple')) {
+      return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=350&h=350' // Smartphone
+    }
+    if (name.includes('laptop') || name.includes('macbook') || name.includes('computer')) {
+      return 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&q=80&w=350&h=350'
+    }
+    if (name.includes('watch') || cat.includes('watch')) {
+      return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=350&h=350'
+    }
+    if (name.includes('shoe') || name.includes('sneaker') || cat.includes('footwear')) {
+      return 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=350&h=350'
+    }
+    if (name.includes('dress') || name.includes('shirt') || cat.includes('cloth') || cat.includes('fashion')) {
+      return 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=350&h=350'
+    }
+    if (name.includes('headphone') || name.includes('earphone') || name.includes('audio') || name.includes('sound')) {
+      return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=350&h=350'
+    }
+    if (cat.includes('electronics')) {
+      return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=350&h=350'
+    }
+    return 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&q=80&w=350&h=350'
+  }
+
   // Format single product response object
   const formatProductItem = (p, index) => {
     const rawId = p._id || p.id || `prod-${index}`
@@ -207,8 +256,12 @@ function ProductManagement() {
     const rawStock = p.stock !== undefined ? Number(p.stock) : 0
     const rawSku = p.sku || 'N/A'
     const rawColor = p.color || 'N/A'
-    const rawCategory = typeof p.category === 'object' ? (p.category?.name || p.category?.categoryName || 'General') : (p.category || p.categoryName || 'General')
-    const rawVendor = typeof p.vendor === 'object' ? (p.vendor?.name || p.vendor?.vendorName || 'Super Admin') : (p.vendor || p.vendorName || 'Super Admin')
+    const rawCategory = typeof p.categoryId === 'object' && p.categoryId?.name
+      ? p.categoryId.name
+      : (typeof p.category === 'object' && p.category?.name ? p.category.name : (p.category || p.categoryName || 'General'))
+    const rawVendor = typeof p.vendorId === 'object' && (p.vendorId?.fullName || p.vendorId?.name)
+      ? (p.vendorId.fullName || p.vendorId.name)
+      : (typeof p.vendor === 'object' && (p.vendor?.name || p.vendor?.vendorName) ? (p.vendor.name || p.vendor.vendorName) : (p.vendor || p.vendorName || 'Super Admin'))
 
     let rawStatus = (p.status || (rawStock === 0 ? 'OUT_OF_STOCK' : 'ACTIVE')).toString().toLowerCase()
     if (rawStatus === 'active' && rawStock === 0) {
@@ -217,24 +270,22 @@ function ProductManagement() {
       rawStatus = 'out-of-stock'
     }
 
-    const defaultImages = [
-      'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=350&h=350',
-      'https://images.unsplash.com/photo-1546435770-a3e426bf472b?auto=format&fit=crop&q=80&w=350&h=350',
-      'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&q=80&w=350&h=350'
-    ]
+    const smartFallback = getProductFallbackImage({ productName: rawName, category: rawCategory })
 
-    const imagesList = Array.isArray(p.images) && p.images.length > 0
+    const rawImages = Array.isArray(p.images) && p.images.length > 0
       ? p.images
-      : (p.image ? [p.image] : defaultImages)
+      : (p.image ? [p.image] : [])
 
-    const primaryImage = imagesList[0] || defaultImages[0]
+    const formattedImages = rawImages.map(img => getFullImageUrl(img)).filter(Boolean)
+    const imagesList = formattedImages.length > 0 ? formattedImages : [smartFallback]
+    const primaryImage = imagesList[0] || smartFallback
 
     const joinedDateFormatted = p.createdAt || p.joinedOn
       ? new Date(p.createdAt || p.joinedOn).toLocaleDateString('en-US', {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric'
-        })
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      })
       : '20 April 2026'
 
     return {
@@ -251,6 +302,8 @@ function ProductManagement() {
       color: rawColor,
       category: rawCategory,
       vendor: rawVendor,
+      vendorId: p.vendorId,
+      categoryId: p.categoryId,
       status: rawStatus,
       tag: Array.isArray(p.tags) ? p.tags.join(', ') : (p.tag || `${rawCategory}, ${rawBrand}`),
       returnPolicy: p.returnPolicy || '7 Days Replacement',
@@ -290,6 +343,7 @@ function ProductManagement() {
         setProductsList(formatted)
         setIsApiLoaded(true)
       }
+      console.log("productsData", productsData)
 
       const pagination = res?.data?.pagination || res?.pagination
       if (pagination) {
@@ -310,9 +364,38 @@ function ProductManagement() {
     }
   }
 
+  // Backend categories live state
+  const [backendCategories, setBackendCategories] = useState([])
+
+  // Fetch all categories from backend API
+  const fetchCategories = async () => {
+    try {
+      const res = await getAllCategories()
+      let cats = []
+      if (res?.message && typeof res.message === 'object') {
+        if (Array.isArray(res.message.categories)) cats = res.message.categories
+        else if (Array.isArray(res.message.data)) cats = res.message.data
+        else if (Array.isArray(res.message)) cats = res.message
+      }
+      if (res?.data && typeof res.data === 'object') {
+        if (Array.isArray(res.data.categories)) cats = res.data.categories
+        else if (Array.isArray(res.data.data)) cats = res.data.data
+        else if (Array.isArray(res.data)) cats = res.data
+      }
+      if (Array.isArray(res?.categories)) cats = res.categories
+
+      if (cats.length > 0) {
+        setBackendCategories(cats)
+      }
+    } catch (err) {
+      console.warn('Could not fetch backend categories for ProductManagement:', err)
+    }
+  }
+
   // Initial fetch on mount
   useEffect(() => {
     fetchProducts()
+    fetchCategories()
   }, [])
 
 
@@ -403,12 +486,13 @@ function ProductManagement() {
         const rawVendorEmail = data.vendorId?.email || ''
         const rawVendorPhone = data.vendorId?.mobile || data.vendorId?.phone || ''
 
-        const defaultImages = [
-          'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=350&h=350'
-        ]
-        const imagesList = Array.isArray(data.images) && data.images.length > 0
+        const smartFallback = getProductFallbackImage({ productName: rawName, category: rawCategory })
+        const rawImagesList = Array.isArray(data.images) && data.images.length > 0
           ? data.images
-          : (data.image ? [data.image] : (product.images || defaultImages))
+          : (data.image ? [data.image] : (product.images || [smartFallback]))
+
+        const formattedImages = rawImagesList.map(img => getFullImageUrl(img)).filter(Boolean)
+        const imagesList = formattedImages.length > 0 ? formattedImages : [smartFallback]
 
         setViewedProduct(prev => ({
           ...(prev || product),
@@ -484,10 +568,29 @@ function ProductManagement() {
 
   const fileInputRef = useRef(null)
 
-  // Dropdown options lists
-  const categoriesList = [
-    'Fashion', 'Beauty', 'Home', 'Mobiles', 'Electronics', 'Perfumes', 'Handmades', 'Jewellery', 'Watches'
-  ]
+  // Dynamic category dropdown options derived from live backend categories & products
+  const categoriesList = useMemo(() => {
+    const list = []
+    const seen = new Set()
+
+    backendCategories.forEach(cat => {
+      const name = (cat.name || cat.categoryName || '').trim()
+      if (name && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase())
+        list.push({ id: cat._id || cat.id, name })
+      }
+    })
+
+    productsList.forEach(p => {
+      const name = (p.category || '').trim()
+      if (name && name !== 'General' && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase())
+        list.push({ id: p.categoryId?._id || p.categoryId || name, name })
+      }
+    })
+
+    return list
+  }, [backendCategories, productsList])
 
   // Derive counts
   const totalCount = productsList.length
@@ -793,6 +896,7 @@ function ProductManagement() {
     setIsAdding(true)
   }
 
+
   // Delete loading state
   const [deleteLoading, setDeleteLoading] = useState(false)
 
@@ -930,6 +1034,7 @@ function ProductManagement() {
     const tagPills = viewedProduct.tag
       ? viewedProduct.tag.split(',').map(t => t.trim())
       : ['Product', 'New']
+    console.log(" paginatedProducts", paginatedProducts)
 
     return (
       <div className="product-profile-view" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -937,8 +1042,8 @@ function ProductManagement() {
         {/* Header section with back chevron button */}
         <div className="form-workspace-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button 
-              className="back-circle-btn" 
+            <button
+              className="back-circle-btn"
               aria-label="Back to Products list"
               onClick={() => {
                 setViewedProduct(null)
@@ -966,21 +1071,24 @@ function ProductManagement() {
 
         {/* Double-column profile grid */}
         <div className="form-split-layout">
-          
+
           {/* Left Column (Image Slider and Details table) */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            
+
             {/* Image Slider Container */}
             <div className="product-slider-container">
               <button type="button" className="slider-nav-btn prev" onClick={handlePrevSlide}>
                 <ChevronLeft style={{ width: '16px', height: '16px' }} />
               </button>
-              
-              <img 
-                src={sliderImages[activeSlideIndex]} 
-                alt="Product slider view" 
+
+              <img
+                src={sliderImages[activeSlideIndex] || getProductFallbackImage(viewedProduct)}
+                alt="Product slider view"
                 className="slider-main-img"
-                onError={(e) => { e.target.src = 'https://via.placeholder.com/350' }}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = getProductFallbackImage(viewedProduct);
+                }}
               />
 
               <button type="button" className="slider-nav-btn next" onClick={handleNextSlide}>
@@ -991,9 +1099,9 @@ function ProductManagement() {
             {/* Thumbnails Row */}
             <div className="product-thumbnails-row">
               {sliderImages.map((img, idx) => (
-                <img 
+                <img
                   key={idx}
-                  src={img} 
+                  src={img}
                   alt={`Thumbnail ${idx}`}
                   className={`product-thumbnail-item ${idx === activeSlideIndex ? 'active' : ''}`}
                   onClick={() => setActiveSlideIndex(idx)}
@@ -1046,22 +1154,22 @@ function ProductManagement() {
 
           </div>
 
-           {/* Right Column (Info text, stock metrics, and Additional Information) */}
+          {/* Right Column (Info text, stock metrics, and Additional Information) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            
+
             {/* Header info name, badge, and price */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
                 <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#000000', margin: 0, fontFamily: 'var(--admin-font)' }}>{viewedProduct.productName || viewedProduct.name}</h1>
-                <button 
+                <button
                   type="button"
-                  className={`vendor-badge ${viewedProduct.status} clickable`} 
+                  className={`vendor-badge ${viewedProduct.status} clickable`}
                   onClick={() => handleToggleProductStatus(viewedProduct)}
                   disabled={statusUpdatingId === (viewedProduct._id || viewedProduct.id)}
                   title={`Click to ${viewedProduct.status === 'active' ? 'Deactivate' : 'Activate'} Product`}
-                  style={{ 
-                    padding: '6px 18px', 
-                    fontSize: '12px', 
+                  style={{
+                    padding: '6px 18px',
+                    fontSize: '12px',
                     fontWeight: '600',
                     borderRadius: '6px',
                     backgroundColor: viewedProduct.status === 'active' ? '#2e7d32' : viewedProduct.status === 'out-of-stock' ? '#d32f2f' : '#8e24aa',
@@ -1179,8 +1287,8 @@ function ProductManagement() {
       <div className="admin-form-panel">
         {renderToast()}
         <div className="form-workspace-header">
-          <button 
-            className="back-circle-btn" 
+          <button
+            className="back-circle-btn"
             aria-label="Back to Products list"
             onClick={() => {
               setIsAdding(false)
@@ -1215,16 +1323,16 @@ function ProductManagement() {
           {/* Uploader Image container - Full Width at Top */}
           <div className="form-section-card" style={{ padding: '20px 24px', margin: '0 0 24px 0', width: '100%', boxSizing: 'border-box' }}>
             <span className="image-upload-label" style={{ marginBottom: '12px', display: 'block' }}>Upload Product Images</span>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              style={{ display: 'none' }} 
-              multiple 
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: 'none' }}
+              multiple
               accept="image/*"
               onChange={handleImageChange}
             />
 
-            <div 
+            <div
               className="dropzone-area clickable"
               onClick={handleImageClick}
               style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '2px dashed #90caf9', borderRadius: '12px', backgroundColor: '#f5faff' }}
@@ -1240,8 +1348,8 @@ function ProductManagement() {
                 {formData.imagePreviews.map((preview, index) => (
                   <div key={index} style={{ position: 'relative', width: '70px', height: '70px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
                     <img src={preview} alt={`upload-${index}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => {
                         setFormData(prev => ({
                           ...prev,
@@ -1261,49 +1369,49 @@ function ProductManagement() {
 
           {/* Form Two Column inputs layout */}
           <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
-            
+
             {/* Product Name */}
             <div className="form-field-item">
               <label>Product Name *</label>
-              <input 
-                type="text" 
-                placeholder="Enter Product Name (e.g. iPhone 15)" 
+              <input
+                type="text"
+                placeholder="Enter Product Name (e.g. iPhone 15)"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required 
+                required
               />
             </div>
 
             {/* Brand */}
             <div className="form-field-item">
               <label>Brand Name *</label>
-              <input 
-                type="text" 
-                placeholder="Enter Brand Name (e.g. Apple)" 
+              <input
+                type="text"
+                placeholder="Enter Brand Name (e.g. Apple)"
                 value={formData.brand}
                 onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                required 
+                required
               />
             </div>
 
             {/* SKU */}
             <div className="form-field-item">
               <label>SKU (Stock Keeping Unit) *</label>
-              <input 
-                type="text" 
-                placeholder="e.g. IPH15-128" 
+              <input
+                type="text"
+                placeholder="e.g. IPH15-128"
                 value={formData.sku}
                 onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                required 
+                required
               />
             </div>
 
             {/* Color */}
             <div className="form-field-item">
               <label>Color</label>
-              <input 
-                type="text" 
-                placeholder="e.g. Black, Silver, Blue" 
+              <input
+                type="text"
+                placeholder="e.g. Black, Silver, Blue"
                 value={formData.color}
                 onChange={(e) => setFormData({ ...formData, color: e.target.value })}
               />
@@ -1312,21 +1420,21 @@ function ProductManagement() {
             {/* Price */}
             <div className="form-field-item">
               <label>Price (₹) *</label>
-              <input 
-                type="number" 
-                placeholder="Enter Price in INR" 
+              <input
+                type="number"
+                placeholder="Enter Price in INR"
                 value={formData.price}
                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                required 
+                required
               />
             </div>
 
             {/* Discount Price */}
             <div className="form-field-item">
               <label>Discount Price (₹)</label>
-              <input 
-                type="number" 
-                placeholder="Enter Discount Price (optional)" 
+              <input
+                type="number"
+                placeholder="Enter Discount Price (optional)"
                 value={formData.discountPrice}
                 onChange={(e) => setFormData({ ...formData, discountPrice: e.target.value })}
               />
@@ -1335,26 +1443,34 @@ function ProductManagement() {
             {/* Stock */}
             <div className="form-field-item">
               <label>Stock Quantity *</label>
-              <input 
-                type="number" 
-                placeholder="Enter Available Stock" 
+              <input
+                type="number"
+                placeholder="Enter Available Stock"
                 value={formData.stock}
                 onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                required 
+                required
               />
             </div>
 
             {/* Category */}
             <div className="form-field-item">
               <label>Category *</label>
-              <select 
+              <select
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                onChange={(e) => {
+                  const selectedName = e.target.value
+                  const matched = categoriesList.find(c => c.name === selectedName)
+                  setFormData(prev => ({
+                    ...prev,
+                    category: selectedName,
+                    categoryId: matched?.id && typeof matched.id === 'string' && !matched.id.startsWith('cat-') ? matched.id : prev.categoryId
+                  }))
+                }}
                 required
               >
                 <option value="">Select Category</option>
                 {categoriesList.map(c => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c.id || c.name} value={c.name}>{c.name}</option>
                 ))}
               </select>
             </div>
@@ -1362,9 +1478,9 @@ function ProductManagement() {
             {/* Category ID (Optional) */}
             <div className="form-field-item">
               <label>Category ID (Optional)</label>
-              <input 
-                type="text" 
-                placeholder="e.g. 65cat123" 
+              <input
+                type="text"
+                placeholder="e.g. 65cat123"
                 value={formData.categoryId}
                 onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
               />
@@ -1373,9 +1489,9 @@ function ProductManagement() {
             {/* Vendor ID (Optional) */}
             <div className="form-field-item">
               <label>Vendor ID (Optional)</label>
-              <input 
-                type="text" 
-                placeholder="e.g. 65ven123" 
+              <input
+                type="text"
+                placeholder="e.g. 65ven123"
                 value={formData.vendorId}
                 onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
               />
@@ -1384,9 +1500,9 @@ function ProductManagement() {
             {/* Tags */}
             <div className="form-field-item">
               <label>Tags</label>
-              <input 
-                type="text" 
-                placeholder="Comma separated tags e.g. Wireless, Bluetooth" 
+              <input
+                type="text"
+                placeholder="Comma separated tags e.g. Wireless, Bluetooth"
                 value={formData.tag}
                 onChange={(e) => setFormData({ ...formData, tag: e.target.value })}
               />
@@ -1395,9 +1511,9 @@ function ProductManagement() {
             {/* Return Policy */}
             <div className="form-field-item">
               <label>Return Policy</label>
-              <input 
-                type="text" 
-                placeholder="e.g. 7 Days Replacement" 
+              <input
+                type="text"
+                placeholder="e.g. 7 Days Replacement"
                 value={formData.returnPolicy}
                 onChange={(e) => setFormData({ ...formData, returnPolicy: e.target.value })}
               />
@@ -1408,7 +1524,7 @@ function ProductManagement() {
           {/* Description */}
           <div className="form-field-item" style={{ marginTop: '20px' }}>
             <label>Product Description</label>
-            <textarea 
+            <textarea
               rows={4}
               placeholder="Provide a detailed description of the product..."
               value={formData.desc}
@@ -1419,7 +1535,7 @@ function ProductManagement() {
 
           {/* Active Status toggle */}
           <div className="status-toggle-wrapper" style={{ marginTop: '20px' }}>
-            <div 
+            <div
               className={`status-toggle-container ${formData.isActive ? 'active' : ''}`}
               onClick={() => setFormData(prev => ({ ...prev, isActive: !prev.isActive }))}
             >
@@ -1433,16 +1549,16 @@ function ProductManagement() {
 
           {/* Form Actions */}
           <div className="form-actions-row" style={{ marginTop: '32px' }}>
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="btn-reset-white"
               onClick={handleResetForm}
               disabled={formLoading}
             >
               Reset
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="btn-save-green"
               disabled={formLoading}
             >
@@ -1457,10 +1573,10 @@ function ProductManagement() {
 
   // 3. Default List View
   const stats = [
-    { id: 'total', filterVal: 'all', label: 'Total Product', value: isApiLoaded ? (paginationData.totalProducts || productsList.length) : 500, icon: Package, background: '#ffecb3', color: '#3b82f6' }, 
-    { id: 'active', filterVal: 'active', label: 'Active Products', value: isApiLoaded ? productsList.filter(p => p.status === 'active').length : 450, icon: CheckCircle2, background: '#c8e6c9', color: '#2ecc71' }, 
-    { id: 'outofstock', filterVal: 'out-of-stock', label: 'Out Of Stock', value: isApiLoaded ? productsList.filter(p => p.status === 'out-of-stock' || p.stock === 0).length : 50, icon: ShieldAlert, background: '#ffcdd2', color: '#f43f5e' }, 
-    { id: 'category', filterVal: 'category', label: 'Product Category', value: isApiLoaded ? new Set(productsList.map(p => p.category)).size : 20, icon: LayoutGrid, background: '#b2dfdb', color: '#3b82f6' } 
+    { id: 'total', filterVal: 'all', label: 'Total Product', value: isApiLoaded ? (paginationData.totalProducts || productsList.length) : 500, icon: Package, background: '#ffecb3', color: '#3b82f6' },
+    { id: 'active', filterVal: 'active', label: 'Active Products', value: isApiLoaded ? productsList.filter(p => p.status === 'active').length : 450, icon: CheckCircle2, background: '#c8e6c9', color: '#2ecc71' },
+    { id: 'outofstock', filterVal: 'out-of-stock', label: 'Out Of Stock', value: isApiLoaded ? productsList.filter(p => p.status === 'out-of-stock' || p.stock === 0).length : 50, icon: ShieldAlert, background: '#ffcdd2', color: '#f43f5e' },
+    { id: 'category', filterVal: 'category', label: 'Product Category', value: isApiLoaded ? new Set(productsList.map(p => p.category)).size : 20, icon: LayoutGrid, background: '#b2dfdb', color: '#3b82f6' }
   ]
 
   return (
@@ -1475,7 +1591,7 @@ function ProductManagement() {
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button 
+          <button
             type="button"
             className="btn-reset-white"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px' }}
@@ -1486,8 +1602,8 @@ function ProductManagement() {
             <RotateCw style={{ width: '15px', height: '15px', animation: loading ? 'spin 1s linear infinite' : 'none' }} />
             <span>Refresh</span>
           </button>
-          <button 
-            className="edit-profile-btn" 
+          <button
+            className="edit-profile-btn"
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
             onClick={() => {
               setEditingProduct(null)
@@ -1560,9 +1676,9 @@ function ProductManagement() {
           const Icon = stat.icon
           const isActive = stat.filterVal === 'category' ? false : statusFilter === stat.filterVal
           return (
-            <div 
-              key={stat.id} 
-              className={`stat-card clickable ${isActive ? 'active-filter' : ''}`} 
+            <div
+              key={stat.id}
+              className={`stat-card clickable ${isActive ? 'active-filter' : ''}`}
               style={{ backgroundColor: stat.background, borderColor: stat.color, color: stat.color }}
               onClick={() => {
                 if (stat.filterVal !== 'category') {
@@ -1571,8 +1687,8 @@ function ProductManagement() {
               }}
               title={`Click to filter by ${stat.label}`}
             >
-              <div 
-                className="stat-icon-wrapper" 
+              <div
+                className="stat-icon-wrapper"
                 style={{ backgroundColor: 'rgba(255,255,255,0.7)', color: stat.color }}
               >
                 <Icon />
@@ -1590,27 +1706,27 @@ function ProductManagement() {
         <div className="table-filter-bar">
           <div className="table-search-wrapper">
             <Search />
-            <input 
-              type="text" 
-              placeholder="Search Product..." 
+            <input
+              type="text"
+              placeholder="Search Product..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
           <div style={{ display: 'flex', gap: '12px' }}>
-            <select 
+            <select
               className="status-select"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
               <option value="all">Select Category</option>
               {categoriesList.map(c => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c.id || c.name} value={c.name}>{c.name}</option>
               ))}
             </select>
 
-            <select 
+            <select
               className="status-select"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -1630,8 +1746,8 @@ function ProductManagement() {
             <thead>
               <tr>
                 <th style={{ width: '40px', textAlign: 'center' }}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     className="admins-table-checkbox"
                     checked={productsList.length > 0 && productsList.every(p => p.checked)}
                     onChange={handleSelectAll}
@@ -1660,8 +1776,8 @@ function ProductManagement() {
                 paginatedProducts.map((product, idx) => (
                   <tr key={product.id}>
                     <td style={{ textAlign: 'center' }}>
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         className="admins-table-checkbox"
                         checked={product.checked}
                         onChange={() => handleRowCheckbox(product.id)}
@@ -1669,16 +1785,19 @@ function ProductManagement() {
                     </td>
                     <td>{startIndex + idx + 1}</td>
                     <td>
-                      <img 
-                        src={product.image} 
-                        alt={product.name} 
+                      <img
+                        src={product.image || (Array.isArray(product.images) && product.images[0]) || getProductFallbackImage(product)}
+                        alt={product.name}
                         className="product-thumbnail-img"
-                        onError={(e) => { e.target.src = 'https://via.placeholder.com/50' }}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = getProductFallbackImage(product);
+                        }}
                       />
                     </td>
                     <td>
-                      <span 
-                        className="table-link-name" 
+                      <span
+                        className="table-link-name"
                         onClick={() => handleViewProduct(product)}
                       >
                         {product.productName || product.name}
@@ -1725,16 +1844,16 @@ function ProductManagement() {
                     <td style={{ textAlign: 'center' }}>
                       <div className="action-icon-group">
                         {/* Eye View details icon */}
-                        <button 
+                        <button
                           className="btn-action-icon view-details"
                           title="View Product Details"
                           onClick={() => handleViewProduct(product)}
                         >
                           <Eye style={{ width: '16px', height: '16px' }} />
                         </button>
-                        
+
                         {/* Edit Product icon */}
-                        <button 
+                        <button
                           className="btn-action-icon view-details"
                           title="Edit Product"
                           onClick={() => handleOpenEdit(product)}
@@ -1743,7 +1862,7 @@ function ProductManagement() {
                         </button>
 
                         {/* Delete product trigger */}
-                        <button 
+                        <button
                           className="btn-action-icon delete-record"
                           title="Delete Product"
                           onClick={() => setDeletingProductId(product.id)}
@@ -1772,8 +1891,8 @@ function ProductManagement() {
             Showing {Math.min(startIndex + 1, totalItems)} to {Math.min(startIndex + itemsPerPage, totalItems)} of {totalItems} entries
           </div>
           <div className="offers-pagination">
-            <button 
-              className="pag-btn" 
+            <button
+              className="pag-btn"
               onClick={() => currentPage > 1 && setCurrentPage(currentPage - 1)}
               disabled={currentPage === 1}
               style={{ opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
@@ -1781,7 +1900,7 @@ function ProductManagement() {
               &lt;
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-              <button 
+              <button
                 key={pageNum}
                 className={`pag-btn ${currentPage === pageNum ? 'active' : ''}`}
                 onClick={() => setCurrentPage(pageNum)}
@@ -1789,8 +1908,8 @@ function ProductManagement() {
                 {pageNum}
               </button>
             ))}
-            <button 
-              className="pag-btn" 
+            <button
+              className="pag-btn"
               onClick={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
               disabled={currentPage === totalPages}
               style={{ opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
@@ -1808,16 +1927,16 @@ function ProductManagement() {
             <div className="delete-modal-title">Delete</div>
             <div className="delete-modal-subtitle">Are You Sure Want To Delete?</div>
             <div className="delete-modal-buttons">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn-delete-cancel"
                 onClick={() => setDeletingProductId(null)}
                 disabled={deleteLoading}
               >
                 Cancel
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn-delete-confirm"
                 onClick={handleDeleteConfirm}
                 disabled={deleteLoading}

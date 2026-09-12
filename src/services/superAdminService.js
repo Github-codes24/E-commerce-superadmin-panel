@@ -200,6 +200,104 @@ export const deleteCustomer = async (id) => {
   return response.data;
 };
 
+// 26. Get All Vendors (GET /api/superadmin/vendors)
+export const getAllVendors = async (params = {}) => {
+  const response = await api.get('/superadmin/vendors', { params });
+  return response.data;
+};
+
+// 27. Get Vendor By ID (GET /api/superadmin/vendors/:id)
+export const getVendorById = async (id) => {
+  const response = await api.get(`/superadmin/vendors/${id}`);
+  return response.data;
+};
+
+// 28. Update Vendor (PUT /api/superadmin/vendors/:id)
+export const updateVendor = async (id, data) => {
+  const response = await api.put(`/superadmin/vendors/${id}`, data);
+  return response.data;
+};
+
+// 29. Approve Vendor (PATCH /api/superadmin/vendors/:id/approve)
+export const approveVendor = async (id) => {
+  const response = await api.patch(`/superadmin/vendors/${id}/approve`);
+  return response.data;
+};
+
+// 30. Reject Vendor (PATCH /api/superadmin/vendors/:id/reject)
+export const rejectVendor = async (id) => {
+  const response = await api.patch(`/superadmin/vendors/${id}/reject`);
+  return response.data;
+};
+
+// 31. Activate / Deactivate Vendor (PATCH /api/superadmin/vendors/:id/status)
+export const updateVendorStatus = async (id, status) => {
+  const formattedStatus = typeof status === 'boolean'
+    ? (status ? 'Active' : 'Inactive')
+    : (typeof status === 'string'
+      ? (status.toLowerCase() === 'active' ? 'Active' : 'Inactive')
+      : (status ? 'Active' : 'Inactive'));
+
+  const response = await api.patch(`/superadmin/vendors/${id}/status`, {
+    accountStatus: formattedStatus,
+  });
+  return response.data;
+};
+
+// 32. Delete Vendor (DELETE /api/superadmin/vendors/:id)
+export const deleteVendor = async (id) => {
+  const response = await api.delete(`/superadmin/vendors/${id}`);
+  return response.data;
+};
+
+// 33. Get All Categories (GET /api/superadmin/categories)
+export const getAllCategories = async (params = {}) => {
+  const response = await api.get('/superadmin/categories', { params });
+  return response.data;
+};
+
+// 34. Create Category (POST /api/superadmin/categories)
+export const createCategory = async ({ name, description, image, isActive = true }) => {
+  const response = await api.post('/superadmin/categories', {
+    name,
+    description,
+    image,
+    isActive,
+  });
+  return response.data;
+};
+
+// 35. Get Category By ID (GET /api/superadmin/categories/:id)
+export const getCategoryById = async (id) => {
+  const response = await api.get(`/superadmin/categories/${id}`);
+  return response.data;
+};
+
+// 36. Update Category (PUT /api/superadmin/categories/:id)
+export const updateCategory = async (id, { name, description, image, isActive = true }) => {
+  const response = await api.put(`/superadmin/categories/${id}`, {
+    name,
+    description,
+    image,
+    isActive,
+  });
+  return response.data;
+};
+
+// 37. Delete Category (DELETE /api/superadmin/categories/:id)
+export const deleteCategory = async (id) => {
+  const response = await api.delete(`/superadmin/categories/${id}`);
+  return response.data;
+};
+
+// 38. Activate / Deactivate Category (PATCH /api/superadmin/categories/:id/status)
+export const updateCategoryStatus = async (id, isActive) => {
+  const response = await api.patch(`/superadmin/categories/${id}/status`, {
+    isActive: typeof isActive === 'boolean' ? isActive : isActive === 'active',
+  });
+  return response.data;
+};
+
 export default {
   createSuperAdmin,
   loginSuperAdmin,
@@ -227,7 +325,27 @@ export default {
   updateCustomer,
   updateCustomerStatus,
   deleteCustomer,
+  getAllVendors,
+  getVendorById,
+  updateVendor,
+  approveVendor,
+  rejectVendor,
+  updateVendorStatus,
+  deleteVendor,
+  getAllCategories,
+  createCategory,
+  getCategoryById,
+  updateCategory,
+  deleteCategory,
+  updateCategoryStatus,
 };
+
+
+
+
+
+
+
 
 
 
