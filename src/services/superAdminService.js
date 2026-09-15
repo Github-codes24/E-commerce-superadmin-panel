@@ -298,6 +298,44 @@ export const updateCategoryStatus = async (id, isActive) => {
   return response.data;
 };
 
+// 39. Get All Orders (GET /api/super-admin/orders)
+export const getAllOrders = async (params = {}) => {
+  const response = await api.get('/super-admin/orders', { params });
+  return response.data;
+};
+
+// 40. Get Order By ID (GET /api/super-admin/orders/:id)
+export const getOrderById = async (id) => {
+  const response = await api.get(`/super-admin/orders/${id}`);
+  return response.data;
+};
+
+// 41. Update Order Status (PATCH /api/super-admin/orders/:id/status)
+export const updateOrderStatus = async (id, status) => {
+  const response = await api.patch(`/super-admin/orders/${id}/status`, {
+    status,
+  });
+  return response.data;
+};
+
+// 42. Cancel Order (PATCH /api/super-admin/orders/:id/cancel)
+export const cancelOrder = async (id) => {
+  const response = await api.patch(`/super-admin/orders/${id}/cancel`);
+  return response.data;
+};
+
+// 43. Get Orders By Customer (GET /api/super-admin/orders/customer/:customerId)
+export const getOrdersByCustomer = async (customerId, params = {}) => {
+  const response = await api.get(`/super-admin/orders/customer/${customerId}`, { params });
+  return response.data;
+};
+
+// 44. Get Orders By Vendor (GET /api/super-admin/orders/vendor/:vendorId)
+export const getOrdersByVendor = async (vendorId, params = {}) => {
+  const response = await api.get(`/super-admin/orders/vendor/${vendorId}`, { params });
+  return response.data;
+};
+
 export default {
   createSuperAdmin,
   loginSuperAdmin,
@@ -338,6 +376,12 @@ export default {
   updateCategory,
   deleteCategory,
   updateCategoryStatus,
+  getAllOrders,
+  getOrderById,
+  updateOrderStatus,
+  cancelOrder,
+  getOrdersByCustomer,
+  getOrdersByVendor,
 };
 
 

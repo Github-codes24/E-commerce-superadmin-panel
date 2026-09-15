@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power } from 'lucide-react'
-import { getAllVendors, getVendorById, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor } from '../services/superAdminService'
+import { getAllVendors, getVendorById, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor } from '../services/superAdminService'
 import './VendorsManagement.css'
 
 // Default mock data to ensure immediate UI rendering while API loads
@@ -259,7 +259,7 @@ function VendorsManagement() {
     }
   }
 
-  // Fetch Single Vendor By ID (GET /api/superadmin/vendors/:id)
+// Fetch Single Vendor By ID and Vendor Orders (GET /api/super-admin/vendors/:id & GET /api/super-admin/orders/vendor/:vendorId)
   const handleViewVendor = async (vendor) => {
     setViewedVendor(vendor)
     setViewError(null)
@@ -271,23 +271,30 @@ function VendorsManagement() {
 
     try {
       setViewLoading(true)
-      const res = await getVendorById(vendorId)
-      const data = res?.data || res?.vendor || res
-      if (data) {
-        const formatted = formatVendorItem(data, 0)
+      const [vendorRes, ordersRes] = await Promise.allSettled([
+        getVendorById(vendorId),
+        getOrdersByVendor(vendorId)
+      ])
+
+      const data = vendorRes.status === 'fulfilled' ? (vendorRes.value?.data || vendorRes.value?.vendor || vendorRes.value) : null
+      const vendorOrders = ordersRes.status === 'fulfilled' ? (ordersRes.value?.data?.orders || ordersRes.value?.orders || []) : []
+
+      if (data || vendorOrders.length > 0) {
+        const formatted = data ? formatVendorItem(data, 0) : formatVendorItem(vendor, 0)
         setViewedVendor(prev => ({
           ...(prev || {}),
           ...formatted,
-          ...data,
-          id: data._id || data.id || formatted.id,
-          _id: data._id || data.id || formatted._id,
+          ...(data || {}),
+          id: data?._id || data?.id || formatted.id,
+          _id: data?._id || data?.id || formatted._id,
           name: formatted.name,
           shopName: formatted.shopName,
           email: formatted.email,
           phone: formatted.phone,
           category: formatted.category,
           products: formatted.products,
-          orders: formatted.orders,
+          orders: vendorOrders.length > 0 ? vendorOrders.length : formatted.orders,
+          ordersList: vendorOrders,
           revenue: formatted.revenue,
           approval: formatted.approval,
           status: formatted.status,
@@ -300,7 +307,7 @@ function VendorsManagement() {
         }))
       }
     } catch (err) {
-      console.error('Failed to fetch vendor by ID:', err)
+      console.error('Failed to fetch vendor by ID / orders:', err)
       const errorMsg = err?.response?.data?.message || err?.message || 'Vendor not found.'
       setViewError(errorMsg)
       showToast(errorMsg, 'error')

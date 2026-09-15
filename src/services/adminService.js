@@ -399,10 +399,88 @@ export const deleteCategory = async (id) => {
  * @param {string} id - Category ID
  * @param {boolean} isActive - Category status boolean
  */
+// 38. Activate / Deactivate Category (PATCH /api/superadmin/categories/:id/status)
 export const updateCategoryStatus = async (id, isActive) => {
   const response = await api.patch(`/superadmin/categories/${id}/status`, {
     isActive: typeof isActive === 'boolean' ? isActive : isActive === 'active',
   });
+  return response.data;
+};
+
+/**
+ * 39 - Get All Orders (GET /api/super-admin/orders)
+ * Method: GET
+ * Endpoint: /api/super-admin/orders
+ * Headers: Authorization: Bearer <Token>
+ * @param {Object} params - Query parameters (page, limit, search, status, etc.)
+ */
+export const getAllOrders = async (params = {}) => {
+  const response = await api.get('/super-admin/orders', { params });
+  return response.data;
+};
+
+/**
+ * 40 - Get Order By ID (GET /api/super-admin/orders/:id)
+ * Method: GET
+ * Endpoint: /api/super-admin/orders/:id
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Order ID
+ */
+export const getOrderById = async (id) => {
+  const response = await api.get(`/super-admin/orders/${id}`);
+  return response.data;
+};
+
+/**
+ * 41 - Update Order Status (PATCH /api/super-admin/orders/:id/status)
+ * Method: PATCH
+ * Endpoint: /api/super-admin/orders/:id/status
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Order ID
+ * @param {string} status - New status ('PLACED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', etc.)
+ */
+export const updateOrderStatus = async (id, status) => {
+  const response = await api.patch(`/super-admin/orders/${id}/status`, {
+    status,
+  });
+  return response.data;
+};
+
+/**
+ * 42 - Cancel Order (PATCH /api/super-admin/orders/:id/cancel)
+ * Method: PATCH
+ * Endpoint: /api/super-admin/orders/:id/cancel
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} id - Order ID
+ */
+export const cancelOrder = async (id) => {
+  const response = await api.patch(`/super-admin/orders/${id}/cancel`);
+  return response.data;
+};
+
+/**
+ * 43 - Get Orders By Customer (GET /api/super-admin/orders/customer/:customerId)
+ * Method: GET
+ * Endpoint: /api/super-admin/orders/customer/:customerId
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} customerId - Customer ID
+ * @param {object} params - Optional query params
+ */
+export const getOrdersByCustomer = async (customerId, params = {}) => {
+  const response = await api.get(`/super-admin/orders/customer/${customerId}`, { params });
+  return response.data;
+};
+
+/**
+ * 44 - Get Orders By Vendor (GET /api/super-admin/orders/vendor/:vendorId)
+ * Method: GET
+ * Endpoint: /api/super-admin/orders/vendor/:vendorId
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} vendorId - Vendor ID
+ * @param {object} params - Optional query params
+ */
+export const getOrdersByVendor = async (vendorId, params = {}) => {
+  const response = await api.get(`/super-admin/orders/vendor/${vendorId}`, { params });
   return response.data;
 };
 
@@ -439,6 +517,12 @@ export default {
   updateCategory,
   deleteCategory,
   updateCategoryStatus,
+  getAllOrders,
+  getOrderById,
+  updateOrderStatus,
+  cancelOrder,
+  getOrdersByCustomer,
+  getOrdersByVendor,
 };
 
 

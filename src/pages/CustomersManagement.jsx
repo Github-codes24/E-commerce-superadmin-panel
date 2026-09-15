@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Calendar, DollarSign, Box, Gift, ChevronLeft, ChevronRight, X, ArrowDown, RotateCw, AlertCircle, CheckCircle2, MapPin, ShoppingBag, Check } from 'lucide-react'
-import { getAllCustomers, getCustomerById, updateCustomer, updateCustomerStatus, deleteCustomer } from '../services/superAdminService'
+import { getAllCustomers, getCustomerById, updateCustomer, updateCustomerStatus, deleteCustomer, getOrdersByCustomer } from '../services/superAdminService'
 import './CustomersManagement.css'
 
 const DEFAULT_CUSTOMERS = [
@@ -94,7 +94,7 @@ function CustomersManagement() {
     setCurrentPage(1)
   }, [searchQuery, statusFilter])
 
-  // Fetch Single Customer By ID (GET /api/superadmin/customers/:id)
+  // Fetch Single Customer By ID and Customer Orders (GET /api/superadmin/customers/:id and GET /api/super-admin/orders/customer/:customerId)
   const handleViewCustomer = async (customer) => {
     setViewedCustomer(customer)
     setCustomerDetailsError(null)
@@ -106,14 +106,19 @@ function CustomersManagement() {
 
     try {
       setCustomerDetailsLoading(true)
-      const res = await getCustomerById(customerId)
-      const data = res?.data || res?.customer || res
+      const [customerRes, ordersRes] = await Promise.allSettled([
+        getCustomerById(customerId),
+        getOrdersByCustomer(customerId)
+      ])
 
-      if (data) {
-        const cust = data.customer || (data._id ? data : {})
-        const addresses = Array.isArray(data.addresses) ? data.addresses : []
-        const cart = data.cart || {}
-        const orders = Array.isArray(data.orders) ? data.orders : []
+      const customerData = customerRes.status === 'fulfilled' ? (customerRes.value?.data || customerRes.value?.customer || customerRes.value) : null
+      const customerOrdersData = ordersRes.status === 'fulfilled' ? (ordersRes.value?.data?.orders || ordersRes.value?.orders || []) : []
+
+      if (customerData || customerOrdersData.length > 0) {
+        const cust = customerData?.customer || (customerData?._id ? customerData : {})
+        const addresses = Array.isArray(customerData?.addresses) ? customerData.addresses : []
+        const cart = customerData?.cart || {}
+        const orders = customerOrdersData.length > 0 ? customerOrdersData : (Array.isArray(customerData?.orders) ? customerData.orders : [])
 
         const rawName = cust.fullName || cust.name || customer.name
         const rawEmail = cust.email || customer.email
@@ -130,18 +135,31 @@ function CustomersManagement() {
         const rawReturns = cust.returnedOrders !== undefined ? cust.returnedOrders : customer.returns
 
         // Map live orders for display
-        const mappedOrders = orders.map((ord, idx) => ({
-          id: ord._id || ord.id || idx + 1,
-          orderNum: ord.orderNumber || ord.orderNum || `Order#${(ord._id || '').slice(-8).toUpperCase() || '28456876'}`,
-          title: ord.items?.[0]?.productName || ord.items?.[0]?.name || ord.title || `Order #${idx + 1}`,
-          details: ord.items?.[0]?.variant ? `Size : ${ord.items[0].variant.size || 'M'}   Color : ${ord.items[0].variant.color || 'Standard'}` : (ord.details || 'Standard Order'),
-          discount: ord.discount || null,
-          price: ord.totalAmount ? `₹ ${Number(ord.totalAmount).toLocaleString()}` : (ord.price || '₹ 3,599'),
-          time: ord.createdAt ? new Date(ord.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) : 'Recent',
-          status: ord.orderStatus ? `${ord.orderStatus.charAt(0).toUpperCase() + ord.orderStatus.slice(1).toLowerCase()}` : (ord.status || 'Delivered'),
-          statusType: (ord.orderStatus || ord.statusType || 'delivered').toLowerCase(),
-          image: ord.items?.[0]?.image || ord.image || 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=256&h=256'
-        }))
+        const mappedOrders = orders.map((ord, idx) => {
+          const firstProduct = ord.products?.[0] || ord.items?.[0] || {}
+          const prodObj = firstProduct.productId || firstProduct.product || firstProduct
+          const pName = typeof prodObj === 'object' ? (prodObj.name || prodObj.title) : (firstProduct.name || firstProduct.title || `Order #${idx + 1}`)
+          const pImage = (typeof prodObj === 'object' ? (prodObj.images?.[0] || prodObj.image) : (firstProduct.image || firstProduct.img)) || 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=256&h=256'
+          const pSize = firstProduct.variant?.size || firstProduct.size || 'Free Size'
+          const pColor = firstProduct.variant?.color || firstProduct.color || 'Standard'
+          const orderNumStr = ord.orderNumber || ord.orderNo || `Order#${(ord._id || '').slice(-8).toUpperCase() || (idx + 1)}`
+          const priceNum = ord.totalAmount !== undefined ? ord.totalAmount : (ord.amount !== undefined ? ord.amount : ord.price)
+          const priceStr = priceNum !== undefined ? (typeof priceNum === 'number' ? `₹ ${priceNum.toLocaleString()}` : String(priceNum)) : '₹ 3,599'
+          const formattedStatus = ord.orderStatus || ord.status || 'Delivered'
+
+          return {
+            id: ord._id || ord.id || idx + 1,
+            orderNum: orderNumStr,
+            title: pName,
+            details: `Size : ${pSize}   Color : ${pColor}`,
+            discount: ord.discount ? `${ord.discount}%` : null,
+            price: priceStr.startsWith('₹') ? priceStr : `₹ ${priceStr}`,
+            time: ord.createdAt ? new Date(ord.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Recent',
+            status: formattedStatus,
+            statusType: formattedStatus.toLowerCase(),
+            image: pImage
+          }
+        })
 
         setViewedCustomer(prev => ({
           ...(prev || customer),
@@ -163,7 +181,7 @@ function CustomersManagement() {
         }))
       }
     } catch (err) {
-      console.error('Failed to fetch customer by ID:', err)
+      console.error('Failed to fetch customer by ID / orders:', err)
       setCustomerDetailsError(err?.response?.data?.message || err?.message || 'Customer not found.')
     } finally {
       setCustomerDetailsLoading(false)
