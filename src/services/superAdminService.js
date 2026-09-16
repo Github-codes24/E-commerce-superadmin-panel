@@ -336,6 +336,44 @@ export const getOrdersByVendor = async (vendorId, params = {}) => {
   return response.data;
 };
 
+// 45. Get All Commissions (GET /api/super-admin/commissions)
+export const getAllCommissions = async (params = {}) => {
+  const response = await api.get('/super-admin/commissions', { params });
+  return response.data;
+};
+
+// 46. Get Commission By ID (GET /api/super-admin/commissions/:id)
+export const getCommissionById = async (id) => {
+  const response = await api.get(`/super-admin/commissions/${id}`);
+  return response.data;
+};
+
+// 47. Create Commission (POST /api/super-admin/commissions)
+export const createCommission = async ({ categoryId, rate, status = 'ACTIVE' }) => {
+  const response = await api.post('/super-admin/commissions', {
+    categoryId,
+    rate: typeof rate === 'string' ? parseFloat(rate.replace('%', '')) : Number(rate),
+    status: typeof status === 'string' ? status.toUpperCase() : (status ? 'ACTIVE' : 'INACTIVE'),
+  });
+  return response.data;
+};
+
+// 48. Update Commission (PUT /api/super-admin/commissions/:id)
+export const updateCommission = async (id, { categoryId, rate, status = 'ACTIVE' }) => {
+  const response = await api.put(`/super-admin/commissions/${id}`, {
+    categoryId,
+    rate: typeof rate === 'string' ? parseFloat(rate.replace('%', '')) : Number(rate),
+    status: typeof status === 'string' ? status.toUpperCase() : (status ? 'ACTIVE' : 'INACTIVE'),
+  });
+  return response.data;
+};
+
+// 49. Delete Commission (DELETE /api/super-admin/commissions/:id)
+export const deleteCommission = async (id) => {
+  const response = await api.delete(`/super-admin/commissions/${id}`);
+  return response.data;
+};
+
 export default {
   createSuperAdmin,
   loginSuperAdmin,
@@ -382,6 +420,11 @@ export default {
   cancelOrder,
   getOrdersByCustomer,
   getOrdersByVendor,
+  getAllCommissions,
+  getCommissionById,
+  createCommission,
+  updateCommission,
+  deleteCommission,
 };
 
 
