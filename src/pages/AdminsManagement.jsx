@@ -1,8 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, X, Edit, Trash2, RotateCw } from 'lucide-react'
-import { registerAdmin, createSuperAdmin, getAllAdmins, getAdminById, updateAdmin, updateAdminStatus, deleteAdmin } from '../services/superAdminService'
+import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, X, Edit, Trash2, RotateCw, Key, CheckCircle, Shield, CheckSquare, Square } from 'lucide-react'
+import { registerAdmin, createSuperAdmin, getAllAdmins, getAdminById, updateAdmin, updateAdminStatus, deleteAdmin, assignPermissions, getAllPermissions, getPermissionsByAdminId, updatePermissions, deletePermissions, checkModulePermission } from '../services/superAdminService'
 import './AdminsManagement.css'
 
+const PERMISSION_MODULES = [
+  { key: 'VENDOR_MANAGEMENT', label: 'Vendor Management', actions: ['VIEW', 'ADD', 'EDIT', 'DELETE'] },
+  { key: 'PRODUCT_MANAGEMENT', label: 'Product Management', actions: ['VIEW', 'ADD', 'EDIT', 'DELETE'] },
+  { key: 'CUSTOMER_MANAGEMENT', label: 'Customer Management', actions: ['VIEW', 'ADD', 'EDIT', 'DELETE'] },
+  { key: 'ORDER_MANAGEMENT', label: 'Order Management', actions: ['VIEW', 'EDIT', 'CANCEL_ORDER', 'CHANGE_ORDER_STATUS'] }
+]
 
 function AdminsManagement() {
   // Admin List Data from API
@@ -17,6 +23,13 @@ function AdminsManagement() {
   const [deleteError, setDeleteError] = useState('')
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false)
   const [bulkDeleteError, setBulkDeleteError] = useState('')
+
+  // Assign Permissions Modal state
+  const [permissionAdmin, setPermissionAdmin] = useState(null)
+  const [adminPermissions, setAdminPermissions] = useState({})
+  const [permissionLoading, setPermissionLoading] = useState(false)
+  const [permissionError, setPermissionError] = useState('')
+  const [permissionSuccessMsg, setPermissionSuccessMsg] = useState('')
 
   // Fetch All Admins from Backend API
   const fetchAdmins = async () => {
@@ -671,6 +684,240 @@ function AdminsManagement() {
     }
   }
 
+  // Open Assign Permissions Modal
+  const handleOpenPermissions = async (admin) => {
+    setPermissionAdmin(admin)
+    setPermissionError('')
+    setPermissionSuccessMsg('')
+
+    // Default template initialization
+    const initialPerms = {}
+    PERMISSION_MODULES.forEach(mod => {
+      initialPerms[mod.key] = {}
+      mod.actions.forEach(act => {
+        initialPerms[mod.key][act] = ['VIEW', 'ADD', 'EDIT'].includes(act)
+      })
+    })
+
+    setAdminPermissions(initialPerms)
+
+    const adminId = admin?.id || admin?._id
+    if (adminId) {
+      try {
+        setPermissionLoading(true)
+        const res = await getPermissionsByAdminId(adminId)
+        const rawData = res?.data || res?.permissions || res?.admin?.permissions || res
+
+        const permList = Array.isArray(rawData)
+          ? rawData
+          : Array.isArray(rawData?.permissions)
+          ? rawData.permissions
+          : []
+
+        if (permList.length > 0) {
+          const loadedPerms = {}
+          PERMISSION_MODULES.forEach(mod => {
+            loadedPerms[mod.key] = {}
+            mod.actions.forEach(act => {
+              loadedPerms[mod.key][act] = false
+            })
+          })
+
+          permList.forEach(item => {
+            const modKey = item.module || item.moduleName || item.name
+            if (loadedPerms[modKey]) {
+              const actions = Array.isArray(item.actions) ? item.actions : []
+              actions.forEach(act => {
+                const actUpper = String(act).toUpperCase()
+                loadedPerms[modKey][actUpper] = true
+              })
+            }
+          })
+          setAdminPermissions(loadedPerms)
+        }
+      } catch (err) {
+        console.log('Failed to fetch admin permissions by ID, using template:', err)
+      } finally {
+        setPermissionLoading(false)
+      }
+    }
+  }
+
+  // Toggle single action in Assign Permissions modal
+  const handleTogglePermissionAction = (moduleKey, action) => {
+    setAdminPermissions(prev => ({
+      ...prev,
+      [moduleKey]: {
+        ...prev[moduleKey],
+        [action]: !prev[moduleKey]?.[action]
+      }
+    }))
+  }
+
+  // Toggle all actions in Assign Permissions modal
+  const handleToggleAllPermissions = (enable = true) => {
+    const updated = {}
+    PERMISSION_MODULES.forEach(mod => {
+      updated[mod.key] = {}
+      mod.actions.forEach(act => {
+        updated[mod.key][act] = enable
+      })
+    })
+    setAdminPermissions(updated)
+  }
+
+  // Save Permissions via POST /api/superadmin/permissions/assign
+  const handleSavePermissions = async (e) => {
+    if (e) e.preventDefault()
+    if (!permissionAdmin) return
+
+    const adminId = permissionAdmin.id || permissionAdmin._id
+    if (!adminId) {
+      setPermissionError('Admin ID is missing.')
+      return
+    }
+
+    setPermissionLoading(true)
+    setPermissionError('')
+    setPermissionSuccessMsg('')
+
+    try {
+      const formattedPermissions = PERMISSION_MODULES.map(m => {
+        const activeActions = m.actions.filter(a => adminPermissions[m.key]?.[a])
+        return {
+          module: m.key,
+          actions: activeActions
+        }
+      }).filter(p => p.actions.length > 0)
+
+      let res
+      try {
+        res = await assignPermissions({ adminId, permissions: formattedPermissions })
+      } catch (postErr) {
+        if (postErr.response?.status === 409 || (postErr.response?.status === 400 && (postErr.response?.data?.message?.toLowerCase().includes('exist') || postErr.response?.data?.message?.toLowerCase().includes('update')))) {
+          res = await updatePermissions(adminId, { permissions: formattedPermissions })
+        } else {
+          throw postErr
+        }
+      }
+
+      const successMsg = res?.message || 'Permissions assigned successfully.'
+      setPermissionSuccessMsg(successMsg)
+
+      const permAct = {
+        id: Date.now(),
+        title: 'Permissions Updated',
+        description: `${permissionAdmin.name}: Updated ${formattedPermissions.length} module permissions`,
+        time: 'Just now'
+      }
+
+      setActivities(prev => [{
+        id: Date.now(),
+        title: 'Permissions Assigned',
+        subtitle: `${permissionAdmin.name} permissions updated`,
+        time: 'Just now'
+      }, ...prev])
+
+      setAdminsList(prevList => prevList.map(a => {
+        if (a.id === adminId) {
+          return {
+            ...a,
+            activities: [permAct, ...(a.activities || [])]
+          }
+        }
+        return a
+      }))
+
+      if (viewedAdmin && (viewedAdmin.id === adminId || viewedAdmin._id === adminId)) {
+        setViewedAdmin(prev => ({
+          ...prev,
+          activities: [permAct, ...(prev?.activities || [])]
+        }))
+      }
+
+      setTimeout(() => {
+        setPermissionAdmin(null)
+      }, 1500)
+    } catch (err) {
+      console.error('Failed to assign permissions:', err)
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to assign permissions.'
+      setPermissionError(errMsg)
+    } finally {
+      setPermissionLoading(false)
+    }
+  }
+
+  // Delete / Reset Permissions (DELETE /api/superadmin/permissions/delete/:adminId)
+  const handleDeleteAdminPermissions = async () => {
+    if (!permissionAdmin) return
+    const adminId = permissionAdmin.id || permissionAdmin._id
+    if (!adminId) return
+
+    if (!window.confirm(`Are you sure you want to delete permissions for ${permissionAdmin.name}?`)) {
+      return
+    }
+
+    setPermissionLoading(true)
+    setPermissionError('')
+    setPermissionSuccessMsg('')
+
+    try {
+      const res = await deletePermissions(adminId)
+      const successMsg = res?.message || 'Permissions deleted successfully.'
+      setPermissionSuccessMsg(successMsg)
+
+      // Clear all modal checkboxes
+      const cleared = {}
+      PERMISSION_MODULES.forEach(mod => {
+        cleared[mod.key] = {}
+        mod.actions.forEach(act => {
+          cleared[mod.key][act] = false
+        })
+      })
+      setAdminPermissions(cleared)
+
+      const delPermAct = {
+        id: Date.now(),
+        title: 'Permissions Deleted',
+        description: `${permissionAdmin.name}: Permissions reset via API`,
+        time: 'Just now'
+      }
+      setActivities(prev => [{
+        id: Date.now(),
+        title: 'Permissions Deleted',
+        subtitle: `${permissionAdmin.name} permissions reset`,
+        time: 'Just now'
+      }, ...prev])
+
+      setAdminsList(prevList => prevList.map(a => {
+        if (a.id === adminId) {
+          return {
+            ...a,
+            activities: [delPermAct, ...(a.activities || [])]
+          }
+        }
+        return a
+      }))
+
+      if (viewedAdmin && (viewedAdmin.id === adminId || viewedAdmin._id === adminId)) {
+        setViewedAdmin(prev => ({
+          ...prev,
+          activities: [delPermAct, ...(prev?.activities || [])]
+        }))
+      }
+
+      setTimeout(() => {
+        setPermissionAdmin(null)
+      }, 1500)
+    } catch (err) {
+      console.error('Failed to delete permissions:', err)
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to delete permissions.'
+      setPermissionError(errMsg)
+    } finally {
+      setPermissionLoading(false)
+    }
+  }
+
   // Filter list
   const filteredAdmins = adminsList.filter((admin) => {
     const matchesSearch =
@@ -961,13 +1208,23 @@ function AdminsManagement() {
               </div>
             </div>
 
-            <button
-              className="btn-profile-edit"
-              onClick={() => handleOpenEdit(viewedAdmin)}
-            >
-              <Edit style={{ width: '16px', height: '16px' }} />
-              Edit
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                className="btn-profile-edit"
+                style={{ backgroundColor: '#f0fdf4', color: '#166534', borderColor: '#bbf7d0', display: 'flex', alignItems: 'center', gap: '6px' }}
+                onClick={() => handleOpenPermissions(viewedAdmin)}
+              >
+                <Key style={{ width: '16px', height: '16px' }} />
+                Permissions
+              </button>
+              <button
+                className="btn-profile-edit"
+                onClick={() => handleOpenEdit(viewedAdmin)}
+              >
+                <Edit style={{ width: '16px', height: '16px' }} />
+                Edit
+              </button>
+            </div>
           </div>
 
           <div className="admin-details-fields-grid">
@@ -1469,6 +1726,16 @@ function AdminsManagement() {
                               <button
                                 className="action-dropdown-item"
                                 onClick={() => {
+                                  handleOpenPermissions(admin)
+                                  setActiveActionMenuId(null)
+                                }}
+                              >
+                                <Key style={{ width: '14px', height: '14px', color: '#166534' }} />
+                                Permissions
+                              </button>
+                              <button
+                                className="action-dropdown-item"
+                                onClick={() => {
                                   handleOpenEdit(admin)
                                   setActiveActionMenuId(null)
                                 }}
@@ -1762,6 +2029,258 @@ function AdminsManagement() {
                 >
                   {editLoading && <RotateCw style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />}
                   {editLoading ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Permissions Modal Overlay */}
+      {permissionAdmin && (
+        <div className="modal-overlay" onClick={() => !permissionLoading && setPermissionAdmin(null)}>
+          <div
+            className="modal-box"
+            style={{ maxWidth: '750px', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #f1f3f4', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#e8f5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2e7d32' }}>
+                  <Key size={20} />
+                </div>
+                <div>
+                  <h2 className="modal-title" style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>
+                    Assign Permissions
+                  </h2>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>
+                    Admin: <strong>{permissionAdmin.name}</strong> ({permissionAdmin.email})
+                  </span>
+                </div>
+              </div>
+              <button
+                style={{ background: 'none', border: 'none', cursor: permissionLoading ? 'not-allowed' : 'pointer', color: '#78909c', display: 'flex', padding: '4px' }}
+                onClick={() => !permissionLoading && setPermissionAdmin(null)}
+                disabled={permissionLoading}
+                aria-label="Close modal"
+              >
+                <X style={{ width: '20px', height: '20px' }} />
+              </button>
+            </div>
+
+            {/* Quick Controls */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <span style={{ fontSize: '11px', fontFamily: 'monospace', backgroundColor: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '4px' }}>
+                POST /api/superadmin/permissions/assign
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#334155', cursor: 'pointer', fontWeight: '600' }}
+                  onClick={() => handleToggleAllPermissions(true)}
+                  disabled={permissionLoading}
+                >
+                  <CheckSquare size={14} />
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#334155', cursor: 'pointer', fontWeight: '600' }}
+                  onClick={() => handleToggleAllPermissions(false)}
+                  disabled={permissionLoading}
+                >
+                  <Square size={14} />
+                  Clear All
+                </button>
+              </div>
+            </div>
+
+            {/* Feedback Alerts */}
+            {permissionSuccessMsg && (
+              <div style={{
+                backgroundColor: '#ECFDF5',
+                border: '1px solid #6EE7B7',
+                color: '#065F46',
+                padding: '10px 14px',
+                borderRadius: '6px',
+                marginBottom: '16px',
+                fontSize: '13px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <CheckCircle size={16} />
+                <span>{permissionSuccessMsg}</span>
+              </div>
+            )}
+
+            {permissionError && (
+              <div style={{
+                backgroundColor: '#FEF2F2',
+                border: '1px solid #F87171',
+                color: '#DC2626',
+                padding: '10px 14px',
+                borderRadius: '6px',
+                marginBottom: '16px',
+                fontSize: '13px',
+                fontWeight: '500'
+              }}>
+                ⚠️ {permissionError}
+              </div>
+            )}
+
+            {/* Module Permissions Grid */}
+            <form onSubmit={handleSavePermissions} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <div style={{ flex: 1, overflowY: 'auto', paddingRight: '6px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {PERMISSION_MODULES.map((mod) => {
+                  const currentModPerms = adminPermissions[mod.key] || {}
+                  const activeCount = mod.actions.filter(a => currentModPerms[a]).length
+                  const allActive = activeCount === mod.actions.length
+
+                  return (
+                    <div
+                      key={mod.key}
+                      style={{
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        backgroundColor: '#ffffff'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', paddingBottom: '6px', borderBottom: '1px solid #f1f5f9' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Shield size={16} color="#166534" />
+                          <strong style={{ fontSize: '14px', color: '#1e293b' }}>{mod.label}</strong>
+                          <span style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace' }}>({mod.key})</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newStatus = !allActive
+                            setAdminPermissions(prev => ({
+                              ...prev,
+                              [mod.key]: mod.actions.reduce((acc, a) => ({ ...acc, [a]: newStatus }), {})
+                            }))
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: allActive ? '#059669' : '#64748b',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {allActive ? 'Deselect Module' : 'Select All'}
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {mod.actions.map((act) => {
+                          const isChecked = !!currentModPerms[act]
+                          return (
+                            <label
+                              key={act}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '5px 10px',
+                                borderRadius: '6px',
+                                border: isChecked ? '1px solid #a3cc66' : '1px solid #e2e8f0',
+                                backgroundColor: isChecked ? '#f7fee7' : '#f8fafc',
+                                color: isChecked ? '#365314' : '#64748b',
+                                fontSize: '12px',
+                                fontWeight: isChecked ? '600' : '500',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleTogglePermissionAction(mod.key, act)}
+                                disabled={permissionLoading}
+                                style={{ cursor: 'pointer', accentColor: '#65a30d' }}
+                              />
+                              <span>{act}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="modal-buttons" style={{ marginTop: '16px', gap: '10px', paddingTop: '12px', borderTop: '1px solid #f1f3f4', display: 'flex', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn-cancel-red"
+                  style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', cursor: permissionLoading ? 'not-allowed' : 'pointer' }}
+                  onClick={() => setPermissionAdmin(null)}
+                  disabled={permissionLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: '1px solid #fca5a5',
+                    background: '#fef2f2',
+                    color: '#dc2626',
+                    cursor: permissionLoading ? 'not-allowed' : 'pointer',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                  onClick={handleDeleteAdminPermissions}
+                  disabled={permissionLoading}
+                >
+                  <Trash2 size={16} />
+                  <span>Delete</span>
+                </button>
+                <button
+                  type="submit"
+                  className="save-changes-btn"
+                  disabled={permissionLoading}
+                  style={{
+                    flex: 2,
+                    padding: '12px 20px',
+                    backgroundColor: '#a3cc66',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: permissionLoading ? 'not-allowed' : 'pointer',
+                    opacity: permissionLoading ? 0.7 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {permissionLoading ? (
+                    <>
+                      <RotateCw style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Key style={{ width: '16px', height: '16px' }} />
+                      <span>Save Permissions</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

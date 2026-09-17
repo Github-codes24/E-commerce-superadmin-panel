@@ -62,6 +62,47 @@ export const getDashboardStats = async () => {
   return response.data;
 };
 
+// 8b. Assign Permissions (POST /api/superadmin/permissions/assign)
+export const assignPermissions = async ({ adminId, permissions }) => {
+  const response = await api.post('/superadmin/permissions/assign', {
+    adminId,
+    permissions,
+  });
+  return response.data;
+};
+
+// 8c. Get All Permissions (GET /api/superadmin/permissions/get-all)
+export const getAllPermissions = async () => {
+  const response = await api.get('/superadmin/permissions/get-all');
+  return response.data;
+};
+
+// 8d. Get Permissions by Admin ID (GET /api/superadmin/permissions/get-by-admin/:adminId)
+export const getPermissionsByAdminId = async (adminId) => {
+  const response = await api.get(`/superadmin/permissions/get-by-admin/${adminId}`);
+  return response.data;
+};
+
+// 8e. Update Permissions (PUT /api/superadmin/permissions/update/:adminId)
+export const updatePermissions = async (adminId, { permissions }) => {
+  const response = await api.put(`/superadmin/permissions/update/${adminId}`, {
+    permissions,
+  });
+  return response.data;
+};
+
+// 8f. Delete Permissions (DELETE /api/superadmin/permissions/delete/:adminId)
+export const deletePermissions = async (adminId) => {
+  const response = await api.delete(`/superadmin/permissions/delete/${adminId}`);
+  return response.data;
+};
+
+// 8g. Check Module Permission (GET /api/superadmin/permissions/check/:adminId/:module)
+export const checkModulePermission = async (adminId, moduleName) => {
+  const response = await api.get(`/superadmin/permissions/check/${adminId}/${encodeURIComponent(moduleName)}`);
+  return response.data;
+};
+
 // 9. Register / Create Admin (POST /api/superadmin/admins/register)
 export const registerAdmin = async ({ name, fullName, email, phone, mobile, password, role = 'ADMIN', gender = 'Male', status = 'ACTIVE' }) => {
   const response = await api.post('/superadmin/admins/register', {
@@ -383,6 +424,12 @@ export default {
   updateSuperAdminProfile,
   changePassword,
   getDashboardStats,
+  assignPermissions,
+  getAllPermissions,
+  getPermissionsByAdminId,
+  updatePermissions,
+  deletePermissions,
+  checkModulePermission,
   registerAdmin,
   createAdmin,
   getAllAdmins,

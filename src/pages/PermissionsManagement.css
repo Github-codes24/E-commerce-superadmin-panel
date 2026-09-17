@@ -436,6 +436,119 @@
   z-index: 1100;
 }
 
+.permissions-toast.error {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+/* Header Controls */
+.permissions-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-selector-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.admin-select-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.admin-select-dropdown {
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  outline: none;
+  cursor: pointer;
+  max-width: 220px;
+}
+
+.permissions-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quick-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  background-color: #ffffff;
+  color: #374151;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quick-toggle-btn:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.selected-admin-badge-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #166534;
+}
+
+.badge-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badge-label {
+  color: #15803d;
+}
+
+.badge-name {
+  color: #14532d;
+  font-weight: 700;
+}
+
+.badge-email {
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.api-endpoint-tag {
+  font-family: monospace;
+  font-size: 11px;
+  background: #dcfce7;
+  color: #15803d;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
 @keyframes toastFadeIn {
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
@@ -447,8 +560,14 @@
     gap: 12px;
     align-items: flex-start;
   }
+  .permissions-header-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
   .save-changes-btn {
     width: 100%;
+    justify-content: center;
   }
   .permissions-drawer-container {
     width: 100%;

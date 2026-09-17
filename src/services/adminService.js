@@ -40,6 +40,84 @@ export const createSuperAdmin = async ({ name, email, password }) => {
 };
 
 /**
+ * Assign Permissions (POST /api/superadmin/permissions/assign)
+ * Method: POST
+ * Endpoint: /api/superadmin/permissions/assign
+ * Headers: Authorization: Bearer <Token>
+ * @param {Object} data - { adminId, permissions: [{ module, actions }] }
+ */
+export const assignPermissions = async ({ adminId, permissions }) => {
+  const response = await api.post('/superadmin/permissions/assign', {
+    adminId,
+    permissions,
+  });
+  return response.data;
+};
+
+/**
+ * Get All Permissions (GET /api/superadmin/permissions/get-all)
+ * Method: GET
+ * Endpoint: /api/superadmin/permissions/get-all
+ * Headers: Authorization: Bearer <Token>
+ */
+export const getAllPermissions = async () => {
+  const response = await api.get('/superadmin/permissions/get-all');
+  return response.data;
+};
+
+/**
+ * Get Permissions by Admin ID (GET /api/superadmin/permissions/get-by-admin/:adminId)
+ * Method: GET
+ * Endpoint: /api/superadmin/permissions/get-by-admin/:adminId
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} adminId - Admin ID
+ */
+export const getPermissionsByAdminId = async (adminId) => {
+  const response = await api.get(`/superadmin/permissions/get-by-admin/${adminId}`);
+  return response.data;
+};
+
+/**
+ * Update Permissions (PUT /api/superadmin/permissions/update/:adminId)
+ * Method: PUT
+ * Endpoint: /api/superadmin/permissions/update/:adminId
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} adminId - Admin ID
+ * @param {Object} data - { permissions: [{ module, actions }] }
+ */
+export const updatePermissions = async (adminId, { permissions }) => {
+  const response = await api.put(`/superadmin/permissions/update/${adminId}`, {
+    permissions,
+  });
+  return response.data;
+};
+
+/**
+ * Delete Permissions (DELETE /api/superadmin/permissions/delete/:adminId)
+ * Method: DELETE
+ * Endpoint: /api/superadmin/permissions/delete/:adminId
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} adminId - Admin ID
+ */
+export const deletePermissions = async (adminId) => {
+  const response = await api.delete(`/superadmin/permissions/delete/${adminId}`);
+  return response.data;
+};
+
+/**
+ * Check Module Permission (GET /api/superadmin/permissions/check/:adminId/:module)
+ * Method: GET
+ * Endpoint: /api/superadmin/permissions/check/:adminId/:module
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} adminId - Admin ID
+ * @param {string} moduleName - Module Name / Code
+ */
+export const checkModulePermission = async (adminId, moduleName) => {
+  const response = await api.get(`/superadmin/permissions/check/${adminId}/${encodeURIComponent(moduleName)}`);
+  return response.data;
+};
+
+/**
  * Get All Admins (GET /api/superadmin/admins/get-all)
  * Method: GET
  * Headers: Authorization: Bearer <Token>
@@ -488,6 +566,12 @@ export default {
   registerAdmin,
   createAdmin,
   createSuperAdmin,
+  assignPermissions,
+  getAllPermissions,
+  getPermissionsByAdminId,
+  updatePermissions,
+  deletePermissions,
+  checkModulePermission,
   getAllAdmins,
   getAdminById,
   updateAdmin,
