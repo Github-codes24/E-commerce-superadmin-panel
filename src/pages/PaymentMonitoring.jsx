@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Search,
   ChevronDown,
@@ -7,11 +7,17 @@ import {
   DollarSign,
   CheckCircle2,
   AlertTriangle,
+  Clock,
+  Loader2,
+  RotateCw,
+  X,
+  AlertCircle,
 } from 'lucide-react'
+import { getAllPayments, getPaymentStats, getFailedPayments } from '../services/superAdminService'
 import './PaymentMonitoring.css'
 
 /* ─────────────────────────────────────────
-   Mock Data
+   Mock Data Fallback
 ───────────────────────────────────────── */
 const INITIAL_PAYMENTS = [
   {
@@ -106,17 +112,17 @@ const INITIAL_PAYMENTS = [
     customerName: 'John Doe',
     customerPhone: '9875663201',
     customerEmail: 'johndoe@gmail.com',
-    method: 'Apple Pay',
-    date: '12 May 2026',
-    time: '05:00 PM',
+    method: 'Net Banking',
+    date: '13 May 2026',
+    time: '11:00 AM',
     status: 'Success',
-    amount: '₹9500',
-    productName: 'Nike Air Zoom',
-    productSize: 'UK 10',
-    productColor: 'Grey',
+    amount: '₹8900',
+    productName: 'Gaming Mouse',
+    productSize: 'Free Size',
+    productColor: 'RGB',
     qty: 1,
-    productPrice: '₹ 9,400',
-    totalAmount: '₹ 9,500',
+    productPrice: '₹ 8,700',
+    totalAmount: '₹ 8,900',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150',
   },
   {
@@ -124,42 +130,42 @@ const INITIAL_PAYMENTS = [
     srNo: 6,
     paymentId: 'Pay_106',
     orderId: 'Order#28456876',
-    customerName: 'Alice Smith',
-    customerPhone: '9123456789',
-    customerEmail: 'alice@gmail.com',
-    method: 'UPI',
+    customerName: 'John Doe',
+    customerPhone: '9875663201',
+    customerEmail: 'johndoe@gmail.com',
+    method: 'Credit Card',
     date: '13 May 2026',
-    time: '10:00 AM',
-    status: 'Success',
+    time: '05:45 PM',
+    status: 'Refund',
     amount: '₹4200',
     productName: 'Wireless Earbuds',
-    productSize: 'Regular',
+    productSize: 'Free Size',
     productColor: 'White',
     qty: 1,
     productPrice: '₹ 4,100',
     totalAmount: '₹ 4,200',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=150&h=150',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150',
   },
   {
     id: 7,
     srNo: 7,
     paymentId: 'Pay_107',
     orderId: 'Order#28456876',
-    customerName: 'Bob Jones',
-    customerPhone: '9988776655',
-    customerEmail: 'bob@gmail.com',
-    method: 'Credit Card',
-    date: '13 May 2026',
-    time: '11:30 AM',
-    status: 'Refund',
-    amount: '₹600',
-    productName: 'Designer Mug',
-    productSize: 'Regular',
-    productColor: 'Yellow',
+    customerName: 'John Doe',
+    customerPhone: '9875663201',
+    customerEmail: 'johndoe@gmail.com',
+    method: 'Debit Card',
+    date: '14 May 2026',
+    time: '09:10 AM',
+    status: 'Success',
+    amount: '₹2100',
+    productName: 'Fitness Tracker',
+    productSize: 'S',
+    productColor: 'Pink',
     qty: 1,
-    productPrice: '₹ 550',
-    totalAmount: '₹ 600',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150&h=150',
+    productPrice: '₹ 2,050',
+    totalAmount: '₹ 2,100',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150',
   },
   {
     id: 8,
@@ -183,6 +189,37 @@ const INITIAL_PAYMENTS = [
     avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=150&h=150',
   },
 ]
+
+/* ─────────────────────────────────────────
+   Helper Formatters
+───────────────────────────────────────── */
+const formatDate = (dateStr) => {
+  if (!dateStr || dateStr === '-') return '-'
+  const dateObj = new Date(dateStr)
+  if (isNaN(dateObj.getTime())) return dateStr
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return `${dateObj.getDate()} ${months[dateObj.getMonth()]} ${dateObj.getFullYear()}`
+}
+
+const formatTime = (timeStr) => {
+  if (!timeStr || timeStr === '-') return ''
+  const dateObj = new Date(timeStr)
+  if (isNaN(dateObj.getTime())) return timeStr
+  let hours = dateObj.getHours()
+  const minutes = dateObj.getMinutes().toString().padStart(2, '0')
+  const ampm = hours >= 12 ? 'PM' : 'AM'
+  hours = hours % 12
+  hours = hours ? hours : 12
+  return `${hours.toString().padStart(2, '0')}:${minutes} ${ampm}`
+}
+
+const formatCurrency = (val) => {
+  if (val === undefined || val === null || val === '') return '₹0'
+  if (typeof val === 'string' && (val.includes('₹') || val.includes('$'))) return val
+  const num = Number(val)
+  if (isNaN(num)) return `₹${val}`
+  return `₹${num.toLocaleString('en-IN')}`
+}
 
 /* ─────────────────────────────────────────
    View Details Page Component
@@ -291,10 +328,189 @@ function PaymentMonitoring() {
   // Selected payment for detail view
   const [viewedPayment, setViewedPayment] = useState(null)
 
+  // API states
+  const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(null)
+  const [toastMessage, setToastMessage] = useState(null)
+  const [paymentStats, setPaymentStats] = useState(null)
+
+  const showToast = (text, type = 'success') => {
+    setToastMessage({ text, type })
+    setTimeout(() => {
+      setToastMessage((prev) => (prev?.text === text ? null : prev))
+    }, 4000)
+  }
+
+  // Fetch payments, stats, and failed payments from API
+  const fetchPayments = useCallback(async (showToastNotice = false) => {
+    setLoading(true)
+    setFetchError(null)
+    try {
+      const [paymentsRes, statsRes, failedRes] = await Promise.allSettled([
+        getAllPayments(),
+        getPaymentStats(),
+        getFailedPayments(),
+      ])
+
+      let response = null
+      let allMappedPayments = []
+
+      if (paymentsRes.status === 'fulfilled') {
+        response = paymentsRes.value
+        const dataObj = response?.message || response?.data || response
+        
+        let rawPayments = []
+        if (dataObj && typeof dataObj === 'object') {
+          if (Array.isArray(dataObj.payments)) {
+            rawPayments = dataObj.payments
+          } else if (Array.isArray(response?.payments)) {
+            rawPayments = response.payments
+          } else if (Array.isArray(dataObj)) {
+            rawPayments = dataObj
+          }
+        }
+
+        if (rawPayments && rawPayments.length > 0) {
+          allMappedPayments = rawPayments.map((item, index) => {
+            const rawStatus = (item.status || 'Success').toString()
+            const capitalizedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()
+            const createdDate = item.createdAt || item.paymentDate || item.date || item.updatedAt
+            
+            return {
+              id: item._id || item.id || `pay-${index + 1}`,
+              _id: item._id,
+              srNo: index + 1,
+              paymentId: item.paymentId || item.transactionId || item.transactionNo || item._id || `Pay_${100 + index + 1}`,
+              orderId: item.orderId || item.order?.orderId || (item.order ? `Order#${item.order}` : `Order#2845687${index + 1}`),
+              customerName: item.customerName || item.customer?.fullName || item.customer?.name || item.user?.fullName || item.user?.name || item.userName || 'Customer',
+              customerPhone: item.customerPhone || item.customer?.mobile || item.customer?.phone || item.user?.mobile || item.user?.phone || '9875663201',
+              customerEmail: item.customerEmail || item.customer?.email || item.user?.email || 'customer@example.com',
+              method: item.method || item.paymentMethod || item.paymentMode || 'Online',
+              date: item.date ? item.date : formatDate(createdDate),
+              time: item.time ? item.time : formatTime(createdDate),
+              status: capitalizedStatus,
+              amount: formatCurrency(item.amount || item.totalAmount || 0),
+              productName: item.productName || item.product?.name || item.order?.items?.[0]?.name || 'Sony Camera',
+              productSize: item.productSize || item.size || 'Free Size',
+              productColor: item.productColor || item.color || 'Black',
+              qty: item.qty || item.quantity || 1,
+              productPrice: formatCurrency(item.productPrice || item.price || item.amount || 0),
+              totalAmount: formatCurrency(item.totalAmount || item.amount || 0),
+              avatar: item.avatar || item.customer?.avatar || item.user?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150',
+              raw: item,
+            }
+          })
+        }
+      }
+
+      // If failed payments endpoint returned additional records, merge without duplicates
+      if (failedRes.status === 'fulfilled') {
+        const failedDataObj = failedRes.value?.message || failedRes.value?.data || failedRes.value
+        const rawFailedList = Array.isArray(failedDataObj?.payments)
+          ? failedDataObj.payments
+          : (Array.isArray(failedRes.value?.payments) ? failedRes.value.payments : (Array.isArray(failedDataObj) ? failedDataObj : []))
+
+        if (rawFailedList.length > 0) {
+          const existingIds = new Set(allMappedPayments.map((p) => p._id || p.id || p.paymentId))
+          const mappedFailed = rawFailedList
+            .filter((item) => !existingIds.has(item._id || item.id || item.paymentId))
+            .map((item, index) => {
+              const createdDate = item.createdAt || item.paymentDate || item.date || item.updatedAt
+              return {
+                id: item._id || item.id || `pay-failed-${index + 1}`,
+                _id: item._id,
+                srNo: allMappedPayments.length + index + 1,
+                paymentId: item.paymentId || item.transactionId || item.transactionNo || item._id || `Pay_F${100 + index + 1}`,
+                orderId: item.orderId || item.order?.orderId || (item.order ? `Order#${item.order}` : `Order#2845687${index + 1}`),
+                customerName: item.customerName || item.customer?.fullName || item.customer?.name || item.user?.fullName || item.user?.name || item.userName || 'Customer',
+                customerPhone: item.customerPhone || item.customer?.mobile || item.customer?.phone || item.user?.mobile || item.user?.phone || '9875663201',
+                customerEmail: item.customerEmail || item.customer?.email || item.user?.email || 'customer@example.com',
+                method: item.method || item.paymentMethod || item.paymentMode || 'Online',
+                date: item.date ? item.date : formatDate(createdDate),
+                time: item.time ? item.time : formatTime(createdDate),
+                status: 'Failed',
+                amount: formatCurrency(item.amount || item.totalAmount || 0),
+                productName: item.productName || item.product?.name || item.order?.items?.[0]?.name || 'Sony Camera',
+                productSize: item.productSize || item.size || 'Free Size',
+                productColor: item.productColor || item.color || 'Black',
+                qty: item.qty || item.quantity || 1,
+                productPrice: formatCurrency(item.productPrice || item.price || item.amount || 0),
+                totalAmount: formatCurrency(item.totalAmount || item.amount || 0),
+                avatar: item.avatar || item.customer?.avatar || item.user?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150',
+                raw: item,
+              }
+            })
+          allMappedPayments = [...allMappedPayments, ...mappedFailed]
+        }
+      }
+
+      if (allMappedPayments.length > 0) {
+        setPaymentsList(allMappedPayments)
+      } else if (paymentsRes.status === 'fulfilled' && Array.isArray(paymentsRes.value?.message?.payments)) {
+        setPaymentsList([])
+      }
+
+      if (statsRes.status === 'fulfilled') {
+        const statsData = statsRes.value?.message || statsRes.value?.data || statsRes.value
+        if (statsData && typeof statsData === 'object') {
+          setPaymentStats(statsData)
+        }
+      }
+
+      if (showToastNotice) {
+        const successMsg = typeof response?.data === 'string'
+          ? response.data
+          : (typeof statsRes.value?.data === 'string' ? statsRes.value.data : 'Payments data fetched successfully')
+        showToast(successMsg, 'success')
+      }
+    } catch (err) {
+      console.error('Error fetching payments:', err)
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to fetch payments'
+      setFetchError(errorMsg)
+      if (showToastNotice) {
+        showToast(errorMsg, 'error')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchPayments(false)
+  }, [fetchPayments])
+
   // Calculations for stats
-  const totalPayments = paymentsList.length
-  const totalSuccess = paymentsList.filter((p) => p.status === 'Success').length
-  const totalRefund = paymentsList.filter((p) => p.status === 'Refund').length
+  const totalPaymentsCount = paymentStats?.totalPayments !== undefined
+    ? paymentStats.totalPayments
+    : paymentsList.length
+
+  const totalRevenueAmount = paymentStats?.totalAmount !== undefined
+    ? formatCurrency(paymentStats.totalAmount)
+    : null
+
+  const totalPaidCount = paymentStats?.paid?.count !== undefined
+    ? paymentStats.paid.count
+    : paymentsList.filter((p) => p.status === 'Success' || p.status === 'Paid').length
+
+  const totalPaidAmount = paymentStats?.paid?.amount !== undefined
+    ? formatCurrency(paymentStats.paid.amount)
+    : null
+
+  const totalPendingCount = paymentStats?.pending?.count !== undefined
+    ? paymentStats.pending.count
+    : paymentsList.filter((p) => p.status === 'Pending').length
+
+  const totalPendingAmount = paymentStats?.pending?.amount !== undefined
+    ? formatCurrency(paymentStats.pending.amount)
+    : null
+
+  const totalFailedCount = paymentStats?.failed?.count !== undefined
+    ? paymentStats.failed.count
+    : paymentsList.filter((p) => p.status === 'Refund' || p.status === 'Failed').length
+
+  const totalFailedAmount = paymentStats?.failed?.amount !== undefined
+    ? formatCurrency(paymentStats.failed.amount)
+    : null
 
   // Filter logic
   const filteredPayments = paymentsList.filter((p) => {
@@ -304,7 +520,19 @@ function PaymentMonitoring() {
       p.paymentId.toLowerCase().includes(q) ||
       p.customerName.toLowerCase().includes(q) ||
       p.orderId.toLowerCase().includes(q)
-    const matchesStatus = !statusFilter || p.status === statusFilter
+    
+    let matchesStatus = true
+    if (statusFilter) {
+      const pStatus = (p.status || '').toLowerCase()
+      const fStatus = statusFilter.toLowerCase()
+      if (fStatus === 'success' || fStatus === 'paid') {
+        matchesStatus = pStatus === 'success' || pStatus === 'paid'
+      } else if (fStatus === 'failed' || fStatus === 'refund') {
+        matchesStatus = pStatus === 'failed' || pStatus === 'refund'
+      } else {
+        matchesStatus = pStatus === fStatus
+      }
+    }
     return matchesSearch && matchesStatus
   })
 
@@ -322,12 +550,45 @@ function PaymentMonitoring() {
     if (currentPage < totalPages) setCurrentPage(currentPage + 1)
   }
 
+  const renderToast = () => {
+    if (!toastMessage) return null
+    return (
+      <div className={`product-toast-banner ${toastMessage.type}`}>
+        {toastMessage.type === 'success' ? (
+          <CheckCircle2 style={{ width: '18px', height: '18px', flexShrink: 0 }} />
+        ) : (
+          <AlertCircle style={{ width: '18px', height: '18px', flexShrink: 0 }} />
+        )}
+        <span>{toastMessage.text}</span>
+        <button
+          type="button"
+          onClick={() => setToastMessage(null)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'inherit',
+            cursor: 'pointer',
+            padding: 0,
+            marginLeft: '8px',
+            display: 'flex',
+            alignItems: 'center',
+          }}
+          aria-label="Close notification"
+        >
+          <X style={{ width: '14px', height: '14px' }} />
+        </button>
+      </div>
+    )
+  }
+
   if (viewedPayment) {
     return <ViewPaymentDetail payment={viewedPayment} onBack={() => setViewedPayment(null)} />
   }
 
   return (
     <div className="payment-monitoring-view">
+      {renderToast()}
+
       {/* Title */}
       <div className="payment-title-header">
         <h1>Payment Monitoring</h1>
@@ -344,8 +605,11 @@ function PaymentMonitoring() {
           <div className="payment-stat-icon icon-yellow">
             <DollarSign />
           </div>
-          <div className="payment-stat-value">{totalPayments}</div>
-          <div className="payment-stat-label">Total Payments</div>
+          <div className="payment-stat-value">{totalPaymentsCount}</div>
+          <div className="payment-stat-label">
+            Total Payments
+            {totalRevenueAmount && <span style={{ display: 'block', fontSize: '11px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>{totalRevenueAmount}</span>}
+          </div>
         </div>
 
         <div 
@@ -356,20 +620,41 @@ function PaymentMonitoring() {
           <div className="payment-stat-icon icon-green">
             <CheckCircle2 />
           </div>
-          <div className="payment-stat-value">{totalSuccess}</div>
-          <div className="payment-stat-label">Total Success Payments</div>
+          <div className="payment-stat-value">{totalPaidCount}</div>
+          <div className="payment-stat-label">
+            Paid Payments
+            {totalPaidAmount && <span style={{ display: 'block', fontSize: '11px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>{totalPaidAmount}</span>}
+          </div>
         </div>
 
         <div 
-          className={`payment-stat-card card-pink clickable ${statusFilter === 'Refund' ? 'active-filter' : ''}`}
+          className={`payment-stat-card card-yellow clickable ${statusFilter === 'Pending' ? 'active-filter' : ''}`}
+          onClick={() => { setStatusFilter('Pending'); setCurrentPage(1); }}
+          style={{ cursor: 'pointer', color: '#f59e0b' }}
+        >
+          <div className="payment-stat-icon icon-yellow" style={{ backgroundColor: 'transparent' }}>
+            <Clock />
+          </div>
+          <div className="payment-stat-value">{totalPendingCount}</div>
+          <div className="payment-stat-label">
+            Pending Payments
+            {totalPendingAmount && <span style={{ display: 'block', fontSize: '11px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>{totalPendingAmount}</span>}
+          </div>
+        </div>
+
+        <div 
+          className={`payment-stat-card card-pink clickable ${statusFilter === 'Refund' || statusFilter === 'Failed' ? 'active-filter' : ''}`}
           onClick={() => { setStatusFilter('Refund'); setCurrentPage(1); }}
           style={{ cursor: 'pointer', color: '#f43f5e' }}
         >
           <div className="payment-stat-icon icon-pink">
             <AlertTriangle />
           </div>
-          <div className="payment-stat-value">{totalRefund}</div>
-          <div className="payment-stat-label">Total Refunded Payments</div>
+          <div className="payment-stat-value">{totalFailedCount}</div>
+          <div className="payment-stat-label">
+            Failed / Refund
+            {totalFailedAmount && <span style={{ display: 'block', fontSize: '11px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>{totalFailedAmount}</span>}
+          </div>
         </div>
       </div>
 
@@ -400,12 +685,25 @@ function PaymentMonitoring() {
                   setCurrentPage(1)
                 }}
               >
-                <option value="">Select</option>
-                <option value="Success">Success</option>
+                <option value="">All Status</option>
+                <option value="Success">Success / Paid</option>
+                <option value="Pending">Pending</option>
                 <option value="Refund">Refund</option>
+                <option value="Failed">Failed</option>
               </select>
               <ChevronDown className="select-chevron" />
             </div>
+
+            <button
+              className="export-btn"
+              onClick={() => fetchPayments(true)}
+              disabled={loading}
+              title="Refresh payments list"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <RotateCw className={loading ? 'btn-spinner' : ''} size={15} />
+              <span>Refresh</span>
+            </button>
           </div>
         </div>
 
@@ -425,7 +723,43 @@ function PaymentMonitoring() {
               </tr>
             </thead>
             <tbody>
-              {paginatedPayments.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: '#607d8b' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                      <Loader2 className="btn-spinner" size={20} color="#2e7d32" />
+                      <span style={{ fontWeight: 500 }}>Loading payments...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : fetchError ? (
+                <tr>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '36px', color: '#f43f5e' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <AlertCircle size={18} />
+                        <span>{fetchError}</span>
+                      </div>
+                      <button
+                        onClick={() => fetchPayments(true)}
+                        style={{
+                          padding: '6px 14px',
+                          backgroundColor: '#2e7d32',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          marginTop: '4px',
+                        }}
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedPayments.length > 0 ? (
                 paginatedPayments.map((p) => (
                   <tr key={p.id}>
                     <td style={{ fontWeight: '500' }}>{p.srNo}</td>
@@ -435,7 +769,7 @@ function PaymentMonitoring() {
                     <td style={{ fontWeight: '500' }}>{p.method}</td>
                     <td>{p.date}</td>
                     <td>
-                      <span className={`payment-status-badge ${p.status.toLowerCase()}`}>
+                      <span className={`payment-status-badge ${p.status ? p.status.toLowerCase() : 'success'}`}>
                         {p.status}
                       </span>
                     </td>

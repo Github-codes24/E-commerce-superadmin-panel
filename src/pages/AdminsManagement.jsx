@@ -62,8 +62,11 @@ function AdminsManagement() {
         const rawStatus = (admin.status || (admin.isActive !== undefined ? (admin.isActive ? 'ACTIVE' : 'INACTIVE') : 'ACTIVE')).toString().toLowerCase()
         const isActive = rawStatus === 'active'
 
-        const joinedDateFormatted = admin.createdAt || admin.joinedDate
-          ? new Date(admin.createdAt || admin.joinedDate).toLocaleDateString('en-US', {
+        const rawCreatedAt = admin.createdAt || admin.userId?.createdAt || admin.joinedDate || admin.updatedAt || null
+        const rawTimestamp = rawCreatedAt ? new Date(rawCreatedAt).getTime() : null
+
+        const joinedDateFormatted = rawCreatedAt
+          ? new Date(rawCreatedAt).toLocaleDateString('en-US', {
               day: '2-digit',
               month: 'short',
               year: 'numeric'
@@ -83,11 +86,13 @@ function AdminsManagement() {
           role: rawRole,
           status: isActive ? 'active' : 'inactive',
           joinedDate: joinedDateFormatted,
+          createdAt: rawCreatedAt,
+          timestamp: rawTimestamp,
           lastLogin: admin.lastLogin || 'Never',
           checked: false,
           image: admin.profileImage || admin.image || defaultImage,
           activities: admin.activities || [
-            { id: 101, title: 'Joined Admin Portal', description: 'Account Active', time: joinedDateFormatted }
+            { id: 101, title: 'Joined Admin Portal', description: 'Account Active', time: joinedDateFormatted, timestamp: rawTimestamp }
           ],
           loginHistory: admin.loginHistory || [
             { id: 201, event: 'Logged In', timestamp: 'Recent' }
@@ -95,7 +100,54 @@ function AdminsManagement() {
         }
       })
 
+      // Sort admins newest first based on createdAt / timestamp
+      formatted.sort((a, b) => {
+        const timeA = a.timestamp || 0
+        const timeB = b.timestamp || 0
+        return timeB - timeA
+      })
+
       setAdminsList(formatted)
+
+      // Build real activities feed from backend admins & any stored activities
+      let localActivities = []
+      try {
+        const stored = localStorage.getItem('recent_admin_activities')
+        if (stored) localActivities = JSON.parse(stored)
+      } catch (e) {
+        console.warn('Could not parse local activities', e)
+      }
+
+      const adminCreationActivities = formatted
+        .filter(a => a.name)
+        .map((a, idx) => ({
+          id: `admin-created-${a.id || idx}`,
+          title: 'New Admin Added',
+          subtitle: `${a.name} was added`,
+          timestamp: a.timestamp || a.createdAt
+        }))
+
+      const combined = [...localActivities, ...adminCreationActivities]
+      const uniqueActivities = []
+      const seen = new Set()
+
+      for (const act of combined) {
+        const key = act.subtitle || act.title
+        if (!seen.has(key)) {
+          seen.add(key)
+          uniqueActivities.push(act)
+        }
+      }
+
+      uniqueActivities.sort((a, b) => {
+        const timeA = typeof a.timestamp === 'number' ? a.timestamp : new Date(a.timestamp || 0).getTime()
+        const timeB = typeof b.timestamp === 'number' ? b.timestamp : new Date(b.timestamp || 0).getTime()
+        return timeB - timeA
+      })
+
+      if (uniqueActivities.length > 0) {
+        setActivities(uniqueActivities.slice(0, 5))
+      }
     } catch (err) {
       console.error('Failed to fetch admins:', err)
       setFetchError(err?.response?.data?.message || err?.message || 'Failed to fetch admins')
@@ -230,12 +282,13 @@ function AdminsManagement() {
   }, [])
 
   // Recent Activity Log state (shared/list feed)
-  const [activities, setActivities] = useState([
-    { id: 1, title: 'New Admin Added', subtitle: 'Ankit Sharma was added', timestamp: Date.now() - 2 * 60 * 1000 },
-    { id: 2, title: 'Role Updated', subtitle: 'Priya Verma role changed', timestamp: Date.now() - 15 * 60 * 1000 },
-    { id: 3, title: 'Admin Logged In', subtitle: 'Rohit Kumar logged in', timestamp: Date.now() - 2 * 60 * 60 * 1000 },
-    { id: 4, title: 'Permission Updated', subtitle: 'Manish Shah Permission updated', timestamp: Date.now() - 3 * 60 * 60 * 1000 },
-  ])
+  const [activities, setActivities] = useState(() => {
+    try {
+      const stored = localStorage.getItem('recent_admin_activities')
+      if (stored) return JSON.parse(stored)
+    } catch (_) {}
+    return []
+  })
 
   // Navigation and overlay states
   const [isAdding, setIsAdding] = useState(false)
@@ -1711,17 +1764,23 @@ function AdminsManagement() {
         </div>
 
         <div className="activities-list">
-          {activities.map((act) => (
-            <div key={act.id} className="activity-item" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div className="activity-title" style={{ fontSize: '14px', fontWeight: '600' }}>{act.title}</div>
-                <div style={{ fontSize: '12px', color: '#78909c' }}>{act.subtitle}</div>
+          {activities.length > 0 ? (
+            activities.map((act) => (
+              <div key={act.id} className="activity-item" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div className="activity-title" style={{ fontSize: '14px', fontWeight: '600' }}>{act.title}</div>
+                  <div style={{ fontSize: '12px', color: '#78909c' }}>{act.subtitle}</div>
+                </div>
+                <div className="activity-timestamp" style={{ fontSize: '12px', color: '#90a4ae', fontWeight: '500' }}>
+                  {formatElapsedTime(act.timestamp, act.time)}
+                </div>
               </div>
-              <div className="activity-timestamp" style={{ fontSize: '12px', color: '#90a4ae' }}>
-                {formatElapsedTime(act.timestamp, act.time)}
-              </div>
+            ))
+          ) : (
+            <div style={{ textAlign: 'center', padding: '16px', color: '#90a4ae', fontSize: '13px' }}>
+              No recent admin activity recorded yet.
             </div>
-          ))}
+          )}
         </div>
       </div>
 

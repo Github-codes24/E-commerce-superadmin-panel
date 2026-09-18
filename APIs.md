@@ -841,6 +841,156 @@ This document outlines the API endpoints required to support the E-commerce Supe
   }
   ```
 
+### Create Offer / Coupon (Super Admin API)
+* **Endpoint:** `POST /api/super-admin/offers-coupons/create`
+* **Authentication:** Bearer Token
+* **Authorization:** Super Admin
+* **Request Body:**
+  ```json
+  {
+    "type": "OFFER", // "OFFER" | "COUPON"
+    "title": "Festival Sale",
+    "discount": 20,
+    "status": true
+  }
+  ```
+* **Success Response (201 Created):**
+  ```json
+  {
+    "success": true,
+    "message": "OFFER created successfully",
+    "data": {
+      "_id": "65abc123",
+      "title": "Festival Sale",
+      "discount": 20,
+      "status": true
+    }
+  }
+  ```
+* **Error Response (400 Bad Request):**
+  ```json
+  {
+    "success": false,
+    "message": "Invalid type. Use OFFER or COUPON"
+  }
+  ```
+
+### Get All Offers / Coupons (Super Admin API)
+* **Endpoint:** `GET /api/super-admin/offers-coupons/get-all`
+* **Authentication:** Bearer Token
+* **Authorization:** Super Admin
+* **Optional Query Parameters:** `type` (OFFER / COUPON), `status`, `search`
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Offers and coupons fetched successfully",
+    "data": {
+      "offers": [],
+      "coupons": []
+    }
+  }
+  ```
+* **Error Response (400 Bad Request):**
+  ```json
+  {
+    "success": false,
+    "message": "Invalid type. Use OFFER or COUPON"
+  }
+  ```
+
+### Get Offer / Coupon By ID (Super Admin API)
+* **Endpoint:** `GET /api/super-admin/offers-coupons/get-byid/:id?type=OFFER`
+* **Authentication:** Bearer Token
+* **Authorization:** Super Admin
+* **Query Parameters:** `type` = `OFFER` or `COUPON`
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "OFFER fetched successfully",
+    "data": {
+      "_id": "65abc123",
+      "title": "Festival Sale",
+      "discount": 20,
+      "status": true
+    }
+  }
+  ```
+* **Error Response (404 Not Found):**
+  ```json
+  {
+    "success": false,
+    "message": "OFFER not found"
+  }
+  ```
+
+### Update Offer / Coupon (Super Admin API)
+* **Endpoint:** `PUT /api/super-admin/offers-coupons/update/:id`
+* **Authentication:** Bearer Token
+* **Authorization:** Super Admin
+* **Request Body:**
+  ```json
+  {
+    "type": "OFFER",
+    "title": "Updated Festival Sale",
+    "discount": 30,
+    "status": true
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "OFFER updated successfully",
+    "data": {
+      "_id": "65abc123",
+      "title": "Updated Festival Sale",
+      "discount": 30,
+      "status": true
+    }
+  }
+  ```
+* **Error Response (404 Not Found):**
+  ```json
+  {
+    "success": false,
+    "message": "OFFER not found"
+  }
+  ```
+
+### Update Offer / Coupon Status (Super Admin API)
+* **Endpoint:** `PATCH /api/super-admin/offers-coupons/status/:id`
+* **Authentication:** Bearer Token
+* **Authorization:** Super Admin
+* **Request Body:**
+  ```json
+  {
+    "type": "OFFER", // "OFFER" | "COUPON"
+    "status": false // boolean
+  }
+  ```
+* **Success Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "OFFER status updated successfully",
+    "data": {
+      "_id": "65abc123",
+      "title": "Festival Sale",
+      "discount": 20,
+      "status": false
+    }
+  }
+  ```
+* **Error Response (404 Not Found):**
+  ```json
+  {
+    "success": false,
+    "message": "OFFER not found"
+  }
+  ```
+
 *(Additional standard REST endpoints for editing and deleting offers/coupons are supported: `PUT /api/offers/:id`, `DELETE /api/offers/:id`, `PUT /api/coupons/:id`, `DELETE /api/coupons/:id`)*
 
 ---

@@ -582,6 +582,134 @@ export const getOrdersByVendor = async (vendorId, params = {}) => {
   return response.data;
 };
 
+// Create Offer / Coupon (POST /api/super-admin/offers-coupons/create)
+export const createOfferCoupon = async ({ type = 'OFFER', title, discount, status = true, ...extra }) => {
+  const payload = {
+    type: type ? type.toUpperCase() : 'OFFER',
+    title: (title || '').trim(),
+    discount: typeof discount === 'string' ? parseFloat(discount.replace(/[^0-9.]/g, '')) || 0 : Number(discount),
+    status: typeof status === 'boolean' ? status : (status === 'Active' || status === 'ACTIVE' || status === true),
+    ...extra,
+  };
+  const response = await api.post('/super-admin/offers-coupons/create', payload);
+  return response.data;
+};
+
+// Get All Offers / Coupons (GET /api/super-admin/offers-coupons/get-all)
+export const getAllOffersCoupons = async (params = {}) => {
+  const response = await api.get('/super-admin/offers-coupons/get-all', { params });
+  return response.data;
+};
+
+export const getOffersCoupons = getAllOffersCoupons;
+
+// Get Offer / Coupon By ID (GET /api/super-admin/offers-coupons/get-byid/:id?type=OFFER)
+export const getOfferCouponById = async (id, typeOrParams = 'OFFER') => {
+  let params = {};
+  if (typeof typeOrParams === 'string') {
+    params = { type: typeOrParams.toUpperCase() };
+  } else if (typeof typeOrParams === 'object' && typeOrParams !== null) {
+    params = { ...typeOrParams };
+    if (params.type) {
+      params.type = params.type.toUpperCase();
+    }
+  }
+  const response = await api.get(`/super-admin/offers-coupons/get-byid/${id}`, { params });
+  return response.data;
+};
+
+export const getOfferById = (id) => getOfferCouponById(id, 'OFFER');
+export const getCouponById = (id) => getOfferCouponById(id, 'COUPON');
+
+// Update Offer / Coupon (PUT /api/super-admin/offers-coupons/update/:id)
+export const updateOfferCoupon = async (id, { type = 'OFFER', title, discount, status = true, ...extra }) => {
+  const payload = {
+    type: type ? type.toUpperCase() : 'OFFER',
+    title: (title || '').trim(),
+    discount: typeof discount === 'string' ? parseFloat(discount.replace(/[^0-9.]/g, '')) || 0 : Number(discount),
+    status: typeof status === 'boolean' ? status : (status === 'Active' || status === 'ACTIVE' || status === true),
+    ...extra,
+  };
+  const response = await api.put(`/super-admin/offers-coupons/update/${id}`, payload);
+  return response.data;
+};
+
+export const updateOffer = (id, data) => updateOfferCoupon(id, { ...data, type: 'OFFER' });
+export const updateCoupon = (id, data) => updateOfferCoupon(id, { ...data, type: 'COUPON' });
+
+// Update Offer / Coupon Status (PATCH /api/super-admin/offers-coupons/status/:id)
+export const updateOfferCouponStatus = async (id, { type = 'OFFER', status }) => {
+  const isStatusBool = typeof status === 'boolean'
+    ? status
+    : (status === 'Active' || status === 'ACTIVE' || status === true);
+  const payload = {
+    type: type ? type.toUpperCase() : 'OFFER',
+    status: isStatusBool,
+  };
+  const response = await api.patch(`/super-admin/offers-coupons/status/${id}`, payload);
+  return response.data;
+};
+
+export const updateOfferStatus = (id, status) => updateOfferCouponStatus(id, { type: 'OFFER', status });
+export const updateCouponStatus = (id, status) => updateOfferCouponStatus(id, { type: 'COUPON', status });
+
+// Delete Offer / Coupon (DELETE /api/super-admin/offers-coupons/delete/:id?type=OFFER)
+export const deleteOfferCoupon = async (id, typeOrParams = 'OFFER') => {
+  let params = {};
+  if (typeof typeOrParams === 'string') {
+    params = { type: typeOrParams.toUpperCase() };
+  } else if (typeof typeOrParams === 'object' && typeOrParams !== null) {
+    params = { ...typeOrParams };
+    if (params.type) {
+      params.type = params.type.toUpperCase();
+    }
+  }
+  const response = await api.delete(`/super-admin/offers-coupons/delete/${id}`, { params });
+  return response.data;
+};
+
+export const deleteOffer = (id) => deleteOfferCoupon(id, 'OFFER');
+export const deleteCoupon = (id) => deleteOfferCoupon(id, 'COUPON');
+
+/**
+ * 45 - Get All Payments (GET /api/super-admin/payments)
+ * Method: GET
+ * Endpoint: /api/super-admin/payments
+ * Headers: Authorization: Bearer <Token>
+ * @param {object} params - Optional query parameters (page, limit, status, search, etc.)
+ */
+export const getAllPayments = async (params = {}) => {
+  const response = await api.get('/super-admin/payments', { params });
+  return response.data;
+};
+
+export const getPayments = getAllPayments;
+
+/**
+ * 46 - Get Payment Stats (GET /api/super-admin/payments/stats)
+ * Method: GET
+ * Endpoint: /api/super-admin/payments/stats
+ * Headers: Authorization: Bearer <Token>
+ */
+export const getPaymentStats = async () => {
+  const response = await api.get('/super-admin/payments/stats');
+  return response.data;
+};
+
+export const getPaymentsStats = getPaymentStats;
+
+/**
+ * 47 - Get Failed Payments (GET /api/super-admin/payments/failed)
+ * Method: GET
+ * Endpoint: /api/super-admin/payments/failed
+ * Headers: Authorization: Bearer <Token>
+ * @param {object} params - Optional query parameters
+ */
+export const getFailedPayments = async (params = {}) => {
+  const response = await api.get('/super-admin/payments/failed', { params });
+  return response.data;
+};
+
 export default {
   registerAdmin,
   createAdmin,
@@ -627,6 +755,26 @@ export default {
   cancelOrder,
   getOrdersByCustomer,
   getOrdersByVendor,
+  createOfferCoupon,
+  getAllOffersCoupons,
+  getOffersCoupons,
+  getOfferCouponById,
+  getOfferById,
+  getCouponById,
+  updateOfferCoupon,
+  updateOffer,
+  updateCoupon,
+  updateOfferCouponStatus,
+  updateOfferStatus,
+  updateCouponStatus,
+  deleteOfferCoupon,
+  deleteOffer,
+  deleteCoupon,
+  getAllPayments,
+  getPayments,
+  getPaymentStats,
+  getPaymentsStats,
+  getFailedPayments,
 };
 
 

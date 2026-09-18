@@ -159,6 +159,28 @@ Endpoints for managing access control list roles.
 ## 11. Offers & Coupons
 Endpoints for promotional discount codes and banner offers.
 
+* **POST** `http://localhost:5000/api/super-admin/offers-coupons/create`
+  * *Description:* Creates a new Offer or Coupon.
+  * *Request Body:* `{ type: "OFFER" | "COUPON", title: "Festival Sale", discount: 20, status: true }`
+  * *Response (201):* `{ success: true, message: "OFFER created successfully", data: { _id: "65abc123", title: "Festival Sale", discount: 20, status: true } }`
+* **GET** `http://localhost:5000/api/super-admin/offers-coupons/get-all`
+  * *Description:* Retrieves all offers and coupons.
+  * *Response (200):* `{ success: true, message: "Offers and coupons fetched successfully", data: { offers: [], coupons: [] } }`
+* **GET** `http://localhost:5000/api/super-admin/offers-coupons/get-byid/:id?type=OFFER`
+  * *Description:* Retrieves single Offer or Coupon details by ID.
+  * *Response (200):* `{ success: true, message: "OFFER fetched successfully", data: { _id: "65abc123", title: "Festival Sale", discount: 20, status: true } }`
+* **PUT** `http://localhost:5000/api/super-admin/offers-coupons/update/:id`
+  * *Description:* Updates an Offer or Coupon by ID.
+  * *Request Body:* `{ type: "OFFER" | "COUPON", title: "Updated Festival Sale", discount: 30, status: true }`
+  * *Response (200):* `{ success: true, message: "OFFER updated successfully", data: { _id: "65abc123", title: "Updated Festival Sale", discount: 30, status: true } }`
+* **PATCH** `http://localhost:5000/api/super-admin/offers-coupons/status/:id`
+  * *Description:* Updates status (Active/Inactive) of an Offer or Coupon.
+  * *Request Body:* `{ type: "OFFER" | "COUPON", status: false }`
+  * *Response (200):* `{ success: true, message: "OFFER status updated successfully", data: { _id: "65abc123", title: "Festival Sale", discount: 20, status: false } }`
+* **DELETE** `http://localhost:5000/api/super-admin/offers-coupons/delete/:id?type=OFFER`
+  * *Description:* Deletes an Offer or Coupon by ID.
+  * *Query Parameter:* `type=OFFER` or `type=COUPON`
+  * *Response (200):* `{ success: true, message: "OFFER deleted successfully", data: null }`
 * **GET** `http://localhost:5000/api/offers`
   * *Description:* Lists active/scheduled offers. (Total: 8, Active: 3).
 * **POST** `http://localhost:5000/api/offers/add`
@@ -193,8 +215,72 @@ Endpoints for vendor billing and super admin payouts.
 ## 13. Payment Monitoring
 Endpoints for tracking customer transactions.
 
-* **GET** `http://localhost:5000/api/payments`
-  * *Description:* Lists all payments. (Total: 8, Success: 6, Refund: 2).
+* **GET** `http://localhost:5000/api/super-admin/payments`
+  * *Description:* Retrieves all payments list with pagination.
+  * *Authentication:* Bearer Token
+  * *Authorization:* Super Admin
+  * *Response (200):*
+    ```json
+    {
+      "success": true,
+      "statusCode": 200,
+      "message": {
+        "payments": [],
+        "pagination": {
+          "currentPage": 1,
+          "totalPages": 1,
+          "totalPayments": 0,
+          "limit": 10
+        }
+      },
+      "data": "Payments fetched successfully."
+    }
+    ```
+* **GET** `http://localhost:5000/api/super-admin/payments/stats`
+  * *Description:* Retrieves payment statistics (counts and amounts for total, paid, pending, failed).
+  * *Authentication:* Bearer Token
+  * *Authorization:* Super Admin
+  * *Response (200):*
+    ```json
+    {
+      "success": true,
+      "statusCode": 200,
+      "message": {
+        "totalPayments": 0,
+        "totalAmount": 0,
+        "paid": {
+          "count": 0,
+          "amount": 0
+        },
+        "pending": {
+          "count": 0,
+          "amount": 0
+        },
+        "failed": {
+          "count": 0,
+          "amount": 0
+        }
+      },
+      "data": "Payment statistics fetched successfully."
+    }
+    ```
+* **GET** `http://localhost:5000/api/super-admin/payments/failed`
+  * *Description:* Retrieves all failed payments list with count and total amount.
+  * *Authentication:* Bearer Token
+  * *Authorization:* Super Admin
+  * *Response (200):*
+    ```json
+    {
+      "success": true,
+      "statusCode": 200,
+      "message": {
+        "count": 0,
+        "totalAmount": 0,
+        "payments": []
+      },
+      "data": "Failed payments fetched successfully."
+    }
+    ```
 * **GET** `http://localhost:5000/api/payments/details/:id`
   * *Description:* Retrieves specific transaction details, payment logs, and invoice details.
 * **POST** `http://localhost:5000/api/payments/process-refund/:id`
