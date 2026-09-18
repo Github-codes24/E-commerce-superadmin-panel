@@ -24,6 +24,11 @@ function AdminsManagement() {
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false)
   const [bulkDeleteError, setBulkDeleteError] = useState('')
 
+  // Status Change Confirmation Modal state
+  const [statusConfirmAdmin, setStatusConfirmAdmin] = useState(null)
+  const [statusToggleLoading, setStatusToggleLoading] = useState(false)
+  const [statusToggleError, setStatusToggleError] = useState('')
+
   // Assign Permissions Modal state
   const [permissionAdmin, setPermissionAdmin] = useState(null)
   const [adminPermissions, setAdminPermissions] = useState({})
@@ -165,12 +170,71 @@ function AdminsManagement() {
     fetchAdmins()
   }, [])
 
+  // Helper to dynamically calculate and format elapsed time
+  const formatElapsedTime = (timestamp, fallbackTime) => {
+    if (!timestamp && !fallbackTime) return 'Just now'
+
+    const targetTime = typeof timestamp === 'number'
+      ? timestamp
+      : (timestamp ? new Date(timestamp).getTime() : null)
+
+    if (!targetTime || isNaN(targetTime)) {
+      return fallbackTime || 'Just now'
+    }
+
+    const diffMs = Date.now() - targetTime
+    const diffSec = Math.max(0, Math.floor(diffMs / 1000))
+
+    if (diffSec < 45) {
+      return 'Just now'
+    }
+
+    const diffMin = Math.floor(diffSec / 60)
+    if (diffMin === 1) {
+      return '1 min ago'
+    }
+    if (diffMin < 60) {
+      return `${diffMin} mins ago`
+    }
+
+    const diffHours = Math.floor(diffMin / 60)
+    if (diffHours === 1) {
+      return '1 hour ago'
+    }
+    if (diffHours < 24) {
+      return `${diffHours} hours ago`
+    }
+
+    const diffDays = Math.floor(diffHours / 24)
+    if (diffDays === 1) {
+      return '1 day ago'
+    }
+    if (diffDays < 7) {
+      return `${diffDays} days ago`
+    }
+
+    return new Date(targetTime).toLocaleDateString('en-US', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    })
+  }
+
+  // Periodic timer to auto-refresh elapsed time displays every 30 seconds
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTick(t => t + 1)
+    }, 30000)
+    return () => clearInterval(timer)
+  }, [])
+
   // Recent Activity Log state (shared/list feed)
   const [activities, setActivities] = useState([
-    { id: 1, title: 'New Admin Added', subtitle: 'Ankit Sharma was added', time: '2 min ago' },
-    { id: 2, title: 'Role Updated', subtitle: 'Priya Verma role changed', time: '15 min ago' },
-    { id: 3, title: 'Admin Logged In', subtitle: 'Rohit Kumar logged in', time: '2 hours ago' },
-    { id: 4, title: 'Permission Updated', subtitle: 'Manish Shah Permission updated', time: '3 hours ago' },
+    { id: 1, title: 'New Admin Added', subtitle: 'Ankit Sharma was added', timestamp: Date.now() - 2 * 60 * 1000 },
+    { id: 2, title: 'Role Updated', subtitle: 'Priya Verma role changed', timestamp: Date.now() - 15 * 60 * 1000 },
+    { id: 3, title: 'Admin Logged In', subtitle: 'Rohit Kumar logged in', timestamp: Date.now() - 2 * 60 * 60 * 1000 },
+    { id: 4, title: 'Permission Updated', subtitle: 'Manish Shah Permission updated', timestamp: Date.now() - 3 * 60 * 60 * 1000 },
   ])
 
   // Navigation and overlay states
@@ -206,6 +270,8 @@ function AdminsManagement() {
   })
   const [formLoading, setFormLoading] = useState(false)
   const [formError, setFormError] = useState('')
+  const [nameError, setNameError] = useState('')
+  const [phoneError, setPhoneError] = useState('')
 
   const fileInputRef = useRef(null)
 
@@ -258,248 +324,364 @@ function AdminsManagement() {
     }
   }
 
-  // Handle Add Form Submission
-  const handleAddSubmit = async (e) => {
+  // Handle Unified Form Submission (Add / Edit)
+  const handleFormSubmit = async (e) => {
     e.preventDefault()
-    if (!formData.name.trim() || !formData.email.trim()) return
-
-    setFormLoading(true)
     setFormError('')
+    setNameError('')
+    setPhoneError('')
 
-    try {
-      // Call Create Admin API (POST /api/superadmin/admins/register)
-      const res = await registerAdmin({
-        fullName: formData.name.trim(),
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        mobile: formData.phone.trim() || '9876543210',
-        phone: formData.phone.trim() || '9876543210',
-        password: formData.password || 'Password@123',
-        role: 'ADMIN',
-        gender: formData.gender || 'Male',
-        status: formData.isActive ? 'ACTIVE' : 'INACTIVE'
-      })
+    const trimmedName = formData.name.trim()
+    const nameRegex = /^[a-zA-Z]+([a-zA-Z\s]*[a-zA-Z]+)?$/
 
-      const rawData = res?.data || res?.admin || {}
-      const userObj = rawData.userId || rawData
-
-      const defaultImage = formData.gender === 'Female'
-        ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256'
-        : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=256&h=256'
-
-      const newAdmin = {
-        id: rawData._id || userObj._id || userObj.id || Date.now(),
-        name: userObj.fullName || userObj.name || formData.name,
-        email: userObj.email || formData.email,
-        phone: userObj.mobile || userObj.phone || formData.phone || '9876543210',
-        gender: rawData.gender || formData.gender || 'Male',
-        joinedDate: userObj.createdAt || rawData.createdAt
-          ? new Date(userObj.createdAt || rawData.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
-          : new Date().toLocaleDateString('en-US', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-          }),
-        lastLogin: 'Never',
-        status: userObj.isActive !== undefined ? (userObj.isActive ? 'active' : 'inactive') : (formData.isActive ? 'active' : 'inactive'),
-        role: userObj.role || 'ADMIN',
-        checked: false,
-        image: formData.imagePreview || rawData.profileImage || defaultImage,
-        activities: [
-          { id: Date.now(), title: 'Admin Account Created', description: res?.message || 'Created via API (/api/superadmin/admins/register)', time: 'Just now' }
-        ],
-        loginHistory: [
-          { id: Date.now() + 1, event: 'Account Initialized', timestamp: new Date().toLocaleString() }
-        ]
-      }
-
-      setAdminsList([newAdmin, ...adminsList])
-
-      const newActivity = {
-        id: Date.now(),
-        title: 'New Admin Created',
-        subtitle: `${formData.name} was created successfully`,
-        time: 'Just now'
-      }
-      setActivities([newActivity, ...activities])
-
-      setFormData({
-        name: '',
-        email: '',
-        password: '',
-        phone: '',
-        gender: 'Male',
-        isActive: true,
-        imageFile: null,
-        imagePreview: ''
-      })
-      setIsAdding(false)
-      // Refresh list from API
-      await fetchAdmins()
-    } catch (error) {
-      console.error('Create Admin Error:', error)
-      const errData = error.response?.data
-      let backendError = ''
-      
-      if (errData?.errors) {
-        if (Array.isArray(errData.errors)) {
-          backendError = errData.errors.map(e => {
-            const field = e.field || (e.path ? (Array.isArray(e.path) ? e.path.join('.') : e.path) : '')
-            const fieldPrefix = field ? `${field}: ` : ''
-            return `${fieldPrefix}${e.msg || e.message || (typeof e === 'string' ? e : JSON.stringify(e))}`
-          }).join(', ')
-        } else if (typeof errData.errors === 'object') {
-          backendError = Object.entries(errData.errors).map(([key, val]) => `${key}: ${typeof val === 'object' ? JSON.stringify(val) : val}`).join(', ')
-        } else {
-          backendError = String(errData.errors)
-        }
-      }
-
-      if (!backendError) {
-        backendError = errData?.message || (typeof errData === 'string' ? errData : null) || error.message || 'Failed to create Admin. Please check server connection.'
-      }
-
-      setFormError(backendError)
-    } finally {
-      setFormLoading(false)
-    }
-  }
-
-  // Open Edit Dialog
-  const handleOpenEdit = (admin) => {
-    setEditError('')
-    setEditingAdmin({
-      ...admin,
-      id: admin.id || admin._id,
-      name: admin.name || '',
-      email: admin.email || '',
-      phone: admin.phone && admin.phone !== 'N/A' ? admin.phone : '',
-      role: admin.role || 'ADMIN',
-      gender: admin.gender || 'Male',
-      isActive: admin.status === 'active'
-    })
-  }
-
-  // Save Edit Details Changes (PUT /api/superadmin/admins/update/:id)
-  const handleSaveEdit = async (e) => {
-    e.preventDefault()
-    if (!editingAdmin?.name?.trim() || !editingAdmin?.email?.trim()) return
-
-    const adminId = editingAdmin.id || editingAdmin._id
-    if (!adminId) {
-      setEditError('Admin ID is missing.')
+    if (!trimmedName) {
+      const msg = 'Name is required.'
+      setFormError(msg)
+      setNameError(msg)
       return
     }
 
-    setEditLoading(true)
-    setEditError('')
+    if (!/^[a-zA-Z\s]+$/.test(trimmedName)) {
+      const msg = 'Please enter a valid name. Only alphabets and spaces are allowed.'
+      setFormError(msg)
+      setNameError(msg)
+      return
+    }
 
-    try {
-      const res = await updateAdmin(adminId, {
-        name: editingAdmin.name.trim(),
-        email: editingAdmin.email.trim(),
-        phone: editingAdmin.phone ? editingAdmin.phone.trim() : '9876543210',
-        role: editingAdmin.role || 'ADMIN',
-      })
+    if (trimmedName.length < 2) {
+      const msg = 'Name must be at least 2 characters long.'
+      setFormError(msg)
+      setNameError(msg)
+      return
+    }
 
-      const updatedData = res?.data || res?.admin || {}
-      const updatedName = updatedData.name || updatedData.fullName || editingAdmin.name.trim()
-      const updatedEmail = updatedData.email || editingAdmin.email.trim()
-      const updatedPhone = updatedData.phone || updatedData.mobile || editingAdmin.phone
-      const updatedRole = updatedData.role || editingAdmin.role || 'ADMIN'
-      const updatedStatus = updatedData.status
-        ? (updatedData.status.toString().toLowerCase() === 'active' ? 'active' : 'inactive')
-        : (editingAdmin.isActive ? 'active' : 'inactive')
+    if (trimmedName.length > 50) {
+      const msg = 'Name cannot exceed 50 characters.'
+      setFormError(msg)
+      setNameError(msg)
+      return
+    }
 
-      const editActivity = {
-        id: Date.now(),
-        title: 'Admin Details Updated',
-        description: res?.message || 'Updated via API (/api/superadmin/admins/update/:id)',
-        time: 'Just now'
-      }
+    if (!formData.email.trim()) {
+      setFormError('Email address is required.')
+      return
+    }
 
-      // Update list state
-      setAdminsList(prevList => prevList.map((a) => {
-        if (a.id === adminId) {
-          const updatedAdmin = {
-            ...a,
-            name: updatedName,
-            email: updatedEmail,
-            phone: updatedPhone,
-            role: updatedRole,
-            gender: editingAdmin.gender || a.gender,
-            status: updatedStatus,
-            activities: [editActivity, ...(a.activities || [])]
+    const trimmedPhone = formData.phone.trim()
+    if (!trimmedPhone) {
+      const msg = 'Phone number is required.'
+      setFormError(msg)
+      setPhoneError(msg)
+      return
+    }
+
+    if (!/^\d{10}$/.test(trimmedPhone)) {
+      const msg = 'Please enter a valid 10-digit phone number.'
+      setFormError(msg)
+      setPhoneError(msg)
+      return
+    }
+
+    if (!editingAdmin && !formData.password.trim()) {
+      setFormError('Password is required.')
+      return
+    }
+
+    setFormLoading(true)
+
+    if (editingAdmin) {
+      const adminId = editingAdmin.id || editingAdmin._id
+      try {
+        const updatePayload = {
+          name: formData.name.trim(),
+          fullName: formData.name.trim(),
+          email: formData.email.trim(),
+          role: formData.role || 'ADMIN',
+          gender: formData.gender || 'Male',
+          status: formData.isActive ? 'ACTIVE' : 'INACTIVE',
+          isActive: formData.isActive
+        }
+        const cleanPhone = (formData.phone || '').trim()
+        if (cleanPhone && cleanPhone !== 'N/A') {
+          updatePayload.phone = cleanPhone
+          updatePayload.mobile = cleanPhone
+        }
+        if (formData.password && formData.password.trim()) {
+          updatePayload.password = formData.password.trim()
+        }
+
+        const res = await updateAdmin(adminId, updatePayload)
+
+        const updatedData = res?.data || res?.admin || {}
+        const updatedName = updatedData.name || updatedData.fullName || formData.name.trim()
+        const updatedEmail = updatedData.email || formData.email.trim()
+        const updatedPhone = updatedData.phone || updatedData.mobile || formData.phone
+        const updatedRole = updatedData.role || formData.role || 'ADMIN'
+        const updatedStatus = updatedData.status
+          ? (updatedData.status.toString().toLowerCase() === 'active' ? 'active' : 'inactive')
+          : (formData.isActive ? 'active' : 'inactive')
+
+        const editActivity = {
+          id: Date.now(),
+          title: 'Admin Details Updated',
+          description: res?.message || 'Updated via API (/api/superadmin/admins/update/:id)',
+          timestamp: Date.now()
+        }
+
+        setAdminsList(prevList => prevList.map((a) => {
+          if (a.id === adminId) {
+            return {
+              ...a,
+              name: updatedName,
+              email: updatedEmail,
+              phone: updatedPhone,
+              role: updatedRole,
+              gender: formData.gender || a.gender,
+              status: updatedStatus,
+              image: formData.imagePreview || a.image,
+              activities: [editActivity, ...(a.activities || [])]
+            }
           }
-          return updatedAdmin
-        }
-        return a
-      }))
-
-      // Sync viewed admin profile details
-      if (viewedAdmin && (viewedAdmin.id === adminId || viewedAdmin._id === adminId)) {
-        setViewedAdmin(prev => ({
-          ...prev,
-          name: updatedName,
-          email: updatedEmail,
-          phone: updatedPhone,
-          role: updatedRole,
-          gender: editingAdmin.gender || prev.gender,
-          status: updatedStatus,
-          activities: [editActivity, ...(prev?.activities || [])]
+          return a
         }))
-      }
 
-      const globalActivity = {
-        id: Date.now(),
-        title: 'Admin Details Updated',
-        subtitle: `${updatedName} updated successfully`,
-        time: 'Just now'
-      }
-      setActivities(prev => [globalActivity, ...prev])
-
-      setEditingAdmin(null)
-      // Refresh list to stay completely in sync with backend
-      await fetchAdmins()
-    } catch (error) {
-      console.error('Update Admin Error:', error)
-      const errData = error.response?.data
-      let backendError = ''
-
-      if (errData?.errors) {
-        if (Array.isArray(errData.errors)) {
-          backendError = errData.errors.map(err => {
-            const field = err.field || (err.path ? (Array.isArray(err.path) ? err.path.join('.') : err.path) : '')
-            const fieldPrefix = field ? `${field}: ` : ''
-            return `${fieldPrefix}${err.msg || err.message || (typeof err === 'string' ? err : JSON.stringify(err))}`
-          }).join(', ')
-        } else if (typeof errData.errors === 'object') {
-          backendError = Object.entries(errData.errors).map(([key, val]) => `${key}: ${typeof val === 'object' ? JSON.stringify(val) : val}`).join(', ')
-        } else {
-          backendError = String(errData.errors)
+        const globalActivity = {
+          id: Date.now(),
+          title: 'Admin Details Updated',
+          subtitle: `${updatedName} updated successfully`,
+          timestamp: Date.now()
         }
-      }
+        setActivities(prev => [globalActivity, ...prev])
 
-      if (!backendError) {
-        backendError = errData?.message || (typeof errData === 'string' ? errData : null) || error.message || 'Failed to update Admin.'
+        setEditingAdmin(null)
+        setIsAdding(false)
+        setFormData({
+          name: '',
+          email: '',
+          password: '',
+          phone: '',
+          gender: 'Male',
+          role: 'ADMIN',
+          isActive: true,
+          imageFile: null,
+          imagePreview: ''
+        })
+        await fetchAdmins()
+      } catch (error) {
+        console.error('Update Admin Error:', error)
+        const errData = error.response?.data
+        let backendError = ''
+        if (errData?.errors) {
+          if (Array.isArray(errData.errors)) {
+            backendError = errData.errors.map(err => {
+              const field = err.field || (err.path ? (Array.isArray(err.path) ? err.path.join('.') : err.path) : '')
+              const fieldPrefix = field ? `${field}: ` : ''
+              return `${fieldPrefix}${err.msg || err.message || (typeof err === 'string' ? err : JSON.stringify(err))}`
+            }).join(', ')
+          } else if (typeof errData.errors === 'object') {
+            backendError = Object.entries(errData.errors).map(([key, val]) => `${key}: ${typeof val === 'object' ? JSON.stringify(val) : val}`).join(', ')
+          } else {
+            backendError = String(errData.errors)
+          }
+        }
+        if (!backendError) {
+          const rawMsg = errData?.message || (typeof errData === 'string' ? errData : null) || error.message || 'Failed to update Admin.'
+          if (rawMsg.toLowerCase().includes('already exists') || rawMsg.toLowerCase().includes('duplicate')) {
+            backendError = (!formData.phone || !formData.phone.trim()) ? 'This email already exists.' : 'This email or mobile number already exists.'
+          } else {
+            backendError = rawMsg
+          }
+        }
+        setFormError(backendError)
+      } finally {
+        setFormLoading(false)
       }
+    } else {
+      try {
+        const createPayload = {
+          fullName: formData.name.trim(),
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          password: formData.password || 'Password@123',
+          role: formData.role || 'ADMIN',
+          gender: formData.gender || 'Male',
+          status: formData.isActive ? 'ACTIVE' : 'INACTIVE',
+          isActive: formData.isActive
+        }
+        const cleanPhone = (formData.phone || '').trim()
+        if (cleanPhone && cleanPhone !== 'N/A') {
+          createPayload.mobile = cleanPhone
+          createPayload.phone = cleanPhone
+        }
 
-      setEditError(backendError)
-    } finally {
-      setEditLoading(false)
+        const res = await registerAdmin(createPayload)
+
+        const rawData = res?.data || res?.admin || {}
+        const userObj = rawData.userId || rawData
+
+        const defaultImage = formData.gender === 'Female'
+          ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256'
+          : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=256&h=256'
+
+        const newAdmin = {
+          id: rawData._id || userObj._id || userObj.id || Date.now(),
+          name: userObj.fullName || userObj.name || formData.name,
+          email: userObj.email || formData.email,
+          phone: userObj.mobile || userObj.phone || formData.phone || 'N/A',
+          gender: rawData.gender || formData.gender || 'Male',
+          joinedDate: userObj.createdAt || rawData.createdAt
+            ? new Date(userObj.createdAt || rawData.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
+            : new Date().toLocaleDateString('en-US', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric'
+            }),
+          lastLogin: 'Never',
+          status: userObj.isActive !== undefined ? (userObj.isActive ? 'active' : 'inactive') : (formData.isActive ? 'active' : 'inactive'),
+          role: userObj.role || formData.role || 'ADMIN',
+          checked: false,
+          image: formData.imagePreview || rawData.profileImage || defaultImage,
+          activities: [
+            { id: Date.now(), title: 'Admin Account Created', description: res?.message || 'Created via API (/api/superadmin/admins/register)', timestamp: Date.now() }
+          ],
+          loginHistory: [
+            { id: Date.now() + 1, event: 'Account Initialized', timestamp: new Date().toLocaleString() }
+          ]
+        }
+
+        setAdminsList([newAdmin, ...adminsList])
+
+        const newActivity = {
+          id: Date.now(),
+          title: 'New Admin Created',
+          subtitle: `${formData.name} was created successfully`,
+          timestamp: Date.now()
+        }
+        setActivities(prev => [newActivity, ...prev])
+
+        setFormData({
+          name: '',
+          email: '',
+          password: '',
+          phone: '',
+          gender: 'Male',
+          role: 'ADMIN',
+          isActive: true,
+          imageFile: null,
+          imagePreview: ''
+        })
+        setIsAdding(false)
+        await fetchAdmins()
+      } catch (error) {
+        console.error('Create Admin Error:', error)
+        const errData = error.response?.data
+        let backendError = ''
+        if (errData?.errors) {
+          if (Array.isArray(errData.errors)) {
+            backendError = errData.errors.map(e => {
+              const field = e.field || (e.path ? (Array.isArray(e.path) ? e.path.join('.') : e.path) : '')
+              const fieldPrefix = field ? `${field}: ` : ''
+              return `${fieldPrefix}${e.msg || e.message || (typeof e === 'string' ? e : JSON.stringify(e))}`
+            }).join(', ')
+          } else if (typeof errData.errors === 'object') {
+            backendError = Object.entries(errData.errors).map(([key, val]) => `${key}: ${typeof val === 'object' ? JSON.stringify(val) : val}`).join(', ')
+          } else {
+            backendError = String(errData.errors)
+          }
+        }
+        if (!backendError) {
+          const rawMsg = errData?.message || (typeof errData === 'string' ? errData : null) || error.message || 'Failed to create Admin. Please check server connection.'
+          if (rawMsg.toLowerCase().includes('already exists') || rawMsg.toLowerCase().includes('duplicate')) {
+            backendError = (!formData.phone || !formData.phone.trim()) ? 'This email already exists.' : 'This email or mobile number already exists.'
+          } else {
+            backendError = rawMsg
+          }
+        }
+        setFormError(backendError)
+      } finally {
+        setFormLoading(false)
+      }
     }
   }
 
-  // Toggle inline status in row or profile (PATCH /api/superadmin/admins/status/:id/status)
-  const handleToggleStatus = async (id) => {
+  // Open Add Admin Mode
+  const handleOpenAdd = () => {
+    setFormError('')
+    setNameError('')
+    setPhoneError('')
+    setEditError('')
+    setEditingAdmin(null)
+    setFormData({
+      name: '',
+      email: '',
+      password: '',
+      phone: '',
+      gender: 'Male',
+      role: 'ADMIN',
+      isActive: true,
+      imageFile: null,
+      imagePreview: ''
+    })
+    if (viewedAdmin) {
+      setViewedAdmin(null)
+    }
+    setIsAdding(true)
+  }
+
+  // Open Edit Mode (Full-Page View)
+  const handleOpenEdit = (admin) => {
+    setFormError('')
+    setNameError('')
+    setPhoneError('')
+    setEditError('')
+    setEditingAdmin(admin)
+    setFormData({
+      name: admin.name || admin.fullName || '',
+      email: admin.email || '',
+      password: '',
+      phone: admin.phone && admin.phone !== 'N/A' ? admin.phone : '',
+      role: admin.role || 'ADMIN',
+      gender: admin.gender || 'Male',
+      isActive: admin.status === 'active',
+      imageFile: null,
+      imagePreview: admin.image || ''
+    })
+    if (viewedAdmin) {
+      setViewedAdmin(null)
+    }
+    setIsAdding(true)
+  }
+
+  // Request status change (opens user-friendly confirmation modal)
+  const handleRequestToggleStatus = (id) => {
     const targetAdmin = adminsList.find(a => a.id === id)
     if (!targetAdmin) return
 
-    const currentStatus = targetAdmin.status?.toLowerCase() === 'active' ? 'ACTIVE' : 'INACTIVE'
-    const newStatusBackend = currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
-    const newStatusLocal = newStatusBackend === 'ACTIVE' ? 'active' : 'inactive'
+    const isCurrentlyActive = targetAdmin.status?.toLowerCase() === 'active'
+    const newStatusBackend = isCurrentlyActive ? 'INACTIVE' : 'ACTIVE'
+    const newStatusLocal = isCurrentlyActive ? 'inactive' : 'active'
+    const action = isCurrentlyActive ? 'deactivate' : 'activate'
+
+    setStatusToggleError('')
+    setStatusConfirmAdmin({
+      id,
+      name: targetAdmin.name,
+      currentStatus: isCurrentlyActive ? 'active' : 'inactive',
+      newStatusBackend,
+      newStatusLocal,
+      action
+    })
+  }
+
+  // Confirm status change execution (PATCH /api/superadmin/admins/status/:id/status)
+  const handleConfirmToggleStatus = async () => {
+    if (!statusConfirmAdmin) return
+    const { id, newStatusBackend, newStatusLocal, action } = statusConfirmAdmin
+    const targetAdmin = adminsList.find(a => a.id === id)
 
     try {
+      setStatusToggleLoading(true)
+      setStatusToggleError('')
       const res = await updateAdminStatus(id, newStatusBackend)
       const resStatus = res?.data?.status
         ? (res.data.status.toString().toLowerCase() === 'active' ? 'active' : 'inactive')
@@ -509,7 +691,7 @@ function AdminsManagement() {
         id: Date.now(),
         title: 'Status Toggled',
         description: res?.message || `Status changed to ${resStatus}`,
-        time: 'Just now'
+        timestamp: Date.now()
       }
 
       setAdminsList(prevList => prevList.map(admin => {
@@ -538,14 +720,17 @@ function AdminsManagement() {
       const toggleActivity = {
         id: Date.now(),
         title: 'Status Toggled',
-        subtitle: `${targetAdmin.name} is now ${resStatus}`,
-        time: 'Just now'
+        subtitle: `${targetAdmin?.name || 'Admin'} is now ${resStatus}`,
+        timestamp: Date.now()
       }
       setActivities(prev => [toggleActivity, ...prev])
+      setStatusConfirmAdmin(null)
     } catch (err) {
       console.error('Failed to toggle admin status:', err)
       const errMsg = err?.response?.data?.message || err?.message || 'Failed to update admin status'
-      alert(errMsg)
+      setStatusToggleError(errMsg)
+    } finally {
+      setStatusToggleLoading(false)
     }
   }
 
@@ -569,7 +754,7 @@ function AdminsManagement() {
         id: Date.now(),
         title: `Bulk Status Update`,
         description: `Status updated to ${newStatusLocal} via API`,
-        time: 'Just now'
+        timestamp: Date.now()
       }
 
       setAdminsList(prevList => prevList.map(admin => {
@@ -596,7 +781,7 @@ function AdminsManagement() {
         id: Date.now(),
         title: 'Bulk Status Update',
         subtitle: `Updated status to ${newStatusLocal} for: ${adminNames}`,
-        time: 'Just now'
+        timestamp: Date.now()
       }
       setActivities(prev => [globalBulkActivity, ...prev])
     } catch (err) {
@@ -840,8 +1025,13 @@ function AdminsManagement() {
       }, 1500)
     } catch (err) {
       console.error('Failed to assign permissions:', err)
-      const errMsg = err?.response?.data?.message || err?.message || 'Failed to assign permissions.'
-      setPermissionError(errMsg)
+      const rawMsg = err?.response?.data?.message || err?.message || 'Failed to assign permissions.'
+      const lower = rawMsg.toLowerCase()
+      if (lower.includes('jwt expired') || lower.includes('token expired') || lower.includes('unauthorized') || err?.response?.status === 401) {
+        setPermissionError('Your login session has expired. Please log in again to renew your access.')
+      } else {
+        setPermissionError(rawMsg)
+      }
     } finally {
       setPermissionLoading(false)
     }
@@ -953,21 +1143,29 @@ function AdminsManagement() {
 
   // Render sub-views conditionally
   if (isAdding) {
-    // Add New Admin form
+    // Add / Edit Admin workspace form
     return (
       <div className="admin-form-panel">
         <div className="form-workspace-header">
           <button
             className="back-circle-btn"
             aria-label="Back to Admin list"
-            onClick={() => setIsAdding(false)}
+            onClick={() => {
+              setIsAdding(false)
+              setEditingAdmin(null)
+              setFormError('')
+            }}
           >
             <ArrowLeft style={{ width: '18px', height: '18px' }} />
           </button>
-          <h2>Add New Admin</h2>
+          <h2>{editingAdmin ? 'Edit Admin' : 'Add New Admin'}</h2>
         </div>
 
-        <form onSubmit={handleAddSubmit}>
+        <form onSubmit={handleFormSubmit} autoComplete="off">
+          {/* Hidden dummy fields to prevent browser from autofilling stored credentials */}
+          <input type="text" name="fake_username_prevent_autofill" style={{ display: 'none' }} tabIndex="-1" autoComplete="off" />
+          <input type="password" name="fake_password_prevent_autofill" style={{ display: 'none' }} tabIndex="-1" autoComplete="new-password" />
+
           {formError && (
             <div style={{
               backgroundColor: '#FEF2F2',
@@ -1021,15 +1219,46 @@ function AdminsManagement() {
 
             {/* Name Field */}
             <div className="form-field-item">
-              <label htmlFor="admin-name">Name *</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label htmlFor="admin-name" style={{ margin: 0 }}>Name *</label>
+                <span style={{ fontSize: '12px', color: formData.name.length >= 50 ? '#DC2626' : '#90a4ae', fontWeight: formData.name.length >= 50 ? '600' : '400' }}>
+                  {formData.name.length}/50
+                </span>
+              </div>
               <input
                 id="admin-name"
+                name="admin_name_field"
                 type="text"
                 placeholder="Enter Name (e.g. Super Admin)"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                maxLength={50}
+                onKeyDown={(e) => {
+                  if (formData.name.length >= 50 && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    setNameError('Name cannot exceed 50 characters.')
+                  }
+                }}
+                onChange={(e) => {
+                  const rawVal = e.target.value
+                  let error = ''
+                  if (rawVal.length > 50) {
+                    error = 'Name cannot exceed 50 characters.'
+                  }
+                  const sanitized = rawVal.replace(/[^a-zA-Z\s]/g, '')
+                  if (rawVal !== sanitized && !error) {
+                    error = 'Only alphabets and spaces are allowed for Name.'
+                  }
+                  setNameError(error)
+                  setFormData({ ...formData, name: sanitized.slice(0, 50) })
+                  if (formError) setFormError('')
+                }}
+                autoComplete="off"
                 required
               />
+              {nameError && (
+                <span style={{ color: '#DC2626', fontSize: '12px', marginTop: '4px', display: 'block', fontWeight: '500' }}>
+                  ⚠️ {nameError}
+                </span>
+              )}
             </div>
 
             {/* Email Address Field */}
@@ -1037,37 +1266,68 @@ function AdminsManagement() {
               <label htmlFor="admin-email">Email Address *</label>
               <input
                 id="admin-email"
+                name="admin_email_field"
                 type="email"
                 placeholder="Enter Email (e.g. admin@example.com)"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, email: e.target.value })
+                  if (formError) setFormError('')
+                }}
+                autoComplete="new-password"
                 required
               />
             </div>
 
             {/* Password Field */}
             <div className="form-field-item">
-              <label htmlFor="admin-password">Password *</label>
+              <label htmlFor="admin-password">
+                {editingAdmin ? 'Password (Leave blank to keep unchanged)' : 'Password *'}
+              </label>
               <input
                 id="admin-password"
+                name="admin_password_field"
                 type="password"
-                placeholder="Enter Password (e.g. Admin@123)"
+                placeholder={editingAdmin ? "Enter New Password (optional)" : "Enter Password (e.g. Admin@123)"}
                 value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
+                onChange={(e) => {
+                  setFormData({ ...formData, password: e.target.value })
+                  if (formError) setFormError('')
+                }}
+                autoComplete="new-password"
+                required={!editingAdmin}
               />
             </div>
 
             {/* Phone Field */}
             <div className="form-field-item">
-              <label htmlFor="admin-phone">Phone</label>
+              <label htmlFor="admin-phone">Phone Number *</label>
               <input
                 id="admin-phone"
+                name="admin_phone_field"
                 type="tel"
-                placeholder="Enter Phone Number"
+                placeholder="Enter 10-digit Phone Number (e.g. 9876543210)"
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                maxLength={10}
+                onChange={(e) => {
+                  const rawVal = e.target.value
+                  const digitsOnly = rawVal.replace(/\D/g, '').slice(0, 10)
+                  if (rawVal && rawVal !== digitsOnly) {
+                    setPhoneError('Only digits (0-9) are allowed for Phone Number.')
+                  } else {
+                    setPhoneError('')
+                  }
+                  setFormData({ ...formData, phone: digitsOnly })
+                  if (formError) setFormError('')
+                }}
+                autoComplete="off"
+                required
               />
+              {phoneError && (
+                <span style={{ color: '#DC2626', fontSize: '12px', marginTop: '4px', display: 'block', fontWeight: '500' }}>
+                  ⚠️ {phoneError}
+                </span>
+              )}
             </div>
 
             {/* Gender Field */}
@@ -1075,6 +1335,7 @@ function AdminsManagement() {
               <label htmlFor="admin-gender">Gender *</label>
               <select
                 id="admin-gender"
+                name="admin_gender_field"
                 value={formData.gender}
                 onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                 required
@@ -1107,6 +1368,7 @@ function AdminsManagement() {
               onClick={() => {
                 setFormError('')
                 setIsAdding(false)
+                setEditingAdmin(null)
               }}
               disabled={formLoading}
             >
@@ -1117,7 +1379,9 @@ function AdminsManagement() {
               className="btn-add-green"
               disabled={formLoading}
             >
-              {formLoading ? 'Creating Admin...' : 'Add Admin'}
+              {formLoading
+                ? (editingAdmin ? 'Saving Changes...' : 'Creating Admin...')
+                : (editingAdmin ? 'Save Changes' : 'Add Admin')}
             </button>
           </div>
         </form>
@@ -1200,7 +1464,7 @@ function AdminsManagement() {
                 <span
                   className={`admin-status-badge clickable ${viewedAdmin.status}`}
                   style={{ width: 'fit-content', cursor: 'pointer' }}
-                  onClick={() => handleToggleStatus(viewedAdmin.id)}
+                  onClick={() => handleRequestToggleStatus(viewedAdmin.id)}
                   title="Click to toggle status"
                 >
                   {viewedAdmin.status}
@@ -1271,7 +1535,9 @@ function AdminsManagement() {
                       <div className="activity-title" style={{ fontSize: '14px', fontWeight: '600' }}>{act.title}</div>
                       <span className="activity-log-green-tag">{act.description}</span>
                     </div>
-                    <div className="activity-timestamp" style={{ fontSize: '11px', color: '#90a4ae', flexShrink: 0 }}>{act.time}</div>
+                    <div className="activity-timestamp" style={{ fontSize: '11px', color: '#90a4ae', flexShrink: 0 }}>
+                      {formatElapsedTime(act.timestamp, act.time)}
+                    </div>
                   </div>
                 ))
               ) : (
@@ -1305,158 +1571,6 @@ function AdminsManagement() {
           </div>
         </div>
 
-        {/* Edit Modal Overlay */}
-        {editingAdmin && (
-          <div className="modal-overlay" onClick={() => !editLoading && setEditingAdmin(null)}>
-            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #f1f3f4', paddingBottom: '12px' }}>
-                <h2 className="modal-title" style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>Edit Admin Details</h2>
-                <button
-                  style={{ background: 'none', border: 'none', cursor: editLoading ? 'not-allowed' : 'pointer', color: '#78909c', display: 'flex', padding: '4px' }}
-                  onClick={() => !editLoading && setEditingAdmin(null)}
-                  disabled={editLoading}
-                  aria-label="Close modal"
-                >
-                  <X style={{ width: '20px', height: '20px' }} />
-                </button>
-              </div>
-
-              {editError && (
-                <div style={{
-                  backgroundColor: '#FEF2F2',
-                  border: '1px solid #F87171',
-                  color: '#DC2626',
-                  padding: '10px 14px',
-                  borderRadius: '6px',
-                  marginBottom: '16px',
-                  fontSize: '13px',
-                  fontWeight: '500'
-                }}>
-                  ⚠️ {editError}
-                </div>
-              )}
-
-              <form onSubmit={handleSaveEdit} className="modal-form">
-                <div className="modal-field">
-                  <label htmlFor="edit-name">Name *</label>
-                  <input
-                    id="edit-name"
-                    type="text"
-                    value={editingAdmin.name}
-                    onChange={(e) => setEditingAdmin({ ...editingAdmin, name: e.target.value })}
-                    required
-                    disabled={editLoading}
-                  />
-                </div>
-
-                <div className="modal-field">
-                  <label htmlFor="edit-email">Email Address *</label>
-                  <input
-                    id="edit-email"
-                    type="email"
-                    value={editingAdmin.email}
-                    onChange={(e) => setEditingAdmin({ ...editingAdmin, email: e.target.value })}
-                    required
-                    disabled={editLoading}
-                  />
-                </div>
-
-                <div className="modal-field">
-                  <label htmlFor="edit-phone">Phone</label>
-                  <input
-                    id="edit-phone"
-                    type="tel"
-                    placeholder="e.g. 9876543211"
-                    value={editingAdmin.phone}
-                    onChange={(e) => setEditingAdmin({ ...editingAdmin, phone: e.target.value })}
-                    disabled={editLoading}
-                  />
-                </div>
-
-                <div className="modal-field">
-                  <label htmlFor="edit-role">Role</label>
-                  <select
-                    id="edit-role"
-                    value={editingAdmin.role || 'ADMIN'}
-                    onChange={(e) => setEditingAdmin({ ...editingAdmin, role: e.target.value })}
-                    disabled={editLoading}
-                  >
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                    <option value="MANAGER">MANAGER</option>
-                    <option value="EDITOR">EDITOR</option>
-                  </select>
-                </div>
-
-                <div className="modal-field">
-                  <label htmlFor="edit-gender">Gender</label>
-                  <select
-                    id="edit-gender"
-                    value={editingAdmin.gender || 'Male'}
-                    onChange={(e) => setEditingAdmin({ ...editingAdmin, gender: e.target.value })}
-                    disabled={editLoading}
-                  >
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-
-                <div className="modal-field">
-                  <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-dark)', marginBottom: '4px', display: 'block' }}>Status</span>
-                  <div
-                    className={`status-toggle-container ${editingAdmin.isActive ? 'active' : ''}`}
-                    onClick={() => !editLoading && setEditingAdmin(prev => ({ ...prev, isActive: !prev.isActive }))}
-                    style={{ opacity: editLoading ? 0.7 : 1, cursor: editLoading ? 'not-allowed' : 'pointer' }}
-                  >
-                    <div className="status-toggle-pill">
-                      <span className="status-toggle-text">
-                        {editingAdmin.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="modal-buttons" style={{ marginTop: '20px', gap: '12px' }}>
-                  <button
-                    type="button"
-                    className="btn-cancel-red"
-                    style={{ width: '50%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', cursor: editLoading ? 'not-allowed' : 'pointer' }}
-                    onClick={() => setEditingAdmin(null)}
-                    disabled={editLoading}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="save-changes-btn"
-                    disabled={editLoading}
-                    style={{
-                      width: '50%',
-                      padding: '12px 24px',
-                      backgroundColor: '#a8d572',
-                      color: '#0e1e05',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      cursor: editLoading ? 'not-allowed' : 'pointer',
-                      fontFamily: 'var(--admin-font)',
-                      opacity: editLoading ? 0.7 : 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px'
-                    }}
-                  >
-                    {editLoading && <RotateCw style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />}
-                    {editLoading ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     )
   }
@@ -1525,7 +1639,7 @@ function AdminsManagement() {
           <button
             className="edit-profile-btn"
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
-            onClick={() => setIsAdding(true)}
+            onClick={handleOpenAdd}
           >
             <Plus style={{ width: '16px', height: '16px' }} />
             Add New Admin
@@ -1603,7 +1717,9 @@ function AdminsManagement() {
                 <div className="activity-title" style={{ fontSize: '14px', fontWeight: '600' }}>{act.title}</div>
                 <div style={{ fontSize: '12px', color: '#78909c' }}>{act.subtitle}</div>
               </div>
-              <div className="activity-timestamp" style={{ fontSize: '12px', color: '#90a4ae' }}>{act.time}</div>
+              <div className="activity-timestamp" style={{ fontSize: '12px', color: '#90a4ae' }}>
+                {formatElapsedTime(act.timestamp, act.time)}
+              </div>
             </div>
           ))}
         </div>
@@ -1700,7 +1816,7 @@ function AdminsManagement() {
                     <td>
                       <span
                         className={`admin-status-badge clickable ${admin.status}`}
-                        onClick={() => handleToggleStatus(admin.id)}
+                        onClick={() => handleRequestToggleStatus(admin.id)}
                         title="Click to toggle status"
                       >
                         {admin.status}
@@ -1723,6 +1839,25 @@ function AdminsManagement() {
                           {/* Action Context Menu */}
                           {activeActionMenuId === admin.id && (
                             <div className="action-menu-dropdown" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                className="action-dropdown-item"
+                                onClick={() => {
+                                  handleRequestToggleStatus(admin.id)
+                                  setActiveActionMenuId(null)
+                                }}
+                              >
+                                {admin.status === 'active' ? (
+                                  <>
+                                    <UserMinus style={{ width: '14px', height: '14px', color: '#dc2626' }} />
+                                    <span>Deactivate</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserCheck style={{ width: '14px', height: '14px', color: '#16a34a' }} />
+                                    <span>Activate</span>
+                                  </>
+                                )}
+                              </button>
                               <button
                                 className="action-dropdown-item"
                                 onClick={() => {
@@ -1774,7 +1909,7 @@ function AdminsManagement() {
         {/* Footer Entries and Pagination */}
         <div className="offers-table-footer">
           <div className="footer-entries-text">
-            Showing {Math.min(startIndex + 1, totalItems)} to {Math.min(startIndex + itemsPerPage, totalItems)} of {totalItems} entries
+            Showing {Math.min(startIndex + 1, totalItems)} to {Math.min(startIndex + itemsPerPage, totalItems)} of {totalItems} Entries
           </div>
           <div className="offers-pagination">
             <button
@@ -1952,21 +2087,6 @@ function AdminsManagement() {
               </div>
 
               <div className="modal-field">
-                <label htmlFor="edit-role">Role</label>
-                <select
-                  id="edit-role"
-                  value={editingAdmin.role || 'ADMIN'}
-                  onChange={(e) => setEditingAdmin({ ...editingAdmin, role: e.target.value })}
-                  disabled={editLoading}
-                >
-                  <option value="ADMIN">ADMIN</option>
-                  <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                  <option value="MANAGER">MANAGER</option>
-                  <option value="EDITOR">EDITOR</option>
-                </select>
-              </div>
-
-              <div className="modal-field">
                 <label htmlFor="edit-gender">Gender</label>
                 <select
                   id="edit-gender"
@@ -2070,10 +2190,7 @@ function AdminsManagement() {
             </div>
 
             {/* Quick Controls */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-              <span style={{ fontSize: '11px', fontFamily: 'monospace', backgroundColor: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '4px' }}>
-                POST /api/superadmin/permissions/assign
-              </span>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   type="button"
@@ -2153,7 +2270,6 @@ function AdminsManagement() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <Shield size={16} color="#166534" />
                           <strong style={{ fontSize: '14px', color: '#1e293b' }}>{mod.label}</strong>
-                          <span style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace' }}>({mod.key})</span>
                         </div>
                         <button
                           type="button"
@@ -2227,34 +2343,11 @@ function AdminsManagement() {
                   Cancel
                 </button>
                 <button
-                  type="button"
-                  style={{
-                    flex: 1,
-                    padding: '12px',
-                    borderRadius: '8px',
-                    border: '1px solid #fca5a5',
-                    background: '#fef2f2',
-                    color: '#dc2626',
-                    cursor: permissionLoading ? 'not-allowed' : 'pointer',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px'
-                  }}
-                  onClick={handleDeleteAdminPermissions}
-                  disabled={permissionLoading}
-                >
-                  <Trash2 size={16} />
-                  <span>Delete</span>
-                </button>
-                <button
                   type="submit"
                   className="save-changes-btn"
                   disabled={permissionLoading}
                   style={{
-                    flex: 2,
+                    flex: 1,
                     padding: '12px 20px',
                     backgroundColor: '#a3cc66',
                     color: '#ffffff',
@@ -2338,6 +2431,68 @@ function AdminsManagement() {
               >
                 {deleteLoading && <RotateCw style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />}
                 {deleteLoading ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Status Toggle Confirmation Modal Overlay */}
+      {statusConfirmAdmin && (
+        <div className="modal-overlay" onClick={() => !statusToggleLoading && setStatusConfirmAdmin(null)}>
+          <div className="delete-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-modal-title">
+              {statusConfirmAdmin.action === 'deactivate' ? 'Deactivate Admin' : 'Activate Admin'}
+            </div>
+            <div className="delete-modal-subtitle" style={{ fontSize: '14px', lineHeight: '1.5', color: '#4b5563', margin: '12px 0 20px 0' }}>
+              Are you sure you want to {statusConfirmAdmin.action} this admin?
+            </div>
+
+            {statusToggleError && (
+              <div style={{
+                backgroundColor: '#FEF2F2',
+                border: '1px solid #F87171',
+                color: '#DC2626',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                marginBottom: '16px',
+                fontSize: '13px',
+                fontWeight: '500'
+              }}>
+                ⚠️ {statusToggleError}
+              </div>
+            )}
+
+            <div className="delete-modal-buttons">
+              <button
+                type="button"
+                className="btn-delete-cancel"
+                onClick={() => {
+                  setStatusToggleError('')
+                  setStatusConfirmAdmin(null)
+                }}
+                disabled={statusToggleLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-delete-confirm"
+                onClick={handleConfirmToggleStatus}
+                disabled={statusToggleLoading}
+                style={{
+                  backgroundColor: statusConfirmAdmin.action === 'deactivate' ? '#e11d48' : '#16a34a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  opacity: statusToggleLoading ? 0.7 : 1,
+                  cursor: statusToggleLoading ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {statusToggleLoading && <RotateCw style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />}
+                {statusToggleLoading
+                  ? (statusConfirmAdmin.action === 'deactivate' ? 'Deactivating...' : 'Activating...')
+                  : (statusConfirmAdmin.action === 'deactivate' ? 'Yes, Deactivate' : 'Yes, Activate')}
               </button>
             </div>
           </div>

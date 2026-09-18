@@ -7,7 +7,7 @@
   animation: fadeIn 0.4s ease-out;
   padding: 24px 32px;
   background-color: #fafafa;
-  min-height: 100vh;
+  min-height: 100%;
   font-family: 'Inter', sans-serif;
 }
 

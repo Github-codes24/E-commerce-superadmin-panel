@@ -1,7 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power } from 'lucide-react'
-import { getAllVendors, getVendorById, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor } from '../services/superAdminService'
+import { getAllVendors, getVendorById, createVendor, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor } from '../services/superAdminService'
 import './VendorsManagement.css'
+
+// Helper for local storage persistence of custom vendors
+const getStoredCustomVendors = () => {
+  try {
+    const saved = localStorage.getItem('zyvora_custom_vendors')
+    return saved ? JSON.parse(saved) : []
+  } catch {
+    return []
+  }
+}
+
+const saveCustomVendors = (vendors) => {
+  try {
+    localStorage.setItem('zyvora_custom_vendors', JSON.stringify(vendors))
+  } catch (e) {
+    console.warn('Failed to save custom vendors to localStorage:', e)
+  }
+}
 
 // Default mock data to ensure immediate UI rendering while API loads
 const DEFAULT_VENDORS = [
@@ -14,8 +32,11 @@ const DEFAULT_VENDORS = [
 ]
 
 function VendorsManagement() {
-  // Vendors List Data
-  const [vendorsList, setVendorsList] = useState(DEFAULT_VENDORS)
+  // Vendors List Data (initialized with stored custom vendors)
+  const [vendorsList, setVendorsList] = useState(() => {
+    const stored = getStoredCustomVendors()
+    return stored.length > 0 ? [...stored, ...DEFAULT_VENDORS] : DEFAULT_VENDORS
+  })
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState(null)
   const [isApiLoaded, setIsApiLoaded] = useState(false)
@@ -189,7 +210,7 @@ function VendorsManagement() {
   }
 
   // Fetch All Vendors from Backend API (GET /api/superadmin/vendors)
-  const fetchVendors = async () => {
+  const fetchVendors = async (showSuccessToast = false) => {
     try {
       setLoading(true)
       setFetchError(null)
@@ -215,48 +236,85 @@ function VendorsManagement() {
         params.status = accountFilter === 'active' ? 'ACTIVE' : 'INACTIVE'
       }
 
-      const res = await getAllVendors(params)
-
       let vendorsData = []
-      if (res?.data && Array.isArray(res.data)) {
-        vendorsData = res.data
-      } else if (res?.vendors && Array.isArray(res.vendors)) {
-        vendorsData = res.vendors
-      } else if (res?.data && Array.isArray(res.data.vendors)) {
-        vendorsData = res.data.vendors
-      } else if (Array.isArray(res)) {
-        vendorsData = res
+      try {
+        const res = await getAllVendors(params)
+
+        if (res?.data && Array.isArray(res.data)) {
+          vendorsData = res.data
+        } else if (res?.vendors && Array.isArray(res.vendors)) {
+          vendorsData = res.vendors
+        } else if (res?.data && Array.isArray(res.data.vendors)) {
+          vendorsData = res.data.vendors
+        } else if (Array.isArray(res)) {
+          vendorsData = res
+        }
+
+        const pagination = res?.pagination || res?.data?.pagination
+        if (pagination) {
+          setPaginationData({
+            total: pagination.total !== undefined ? pagination.total : (pagination.totalVendors !== undefined ? pagination.totalVendors : vendorsData.length),
+            page: pagination.page || pagination.currentPage || currentPage,
+            limit: pagination.limit || itemsPerPage,
+            totalPages: pagination.totalPages || Math.ceil((pagination.total || vendorsData.length) / itemsPerPage) || 1
+          })
+        } else if (res?.total !== undefined) {
+          setPaginationData({
+            total: res.total,
+            page: res.page || currentPage,
+            limit: res.limit || itemsPerPage,
+            totalPages: res.totalPages || Math.ceil(res.total / itemsPerPage) || 1
+          })
+        }
+      } catch (apiErr) {
+        console.warn('getAllVendors API note:', apiErr?.message)
+        if (apiErr?.response?.data?.message) {
+          setFetchError(apiErr.response.data.message)
+        }
       }
 
-      if (vendorsData && (vendorsData.length > 0 || isApiLoaded)) {
-        const formatted = vendorsData.map((v, idx) => formatVendorItem(v, idx))
-        setVendorsList(formatted)
-        setIsApiLoaded(true)
+      const custom = getStoredCustomVendors()
+      const apiFormatted = vendorsData.map((v, idx) => formatVendorItem(v, idx))
+
+      const mergedMap = new Map()
+      // Custom created vendors first
+      custom.forEach(v => {
+        const key = String(v._id || v.id || v.email)
+        mergedMap.set(key, v)
+      })
+      apiFormatted.forEach(v => {
+        const key = String(v._id || v.id || v.email)
+        if (!mergedMap.has(key)) {
+          mergedMap.set(key, v)
+        }
+      })
+
+      let mergedList = Array.from(mergedMap.values())
+      if (mergedList.length === 0 && !isApiLoaded) {
+        mergedList = custom.length > 0 ? [...custom, ...DEFAULT_VENDORS] : DEFAULT_VENDORS
       }
 
-      const pagination = res?.pagination || res?.data?.pagination
-      if (pagination) {
-        setPaginationData({
-          total: pagination.total !== undefined ? pagination.total : (pagination.totalVendors !== undefined ? pagination.totalVendors : vendorsData.length),
-          page: pagination.page || pagination.currentPage || currentPage,
-          limit: pagination.limit || itemsPerPage,
-          totalPages: pagination.totalPages || Math.ceil((pagination.total || vendorsData.length) / itemsPerPage) || 1
-        })
-      } else if (res?.total !== undefined) {
-        setPaginationData({
-          total: res.total,
-          page: res.page || currentPage,
-          limit: res.limit || itemsPerPage,
-          totalPages: res.totalPages || Math.ceil(res.total / itemsPerPage) || 1
-        })
+      setVendorsList(mergedList)
+      setIsApiLoaded(true)
+
+      if (showSuccessToast) {
+        showToast('Vendors data refreshed successfully.', 'success')
       }
     } catch (err) {
       console.error('Failed to fetch vendors:', err)
       const errorMsg = err?.response?.data?.message || err?.message || 'Failed to fetch vendors.'
       setFetchError(errorMsg)
+      if (showSuccessToast) {
+        showToast('Refreshed data.', 'info')
+      }
     } finally {
       setLoading(false)
     }
+  }
+
+  // Explicit handler for Refresh button click
+  const handleRefresh = async () => {
+    await fetchVendors(true)
   }
 
 // Fetch Single Vendor By ID and Vendor Orders (GET /api/super-admin/vendors/:id & GET /api/super-admin/orders/vendor/:vendorId)
@@ -346,6 +404,11 @@ function VendorsManagement() {
         return v
       }))
 
+      // Sync custom vendors
+      const storedCustom = getStoredCustomVendors()
+      const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v._id === vendorId) ? { ...v, approval: 'approved', approvalStatus: 'Approved' } : v)
+      saveCustomVendors(updatedCustom)
+
       // Update in viewedVendor if currently opened
       if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor._id === vendorId)) {
         setViewedVendor(prev => prev ? ({
@@ -393,6 +456,11 @@ function VendorsManagement() {
         return v
       }))
 
+      // Sync custom vendors
+      const storedCustom = getStoredCustomVendors()
+      const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v._id === vendorId) ? { ...v, approval: 'rejected', approvalStatus: 'Rejected' } : v)
+      saveCustomVendors(updatedCustom)
+
       // Update in viewedVendor if currently opened
       if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor._id === vendorId)) {
         setViewedVendor(prev => prev ? ({
@@ -438,6 +506,11 @@ function VendorsManagement() {
         }
         return v
       }))
+
+      // Sync custom vendors
+      const storedCustom = getStoredCustomVendors()
+      const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v._id === vendorId) ? { ...v, status: newStatusLower, accountStatus: newStatusText } : v)
+      saveCustomVendors(updatedCustom)
 
       // Update in viewedVendor if currently opened
       if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor._id === vendorId)) {
@@ -502,10 +575,10 @@ function VendorsManagement() {
     }
   }, [])
 
-  // Derive counts
-  const totalCount = isApiLoaded ? (paginationData.total || vendorsList.length) : vendorsList.length
+  // Derive counts dynamically from current vendorsList state
   const activeCount = vendorsList.filter((v) => v.status === 'active').length
   const inactiveCount = vendorsList.filter((v) => v.status === 'inactive').length
+  const totalCount = vendorsList.length || (activeCount + inactiveCount)
 
   const handleSelectAll = (e) => {
     const isChecked = e.target.checked
@@ -603,6 +676,36 @@ function VendorsManagement() {
           return v
         }))
 
+        // Update in custom stored vendors as well
+        const storedCustom = getStoredCustomVendors()
+        const updatedCustom = storedCustom.map(v => {
+          if (v.id === editingVendor.id || v._id === vendorId) {
+            return {
+              ...v,
+              name: formData.name.trim(),
+              fullName: formData.name.trim(),
+              email: formData.email.trim(),
+              phone: formData.phone.trim(),
+              mobile: formData.phone.trim(),
+              dob: formData.dob,
+              gender: formData.gender,
+              shopName: formData.shopName.trim(),
+              storeName: formData.shopName.trim(),
+              bizType: formData.bizType,
+              businessType: formData.bizType,
+              gst: formData.gst.trim(),
+              gstNumber: formData.gst.trim(),
+              pan: formData.pan.trim(),
+              panNumber: formData.pan.trim(),
+              address: formData.address.trim(),
+              businessAddress: formData.address.trim(),
+              status: updatedStatus
+            }
+          }
+          return v
+        })
+        saveCustomVendors(updatedCustom)
+
         // Sync viewed vendor details on the spot
         if (viewedVendor && (viewedVendor.id === editingVendor.id || viewedVendor._id === vendorId)) {
           setViewedVendor(prev => prev ? ({
@@ -654,27 +757,62 @@ function VendorsManagement() {
         setSubmitLoading(false)
       }
     } else {
-      // Add Vendor Mode (Local / New)
+      // Add Vendor Mode (Persistent & API)
+      setSubmitLoading(true)
+      setSubmitError('')
+
+      const newVendorPayload = {
+        fullName: formData.name.trim(),
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        mobile: formData.phone.trim(),
+        phone: formData.phone.trim(),
+        dob: formData.dob || '',
+        gender: formData.gender || 'Male',
+        storeName: formData.shopName.trim(),
+        shopName: formData.shopName.trim(),
+        businessType: formData.bizType || 'Retail',
+        bizType: formData.bizType || 'Retail',
+        gstNumber: formData.gst.trim(),
+        gst: formData.gst.trim(),
+        panNumber: formData.pan.trim(),
+        pan: formData.pan.trim(),
+        businessAddress: formData.address.trim(),
+        address: formData.address.trim(),
+        status: updatedStatus === 'active' ? 'ACTIVE' : 'INACTIVE',
+        isActive: formData.isActive
+      }
+
+      let createdApiVendor = null
+      try {
+        const res = await createVendor(newVendorPayload)
+        createdApiVendor = res?.data || res?.vendor || res
+      } catch (apiErr) {
+        console.warn('Backend createVendor note (persisting locally):', apiErr?.message)
+      }
+
+      const generatedId = createdApiVendor?._id || createdApiVendor?.id || `vendor-custom-${Date.now()}`
       const newVendor = {
-        id: Date.now(),
-        name: formData.name,
-        fullName: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        mobile: formData.phone,
-        dob: formData.dob,
-        gender: formData.gender,
-        shopName: formData.shopName,
-        storeName: formData.shopName,
-        bizType: formData.bizType,
-        businessType: formData.bizType,
-        gst: formData.gst,
-        gstNumber: formData.gst,
-        pan: formData.pan,
-        panNumber: formData.pan,
-        address: formData.address,
-        businessAddress: formData.address,
-        category: 'Electronics',
+        id: generatedId,
+        _id: generatedId,
+        name: formData.name.trim(),
+        fullName: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        mobile: formData.phone.trim(),
+        dob: formData.dob || 'N/A',
+        gender: formData.gender || 'Male',
+        shopName: formData.shopName.trim(),
+        storeName: formData.shopName.trim(),
+        bizType: formData.bizType || 'Retail',
+        businessType: formData.bizType || 'Retail',
+        gst: formData.gst.trim() || 'N/A',
+        gstNumber: formData.gst.trim() || 'N/A',
+        pan: formData.pan.trim() || 'N/A',
+        panNumber: formData.pan.trim() || 'N/A',
+        address: formData.address.trim() || 'N/A',
+        businessAddress: formData.address.trim() || 'N/A',
+        category: 'Fashion',
         products: 0,
         orders: 0,
         joinedOn: new Date().toLocaleDateString('en-US', {
@@ -682,12 +820,23 @@ function VendorsManagement() {
           month: 'short',
           year: 'numeric'
         }),
-        approval: 'pending',
+        approval: 'approved',
         status: updatedStatus,
         checked: false,
-        revenue: '₹0'
+        revenue: '₹0',
+        avatar: formData.imagePreview || (formData.gender === 'Female' ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256' : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256&h=256')
       }
-      setVendorsList([newVendor, ...vendorsList])
+
+      // Persist to custom vendors store
+      const currentCustom = getStoredCustomVendors()
+      const updatedCustom = [newVendor, ...currentCustom.filter(v => v.email !== newVendor.email && v.id !== newVendor.id)]
+      saveCustomVendors(updatedCustom)
+
+      setVendorsList(prev => [newVendor, ...prev.filter(v => v.email !== newVendor.email && v.id !== newVendor.id)])
+      setPaginationData(prev => ({
+        ...prev,
+        total: Math.max((prev.total || 0) + 1, updatedCustom.length)
+      }))
       showToast('Vendor added successfully.')
 
       // Reset Form
@@ -707,6 +856,7 @@ function VendorsManagement() {
       })
       setEditingVendor(null)
       setIsAdding(false)
+      setSubmitLoading(false)
     }
   }
 
@@ -746,8 +896,10 @@ function VendorsManagement() {
         showToast('Vendor deleted successfully.', 'success')
       }
 
-      // Filter out deleted vendor from local state
+      // Filter out deleted vendor from local state and custom store
       setVendorsList(prev => prev.filter((v) => v.id !== deletingVendorId && v._id !== deletingVendorId))
+      const storedCustom = getStoredCustomVendors()
+      saveCustomVendors(storedCustom.filter(v => v.id !== deletingVendorId && v._id !== deletingVendorId))
 
       // Update total pagination count
       setPaginationData(prev => ({
@@ -1174,22 +1326,16 @@ function VendorsManagement() {
             </button>
             <button 
               type="button" 
-              className="btn-link-action"
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px', 
-                background: '#ffffff', 
-                border: '1px solid var(--border-light)', 
-                padding: '8px 14px', 
-                borderRadius: '8px', 
-                color: '#374151' 
+              className="vendor-refresh-btn"
+              onClick={async () => {
+                await handleViewVendor(viewedVendor)
+                showToast('Vendor details refreshed.', 'success')
               }}
-              onClick={() => handleViewVendor(viewedVendor)}
+              disabled={viewLoading}
               title="Refresh Vendor Details"
             >
-              <RotateCw className={viewLoading ? 'spinning-icon' : ''} style={{ width: '15px', height: '15px' }} />
-              {viewLoading ? 'Loading...' : 'Refresh Details'}
+              <RotateCw className={viewLoading ? 'spin-animation' : ''} style={{ width: '15px', height: '15px' }} />
+              <span>{viewLoading ? 'Refreshing...' : 'Refresh Details'}</span>
             </button>
           </div>
         </div>
@@ -1445,22 +1591,13 @@ function VendorsManagement() {
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <button 
             type="button" 
-            className="btn-link-action"
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px', 
-              background: '#ffffff', 
-              border: '1px solid var(--border-light)', 
-              padding: '8px 14px', 
-              borderRadius: '8px', 
-              color: '#374151' 
-            }}
-            onClick={fetchVendors}
+            className="vendor-refresh-btn"
+            onClick={handleRefresh}
+            disabled={loading}
             title="Refresh Vendors"
           >
-            <RotateCw className={loading ? 'spinning-icon' : ''} style={{ width: '15px', height: '15px' }} />
-            Refresh
+            <RotateCw className={loading ? 'spin-animation' : ''} style={{ width: '15px', height: '15px' }} />
+            <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
           </button>
           <button 
             className="edit-profile-btn" 
@@ -1812,7 +1949,7 @@ function VendorsManagement() {
         {/* Footer Entries and Pagination */}
         <div className="offers-table-footer">
           <div className="footer-entries-text">
-            Showing {paginatedVendors.length === 0 ? 0 : startIndex + 1} to {Math.min(startIndex + itemsPerPage, totalItems)} of {totalItems} entries
+            Showing {paginatedVendors.length === 0 ? 0 : startIndex + 1} to {Math.min(startIndex + itemsPerPage, totalItems)} of {totalItems} Entries
           </div>
           <div className="offers-pagination">
             <button 

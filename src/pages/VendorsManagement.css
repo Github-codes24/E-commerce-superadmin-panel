@@ -151,3 +151,50 @@
   color: #555555;
   font-weight: 500;
 }
+
+/* Refresh Button Styles */
+.vendor-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #ffffff;
+  border: 1px solid #cfd8dc;
+  padding: 9px 16px;
+  border-radius: 8px;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.vendor-refresh-btn:hover:not(:disabled) {
+  background-color: #f8fafc;
+  color: #111827;
+  border-color: #94a3b8;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.vendor-refresh-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.vendor-refresh-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin-animation,
+.spinning-icon {
+  animation: spin 1s linear infinite;
+}

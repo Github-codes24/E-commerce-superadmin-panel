@@ -7,17 +7,21 @@ import api from './api';
  * @param {Object} data - { name, email, phone, password, role }
  */
 export const registerAdmin = async ({ name, fullName, email, phone, mobile, password, role = 'ADMIN', gender = 'Male', status = 'ACTIVE' }) => {
-  const response = await api.post('/superadmin/admins/register', {
+  const payload = {
     fullName: fullName || name,
     name: name || fullName,
     email,
-    mobile: mobile || phone || '9876543210',
-    phone: phone || mobile || '9876543210',
     password,
     role,
     gender: gender || 'Male',
     status: status || 'ACTIVE',
-  });
+  };
+  const phoneValue = (phone || mobile || '').toString().trim();
+  if (phoneValue && phoneValue !== 'N/A') {
+    payload.mobile = phoneValue;
+    payload.phone = phoneValue;
+  }
+  const response = await api.post('/superadmin/admins/register', payload);
   return response.data;
 };
 
@@ -164,8 +168,12 @@ export const updateAdmin = async (id, { name, email, phone, role = 'ADMIN' }) =>
  * @param {string|boolean} status - 'ACTIVE' / 'INACTIVE' or boolean
  */
 export const updateAdminStatus = async (id, status) => {
+  const boolIsActive = typeof status === 'boolean'
+    ? status
+    : (typeof status === 'string' ? (status.toUpperCase() === 'ACTIVE' || status.toLowerCase() === 'active') : Boolean(status));
   const response = await api.patch(`/superadmin/admins/status/${id}/status`, {
-    status: typeof status === 'string' ? status.toUpperCase() : (status ? 'ACTIVE' : 'INACTIVE'),
+    isActive: boolIsActive,
+    status: boolIsActive ? 'ACTIVE' : 'INACTIVE',
   });
   return response.data;
 };
@@ -338,6 +346,18 @@ export const getVendorById = async (id) => {
  */
 export const updateVendor = async (id, data) => {
   const response = await api.put(`/superadmin/vendors/${id}`, data);
+  return response.data;
+};
+
+/**
+ * 28b - Create Vendor (POST /api/superadmin/vendors)
+ * Method: POST
+ * Endpoint: /api/superadmin/vendors
+ * Headers: Authorization: Bearer <Token>
+ * @param {Object} data - New vendor payload
+ */
+export const createVendor = async (data) => {
+  const response = await api.post('/superadmin/vendors', data);
   return response.data;
 };
 

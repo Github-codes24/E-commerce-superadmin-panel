@@ -12,7 +12,7 @@ const pageData = {
   login: {
     title: 'Log in',
     subtitle: 'SUPER ADMIN PORTAL',
-    description: 'Log in to access your Admin Panel.',
+    description: 'Log in to access your Super Admin Panel.',
     button: 'Login',
     art: loginArt,
   },

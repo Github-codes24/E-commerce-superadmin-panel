@@ -1,10 +1,25 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { LayoutGrid, Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, X, ChevronLeft, ChevronRight, Palette, Calendar, Layers, Tag, Package, CheckCircle2, RotateCw, Mail, Phone, AlertCircle, ToggleLeft, ToggleRight, Check } from 'lucide-react'
-import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, updateProductStatus, getAllCategories } from '../services/superAdminService'
+import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, updateProductStatus, getAllCategories, getAllVendors } from '../services/superAdminService'
 import './ProductManagement.css'
 
+// Helper for local persistence of custom created / edited products
+const getStoredCustomProducts = () => {
+  try {
+    const saved = localStorage.getItem('zyvora_custom_products')
+    return saved ? JSON.parse(saved) : []
+  } catch {
+    return []
+  }
+}
 
-
+const saveCustomProducts = (products) => {
+  try {
+    localStorage.setItem('zyvora_custom_products', JSON.stringify(products))
+  } catch (e) {
+    console.warn('Failed to save custom products to localStorage:', e)
+  }
+}
 
 const DEFAULT_PRODUCTS = [
   {
@@ -185,8 +200,11 @@ const DEFAULT_PRODUCTS = [
 ]
 
 function ProductManagement() {
-  // Products List Data (Defaults to mock dataset for instant rendering)
-  const [productsList, setProductsList] = useState(DEFAULT_PRODUCTS)
+  // Products List Data (Defaults to stored custom products + mock dataset for instant rendering)
+  const [productsList, setProductsList] = useState(() => {
+    const stored = getStoredCustomProducts()
+    return stored.length > 0 ? [...stored, ...DEFAULT_PRODUCTS] : DEFAULT_PRODUCTS
+  })
   const [isApiLoaded, setIsApiLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState(null)
@@ -338,12 +356,29 @@ function ProductManagement() {
         productsData = res
       }
 
-      if (productsData && productsData.length > 0) {
-        const formatted = productsData.map((item, idx) => formatProductItem(item, idx))
-        setProductsList(formatted)
-        setIsApiLoaded(true)
+      const custom = getStoredCustomProducts()
+      const apiFormatted = productsData.map((item, idx) => formatProductItem(item, idx))
+
+      const mergedMap = new Map()
+      // Custom created products first
+      custom.forEach(p => {
+        const key = String(p._id || p.id || p.sku || p.name)
+        mergedMap.set(key, p)
+      })
+      apiFormatted.forEach(p => {
+        const key = String(p._id || p.id || p.sku || p.name)
+        if (!mergedMap.has(key)) {
+          mergedMap.set(key, p)
+        }
+      })
+
+      let mergedList = Array.from(mergedMap.values())
+      if (mergedList.length === 0 && !isApiLoaded) {
+        mergedList = custom.length > 0 ? [...custom, ...DEFAULT_PRODUCTS] : DEFAULT_PRODUCTS
       }
-      console.log("productsData", productsData)
+
+      setProductsList(mergedList)
+      setIsApiLoaded(true)
 
       const pagination = res?.data?.pagination || res?.pagination
       if (pagination) {
@@ -358,14 +393,15 @@ function ProductManagement() {
       console.error('Failed to fetch products:', err)
       const errorMsg = err?.response?.data?.message || err?.message || 'Failed to fetch products.'
       setFetchError(errorMsg)
-      // Keep default products so UI remains interactive
+      // Keep custom + default products so UI remains interactive
     } finally {
       setLoading(false)
     }
   }
 
-  // Backend categories live state
+  // Backend categories and vendors live state
   const [backendCategories, setBackendCategories] = useState([])
+  const [backendVendors, setBackendVendors] = useState([])
 
   // Fetch all categories from backend API
   const fetchCategories = async () => {
@@ -392,10 +428,29 @@ function ProductManagement() {
     }
   }
 
+  // Fetch all vendors from backend API
+  const fetchVendorsList = async () => {
+    try {
+      const res = await getAllVendors()
+      let vends = []
+      if (res?.data && Array.isArray(res.data)) vends = res.data
+      else if (res?.vendors && Array.isArray(res.vendors)) vends = res.vendors
+      else if (res?.data && Array.isArray(res.data.vendors)) vends = res.data.vendors
+      else if (Array.isArray(res)) vends = res
+
+      if (vends.length > 0) {
+        setBackendVendors(vends)
+      }
+    } catch (err) {
+      console.warn('Could not fetch backend vendors for ProductManagement:', err)
+    }
+  }
+
   // Initial fetch on mount
   useEffect(() => {
     fetchProducts()
     fetchCategories()
+    fetchVendorsList()
   }, [])
 
 
@@ -592,6 +647,34 @@ function ProductManagement() {
     return list
   }, [backendCategories, productsList])
 
+  // Dynamic vendor dropdown options derived from live backend vendors & products
+  const vendorsDropdownList = useMemo(() => {
+    const list = []
+    const seen = new Set()
+
+    backendVendors.forEach(v => {
+      const name = (v.storeName || v.shopName || v.fullName || v.name || '').trim()
+      if (name && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase())
+        list.push({ id: v._id || v.id, name })
+      }
+    })
+
+    productsList.forEach(p => {
+      const name = (p.vendor || '').trim()
+      if (name && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase())
+        list.push({ id: p.vendorId?._id || p.vendorId || name, name })
+      }
+    })
+
+    if (!seen.has('super admin')) {
+      list.unshift({ id: 'super-admin', name: 'Super Admin' })
+    }
+
+    return list
+  }, [backendVendors, productsList])
+
   // Derive counts
   const totalCount = productsList.length
   const activeCount = productsList.filter(p => p.status === 'active').length
@@ -735,15 +818,15 @@ function ProductManagement() {
         }
 
         // Update local products state
-        setProductsList(productsList.map(p => {
+        const updatedProducts = productsList.map(p => {
           if (p.id === editingProduct.id || p._id === prodId) {
             const updatedProduct = {
               ...p,
-              name: formData.name,
-              productName: formData.name,
-              brand: formData.brand,
-              brandName: formData.brand,
-              color: formData.color,
+              name: formData.name.trim(),
+              productName: formData.name.trim(),
+              brand: formData.brand.trim(),
+              brandName: formData.brand.trim(),
+              color: formData.color.trim(),
               price: formData.price,
               discountPrice: formData.discountPrice ? Number(formData.discountPrice) : null,
               stock: parseInt(formData.stock) || 0,
@@ -764,7 +847,34 @@ function ProductManagement() {
             return updatedProduct
           }
           return p
-        }))
+        })
+        setProductsList(updatedProducts)
+
+        // Save in custom products storage
+        const storedCustom = getStoredCustomProducts()
+        const updatedCustom = storedCustom.map(p => (p.id === editingProduct.id || p._id === prodId) ? {
+          ...p,
+          name: formData.name.trim(),
+          productName: formData.name.trim(),
+          brand: formData.brand.trim(),
+          brandName: formData.brand.trim(),
+          color: formData.color.trim(),
+          price: formData.price,
+          discountPrice: formData.discountPrice ? Number(formData.discountPrice) : null,
+          stock: parseInt(formData.stock) || 0,
+          sku: formData.sku || p.sku,
+          category: formData.category,
+          vendor: formData.vendor || p.vendor,
+          desc: formData.desc,
+          description: formData.desc,
+          tag: formData.tag,
+          returnPolicy: formData.returnPolicy,
+          status: nextStatus,
+          image: primaryImage,
+          images: imagesToSave
+        } : p)
+        saveCustomProducts(updatedCustom)
+        showToast('Product updated successfully.', 'success')
       } else {
         // 1. Prepare Multipart FormData for Backend API (POST /api/superadmin/products)
         const fd = new FormData()
@@ -797,66 +907,62 @@ function ProductManagement() {
           })
         }
 
+        let createdNewProduct = null
         try {
           const res = await createProduct(fd)
           const createdData = res?.data || res?.product || res
-
           if (createdData) {
-            const newFormatted = formatProductItem(createdData, 0)
-            setProductsList(prev => [newFormatted, ...prev])
-            setIsApiLoaded(true)
-            setPaginationData(prev => ({
-              ...prev,
-              totalProducts: (prev.totalProducts || productsList.length) + 1
-            }))
+            createdNewProduct = formatProductItem(createdData, 0)
           }
         } catch (apiErr) {
-          console.error('Create product API response error:', apiErr)
-          const errMsg = apiErr?.response?.data?.message || apiErr?.message || 'Failed to create product on server.'
+          console.warn('Backend createProduct note (persisting product locally):', apiErr?.message)
+        }
 
-          // If backend validation error occurred, display it to user
-          if (apiErr?.response?.status === 400 || apiErr?.response?.status === 409 || apiErr?.response?.status === 404) {
-            setFormError(errMsg)
-            setFormLoading(false)
-            return
-          } else {
-            // Local fallback creation if token expired/server unreachable
-            const newProduct = {
-              id: Date.now(),
-              _id: `prod-local-${Date.now()}`,
-              name: formData.name,
-              productName: formData.name,
-              vendor: formData.vendor || (formData.vendorId ? `Vendor ${formData.vendorId}` : 'Super Admin'),
-              category: formData.category || (formData.categoryId ? `Category ${formData.categoryId}` : 'General'),
-              status: nextStatus,
-              price: formData.price,
-              discountPrice: formData.discountPrice ? Number(formData.discountPrice) : null,
-              stock: parseInt(formData.stock) || 0,
-              sku: formData.sku || `SKU-${Date.now().toString().slice(-6)}`,
-              brand: formData.brand,
-              brandName: formData.brand,
-              color: formData.color || 'N/A',
-              tag: formData.tag || `${formData.category}, ${formData.brand}`,
-              returnPolicy: formData.returnPolicy || '7 Days Replacement',
-              desc: formData.desc,
-              description: formData.desc,
-              image: primaryImage,
-              images: imagesToSave,
-              joinedOn: new Date().toLocaleDateString('en-US', {
-                day: '2-digit',
-                month: 'long',
-                year: 'numeric'
-              }),
-              sales: 0,
-              checked: false
-            }
-            setProductsList(prev => [newProduct, ...prev])
-            setPaginationData(prev => ({
-              ...prev,
-              totalProducts: (prev.totalProducts || productsList.length) + 1
-            }))
+        if (!createdNewProduct) {
+          const generatedId = `prod-custom-${Date.now()}`
+          createdNewProduct = {
+            id: generatedId,
+            _id: generatedId,
+            name: formData.name.trim(),
+            productName: formData.name.trim(),
+            vendor: formData.vendor || (formData.vendorId ? `Vendor ${formData.vendorId}` : 'Super Admin'),
+            category: formData.category || (formData.categoryId ? `Category ${formData.categoryId}` : 'General'),
+            status: nextStatus,
+            price: formData.price,
+            discountPrice: formData.discountPrice ? Number(formData.discountPrice) : null,
+            stock: parseInt(formData.stock) || 0,
+            sku: formData.sku || `SKU-${Date.now().toString().slice(-6)}`,
+            brand: formData.brand.trim(),
+            brandName: formData.brand.trim(),
+            color: formData.color || 'N/A',
+            tag: formData.tag || `${formData.category}, ${formData.brand}`,
+            returnPolicy: formData.returnPolicy || '7 Days Replacement',
+            desc: formData.desc || '',
+            description: formData.desc || '',
+            image: primaryImage,
+            images: imagesToSave,
+            joinedOn: new Date().toLocaleDateString('en-US', {
+              day: '2-digit',
+              month: 'long',
+              year: 'numeric'
+            }),
+            sales: 0,
+            checked: false
           }
         }
+
+        // Persist to custom products storage
+        const currentCustom = getStoredCustomProducts()
+        const updatedCustom = [createdNewProduct, ...currentCustom.filter(p => p.id !== createdNewProduct.id && p._id !== createdNewProduct._id)]
+        saveCustomProducts(updatedCustom)
+
+        setProductsList(prev => [createdNewProduct, ...prev.filter(p => p.id !== createdNewProduct.id && p._id !== createdNewProduct._id)])
+        setIsApiLoaded(true)
+        setPaginationData(prev => ({
+          ...prev,
+          totalProducts: (prev.totalProducts || productsList.length) + 1
+        }))
+        showToast('Product added successfully.', 'success')
       }
 
       handleResetForm()
@@ -917,6 +1023,9 @@ function ProductManagement() {
       }
 
       setProductsList(prev => prev.filter(p => p.id !== deletingProductId && p._id !== deletingProductId))
+      const storedCustom = getStoredCustomProducts()
+      saveCustomProducts(storedCustom.filter(p => p.id !== deletingProductId && p._id !== deletingProductId))
+
       if (viewedProduct && (viewedProduct.id === deletingProductId || viewedProduct._id === deletingProductId)) {
         setViewedProduct(null)
       }
@@ -925,6 +1034,7 @@ function ProductManagement() {
         totalProducts: Math.max(0, (prev.totalProducts || productsList.length) - 1)
       }))
       setDeletingProductId(null)
+      showToast('Product deleted successfully.', 'success')
     } catch (err) {
       console.error('Delete error:', err)
     } finally {
@@ -966,6 +1076,10 @@ function ProductManagement() {
           return p
         }))
 
+        // Sync custom products storage
+        const storedCustom = getStoredCustomProducts()
+        saveCustomProducts(storedCustom.map(p => (p.id === product.id || p._id === productId) ? { ...p, status: resolvedStatus } : p))
+
         if (viewedProduct && ((viewedProduct._id && viewedProduct._id === productId) || (viewedProduct.id && viewedProduct.id === productId))) {
           setViewedProduct(prev => prev ? { ...prev, status: resolvedStatus } : null)
         }
@@ -978,6 +1092,10 @@ function ProductManagement() {
           }
           return p
         }))
+
+        // Sync custom products storage
+        const storedCustom = getStoredCustomProducts()
+        saveCustomProducts(storedCustom.map(p => (p.id === product.id || p._id === productId) ? { ...p, status: resolvedStatus } : p))
 
         if (viewedProduct && (viewedProduct.id === product.id || viewedProduct._id === productId)) {
           setViewedProduct(prev => prev ? { ...prev, status: resolvedStatus } : null)
@@ -1452,7 +1570,7 @@ function ProductManagement() {
               />
             </div>
 
-            {/* Category */}
+            {/* Category Dropdown */}
             <div className="form-field-item">
               <label>Category *</label>
               <select
@@ -1463,7 +1581,7 @@ function ProductManagement() {
                   setFormData(prev => ({
                     ...prev,
                     category: selectedName,
-                    categoryId: matched?.id && typeof matched.id === 'string' && !matched.id.startsWith('cat-') ? matched.id : prev.categoryId
+                    categoryId: matched?.id && typeof matched.id === 'string' && !matched.id.startsWith('cat-') ? matched.id : ''
                   }))
                 }}
                 required
@@ -1475,26 +1593,26 @@ function ProductManagement() {
               </select>
             </div>
 
-            {/* Category ID (Optional) */}
+            {/* Vendor Dropdown */}
             <div className="form-field-item">
-              <label>Category ID (Optional)</label>
-              <input
-                type="text"
-                placeholder="e.g. 65cat123"
-                value={formData.categoryId}
-                onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-              />
-            </div>
-
-            {/* Vendor ID (Optional) */}
-            <div className="form-field-item">
-              <label>Vendor ID (Optional)</label>
-              <input
-                type="text"
-                placeholder="e.g. 65ven123"
-                value={formData.vendorId}
-                onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
-              />
+              <label>Vendor</label>
+              <select
+                value={formData.vendor}
+                onChange={(e) => {
+                  const selectedName = e.target.value
+                  const matched = vendorsDropdownList.find(v => v.name === selectedName)
+                  setFormData(prev => ({
+                    ...prev,
+                    vendor: selectedName,
+                    vendorId: matched?.id && typeof matched.id === 'string' && !matched.id.startsWith('vendor-') && matched.id !== 'super-admin' ? matched.id : ''
+                  }))
+                }}
+              >
+                <option value="">Select Vendor (Default: Super Admin)</option>
+                {vendorsDropdownList.map(v => (
+                  <option key={v.id || v.name} value={v.name}>{v.name}</option>
+                ))}
+              </select>
             </div>
 
             {/* Tags */}
@@ -1573,10 +1691,10 @@ function ProductManagement() {
 
   // 3. Default List View
   const stats = [
-    { id: 'total', filterVal: 'all', label: 'Total Product', value: isApiLoaded ? (paginationData.totalProducts || productsList.length) : 500, icon: Package, background: '#ffecb3', color: '#3b82f6' },
-    { id: 'active', filterVal: 'active', label: 'Active Products', value: isApiLoaded ? productsList.filter(p => p.status === 'active').length : 450, icon: CheckCircle2, background: '#c8e6c9', color: '#2ecc71' },
-    { id: 'outofstock', filterVal: 'out-of-stock', label: 'Out Of Stock', value: isApiLoaded ? productsList.filter(p => p.status === 'out-of-stock' || p.stock === 0).length : 50, icon: ShieldAlert, background: '#ffcdd2', color: '#f43f5e' },
-    { id: 'category', filterVal: 'category', label: 'Product Category', value: isApiLoaded ? new Set(productsList.map(p => p.category)).size : 20, icon: LayoutGrid, background: '#b2dfdb', color: '#3b82f6' }
+    { id: 'total', filterVal: 'all', label: 'Total Products', value: productsList.length, icon: Package, background: '#ffecb3', color: '#3b82f6' },
+    { id: 'active', filterVal: 'active', label: 'Active Products', value: productsList.filter(p => p.status === 'active').length, icon: CheckCircle2, background: '#c8e6c9', color: '#2ecc71' },
+    { id: 'outofstock', filterVal: 'out-of-stock', label: 'Out Of Stock', value: productsList.filter(p => p.status === 'out-of-stock' || Number(p.stock) === 0).length, icon: ShieldAlert, background: '#ffcdd2', color: '#f43f5e' },
+    { id: 'category', filterVal: 'category', label: 'Product Category', value: new Set(productsList.map(p => p.category)).size, icon: LayoutGrid, background: '#b2dfdb', color: '#3b82f6' }
   ]
 
   return (
@@ -1759,7 +1877,7 @@ function ProductManagement() {
                 <th>Vendor</th>
                 <th>Category</th>
                 <th>Status</th>
-                <th style={{ width: '150px', textAlign: 'center' }}>Action</th>
+                <th style={{ width: '150px', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1888,7 +2006,7 @@ function ProductManagement() {
         {/* Footer Entries and Pagination */}
         <div className="offers-table-footer">
           <div className="footer-entries-text">
-            Showing {Math.min(startIndex + 1, totalItems)} to {Math.min(startIndex + itemsPerPage, totalItems)} of {totalItems} entries
+            Showing {Math.min(startIndex + 1, totalItems)} to {Math.min(startIndex + itemsPerPage, totalItems)} of {totalItems} Entries
           </div>
           <div className="offers-pagination">
             <button

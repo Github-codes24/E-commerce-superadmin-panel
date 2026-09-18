@@ -26,9 +26,22 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Handle unauthorized error if needed
-      console.warn('Unauthorized access - please login again.');
+    if (error.response) {
+      const msg = (error.response.data?.message || error.response.data?.error || '').toString().toLowerCase();
+      if (
+        error.response.status === 401 ||
+        msg.includes('jwt expired') ||
+        msg.includes('token expired') ||
+        msg.includes('jwt malformed') ||
+        msg.includes('invalid token')
+      ) {
+        console.warn('Session expired or unauthorized token:', msg);
+        window.dispatchEvent(
+          new CustomEvent('auth:session_expired', {
+            detail: { message: error.response.data?.message || 'Your session has expired. Please log in again.' }
+          })
+        );
+      }
     }
     return Promise.reject(error);
   }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   LayoutGrid,
   BarChart3,
@@ -89,6 +89,13 @@ function AdminLayout({ onLogout }) {
   }, [])
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const pageContainerRef = useRef(null)
+
+  useEffect(() => {
+    if (pageContainerRef.current) {
+      pageContainerRef.current.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    }
+  }, [activeTab])
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutGrid },
@@ -202,7 +209,7 @@ function AdminLayout({ onLogout }) {
             >
               <Menu size={22} />
             </button>
-            <h2>{activeTab}</h2>
+            <h2>Welcome Super Admin</h2>
           </div>
 
           <div className="header-search-section">
@@ -300,7 +307,7 @@ function AdminLayout({ onLogout }) {
         </header>
 
         {/* Page Content Rendering Area */}
-        <main className="page-container">
+        <main className="page-container" ref={pageContainerRef}>
           {renderContent()}
         </main>
       </div>

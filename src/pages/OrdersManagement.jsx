@@ -1768,7 +1768,7 @@ function OrdersManagement({ initialSearchQuery }) {
         {/* Footer Entries and Pagination */}
         <div className="offers-table-footer">
           <div className="footer-entries-text">
-            Showing {Math.min(startIndex + 1, totalItems || paginatedOrders.length)} to {Math.min(startIndex + itemsPerPage, totalItems || paginatedOrders.length)} of {totalItems || paginatedOrders.length} entries
+            Showing {Math.min(startIndex + 1, totalItems || paginatedOrders.length)} to {Math.min(startIndex + itemsPerPage, totalItems || paginatedOrders.length)} of {totalItems || paginatedOrders.length} Entries
           </div>
           <div className="offers-pagination">
             <button 

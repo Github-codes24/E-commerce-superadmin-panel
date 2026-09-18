@@ -365,7 +365,26 @@ function PermissionsManagement() {
     })
   }
 
-  // Toggle All Permissions for a Role
+  // Toggle All Permissions across all roles (Admins, Vendors, Customers)
+  const handleToggleAll = (enable = true) => {
+    setPermissions(prev => {
+      const updated = { ...prev }
+      COLUMN_ROLES.forEach(colRole => {
+        const roleKey = ROLES_MAPPING[colRole]
+        updated[roleKey] = { ...(updated[roleKey] || {}) }
+        displayModules.forEach(mod => {
+          updated[roleKey][mod] = { ...(updated[roleKey][mod] || {}) }
+          const actions = validActionsMap[mod] || []
+          actions.forEach(act => {
+            updated[roleKey][mod][act] = enable
+          })
+        })
+      })
+      return updated
+    })
+  }
+
+  // Toggle All Permissions for a specific Role
   const handleToggleAllForRole = (columnRole, enable = true) => {
     const roleKey = ROLES_MAPPING[columnRole]
     setPermissions(prev => {
@@ -698,8 +717,8 @@ function PermissionsManagement() {
             <button
               type="button"
               className="quick-toggle-btn"
-              onClick={() => handleToggleAllForRole('Admins', true)}
-              title="Select all admin permissions"
+              onClick={() => handleToggleAll(true)}
+              title="Select all permissions across all roles and modules"
             >
               <CheckSquare size={15} />
               <span>Select All</span>
@@ -707,22 +726,11 @@ function PermissionsManagement() {
             <button
               type="button"
               className="quick-toggle-btn"
-              onClick={() => handleToggleAllForRole('Admins', false)}
-              title="Clear all admin permissions"
+              onClick={() => handleToggleAll(false)}
+              title="Clear all permissions across all roles and modules"
             >
               <Square size={15} />
               <span>Clear All</span>
-            </button>
-            <button
-              type="button"
-              className="quick-toggle-btn"
-              style={{ color: '#dc2626', borderColor: '#fca5a5' }}
-              onClick={handleDeletePermissions}
-              disabled={isDeleting || !selectedAdminId}
-              title="Delete permissions from backend"
-            >
-              <Trash2 size={15} />
-              <span>{isDeleting ? 'Deleting...' : 'Delete'}</span>
             </button>
           </div>
 
@@ -785,7 +793,6 @@ function PermissionsManagement() {
             <strong className="badge-name">{selectedAdmin.name}</strong>
             <span className="badge-email">({selectedAdmin.email})</span>
           </div>
-          <span className="api-endpoint-tag">POST /api/superadmin/permissions/assign</span>
         </div>
       )}
 

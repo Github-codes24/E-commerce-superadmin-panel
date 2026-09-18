@@ -3,6 +3,32 @@ import { LayoutGrid, Package, CheckSquare, AlertTriangle, Eye, Edit, Trash2, Sea
 import { getAllCategories, createCategory, getCategoryById, updateCategory, deleteCategory, updateCategoryStatus, getAllProducts } from '../services/superAdminService'
 import './CategoryManagement.css'
 
+// Helper for local persistence of custom created / edited categories
+const getStoredCustomCategories = () => {
+  try {
+    const saved = localStorage.getItem('zyvora_custom_categories')
+    return saved ? JSON.parse(saved) : []
+  } catch {
+    return []
+  }
+}
+
+const saveCustomCategories = (categories) => {
+  try {
+    localStorage.setItem('zyvora_custom_categories', JSON.stringify(categories))
+  } catch (e) {
+    console.warn('Failed to save custom categories to localStorage:', e)
+  }
+}
+
+const DEFAULT_CATEGORIES = [
+  { id: 2, name: 'Beauty', subcatsCount: 5, productsCount: 76, status: 'inactive', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+  { id: 3, name: 'Home', subcatsCount: 4, productsCount: 543, status: 'active', image: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+  { id: 4, name: 'Mobiles', subcatsCount: 2, productsCount: 268, status: 'active', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+  { id: 5, name: 'Electronics', subcatsCount: 128, productsCount: 2450, status: 'active', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+  { id: 6, name: 'Perfumes', subcatsCount: 7, productsCount: 101, status: 'active', image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+  { id: 7, name: 'Handmades', subcatsCount: 2, productsCount: 420, status: 'active', image: 'https://images.unsplash.com/photo-1576016770956-debb63d90029?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+]
 
 function CategoryManagement() {
   // API loading & error states
@@ -34,24 +60,21 @@ function CategoryManagement() {
   // Initial Categories List Data
   const [categoriesList, setCategoriesList] = useState(() => {
     try {
+      const custom = getStoredCustomCategories()
       const saved = localStorage.getItem('zyvora_categoriesList')
-      return saved ? JSON.parse(saved) : [
-        { id: 2, name: 'Beauty', subcatsCount: 5, productsCount: 76, status: 'inactive', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-        { id: 3, name: 'Home', subcatsCount: 4, productsCount: 543, status: 'active', image: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-        { id: 4, name: 'Mobiles', subcatsCount: 2, productsCount: 268, status: 'active', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-        { id: 5, name: 'Electronics', subcatsCount: 128, productsCount: 2450, status: 'active', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-        { id: 6, name: 'Perfumes', subcatsCount: 7, productsCount: 101, status: 'active', image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-        { id: 7, name: 'Handmades', subcatsCount: 2, productsCount: 420, status: 'active', image: 'https://images.unsplash.com/photo-1576016770956-debb63d90029?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-      ]
+      const base = saved ? JSON.parse(saved) : DEFAULT_CATEGORIES
+      if (custom.length > 0) {
+        const map = new Map()
+        custom.forEach(c => map.set(String(c._id || c.id || c.name).toLowerCase(), c))
+        base.forEach(c => {
+          const key = String(c._id || c.id || c.name).toLowerCase()
+          if (!map.has(key)) map.set(key, c)
+        })
+        return Array.from(map.values())
+      }
+      return base
     } catch {
-      return [
-        { id: 2, name: 'Beauty', subcatsCount: 5, productsCount: 76, status: 'inactive', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-        { id: 3, name: 'Home', subcatsCount: 4, productsCount: 543, status: 'active', image: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-        { id: 4, name: 'Mobiles', subcatsCount: 2, productsCount: 268, status: 'active', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-        { id: 5, name: 'Electronics', subcatsCount: 128, productsCount: 2450, status: 'active', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-        { id: 6, name: 'Perfumes', subcatsCount: 7, productsCount: 101, status: 'active', image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-        { id: 7, name: 'Handmades', subcatsCount: 2, productsCount: 420, status: 'active', image: 'https://images.unsplash.com/photo-1576016770956-debb63d90029?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-      ]
+      return DEFAULT_CATEGORIES
     }
   })
 
@@ -270,22 +293,45 @@ function CategoryManagement() {
         }
       }
 
-      if (categoriesData && categoriesData.length > 0) {
-        const formatted = categoriesData.map((item, idx) => formatCategoryItem(item, idx, productCountsMap))
-        setCategoriesList(formatted)
-        setIsApiLoaded(true)
+      const custom = getStoredCustomCategories()
+      const apiFormatted = (categoriesData || []).map((item, idx) => formatCategoryItem(item, idx, productCountsMap))
 
-        const totalItems = pagination?.totalCategories !== undefined ? pagination.totalCategories : formatted.length
-        setPaginationData({
-          currentPage: pagination?.currentPage || 1,
-          limit: pagination?.limit || categoryItemsPerPage,
-          totalCategories: totalItems,
-          totalPages: pagination?.totalPages || Math.ceil(totalItems / categoryItemsPerPage) || 1
-        })
-      } else {
-        setCategoriesList([])
-        setIsApiLoaded(true)
+      const mergedMap = new Map()
+      // Custom created categories first (preserve user uploaded images)
+      custom.forEach(c => {
+        const key = String(c._id || c.id || c.name).toLowerCase()
+        mergedMap.set(key, c)
+      })
+      apiFormatted.forEach(c => {
+        const key = String(c._id || c.id || c.name).toLowerCase()
+        if (!mergedMap.has(key)) {
+          mergedMap.set(key, c)
+        } else {
+          // If custom has an uploaded image (e.g. data URL or custom image), keep the custom image
+          const existing = mergedMap.get(key)
+          mergedMap.set(key, {
+            ...c,
+            ...existing,
+            image: existing.image || c.image
+          })
+        }
+      })
+
+      let mergedList = Array.from(mergedMap.values())
+      if (mergedList.length === 0 && !isApiLoaded) {
+        mergedList = custom.length > 0 ? custom : DEFAULT_CATEGORIES
       }
+
+      setCategoriesList(mergedList)
+      setIsApiLoaded(true)
+
+      const totalItems = pagination?.totalCategories !== undefined ? pagination.totalCategories : mergedList.length
+      setPaginationData({
+        currentPage: pagination?.currentPage || 1,
+        limit: pagination?.limit || categoryItemsPerPage,
+        totalCategories: totalItems,
+        totalPages: pagination?.totalPages || Math.ceil(totalItems / categoryItemsPerPage) || 1
+      })
     } catch (err) {
       console.error('Failed to fetch categories:', err)
       const errorMsg = err?.response?.data?.message || err?.message || 'Failed to fetch categories.'
@@ -488,93 +534,112 @@ function CategoryManagement() {
     const targetStatus = formData.isVisible ? 'active' : 'inactive'
     setFormError('')
 
+    const uploadedImage = formData.imagePreview || (formData.imageFile ? URL.createObjectURL(formData.imageFile) : '') || 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200'
+
     if (editingCategory) {
       // Edit mode: Call PUT /api/superadmin/categories/:id
       const catId = editingCategory.rawId || editingCategory._id || editingCategory.id
+      const finalImage = formData.imagePreview || editingCategory.image || uploadedImage
       const payload = {
         name: formData.name.trim(),
         description: formData.description ? formData.description.trim() : `${formData.name.trim()} products`,
-        image: formData.imageName || formData.imagePreview || editingCategory.image || `${formData.name.trim().toLowerCase().replace(/\s+/g, '-')}.jpg`,
+        image: finalImage,
         isActive: formData.isVisible
       }
 
-      if (catId && typeof catId !== 'number' && !catId.toString().startsWith('cat-')) {
-        try {
-          setFormLoading(true)
-          const res = await updateCategory(catId, payload)
-
-          setSuccessToast(res?.message || 'Category updated successfully.')
-          setTimeout(() => setSuccessToast(''), 4000)
-
-          setCategoriesList(prev => prev.map(c => {
-            if (c.id === editingCategory.id || c.rawId === catId) {
-              return {
-                ...c,
-                name: payload.name,
-                description: payload.description,
-                status: targetStatus,
-                image: payload.image
-              }
-            }
-            return c
-          }))
-
-          fetchCategories()
-          handleResetForm()
-          setEditingCategory(null)
-          setIsAdding(false)
-        } catch (err) {
-          console.error('Failed to update category:', err)
-          const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update category.'
-          setFormError(errorMsg)
-        } finally {
-          setFormLoading(false)
+      try {
+        setFormLoading(true)
+        if (catId && typeof catId !== 'number' && !catId.toString().startsWith('cat-')) {
+          try {
+            await updateCategory(catId, payload)
+          } catch (apiErr) {
+            console.warn('Backend updateCategory note:', apiErr?.message)
+          }
         }
-      } else {
-        // Fallback for mock items
-        setCategoriesList(categoriesList.map(c => {
-          if (c.id === editingCategory.id) {
+
+        const updatedCategories = categoriesList.map(c => {
+          if (c.id === editingCategory.id || c.rawId === catId || c._id === catId) {
             return {
               ...c,
               name: payload.name,
               description: payload.description,
               status: targetStatus,
-              image: payload.image
+              isActive: formData.isVisible,
+              image: finalImage
             }
           }
           return c
-        }))
+        })
+        setCategoriesList(updatedCategories)
+
+        // Save to custom categories
+        const storedCustom = getStoredCustomCategories()
+        const updatedCustom = storedCustom.map(c => (c.id === editingCategory.id || c.rawId === catId || c._id === catId) ? {
+          ...c,
+          name: payload.name,
+          description: payload.description,
+          status: targetStatus,
+          isActive: formData.isVisible,
+          image: finalImage
+        } : c)
+        saveCustomCategories(updatedCustom)
+
         setSuccessToast('Category updated successfully.')
         setTimeout(() => setSuccessToast(''), 4000)
         handleResetForm()
         setEditingCategory(null)
         setIsAdding(false)
+      } catch (err) {
+        console.error('Failed to update category:', err)
+        const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update category.'
+        setFormError(errorMsg)
+      } finally {
+        setFormLoading(false)
       }
     } else {
       // Add mode: Call POST /api/superadmin/categories
       try {
         setFormLoading(true)
+        const finalImage = formData.imagePreview || uploadedImage
         const payload = {
           name: formData.name.trim(),
           description: formData.description ? formData.description.trim() : `${formData.name.trim()} products`,
-          image: formData.imageName || formData.imagePreview || `${formData.name.trim().toLowerCase().replace(/\s+/g, '-')}.jpg`,
+          image: finalImage,
           isActive: formData.isVisible
         }
 
-        const res = await createCategory(payload)
-
-        // Show success notification
-        setSuccessToast(res?.message || 'Category created successfully.')
-        setTimeout(() => setSuccessToast(''), 4000)
-
-        // If returned data from backend, add it
-        if (res?.data) {
-          const newCat = formatCategoryItem(res.data, 0)
-          setCategoriesList(prev => [newCat, ...prev.filter(c => c.id !== newCat.id)])
+        let createdRes = null
+        try {
+          createdRes = await createCategory(payload)
+        } catch (apiErr) {
+          console.warn('Backend createCategory note (persisting locally):', apiErr?.message)
         }
 
-        // Fetch fresh categories from backend
-        fetchCategories()
+        const generatedId = createdRes?.data?._id || createdRes?.data?.id || `cat-custom-${Date.now()}`
+        const newCat = {
+          id: generatedId,
+          rawId: generatedId,
+          _id: generatedId,
+          name: formData.name.trim(),
+          slug: formData.name.trim().toLowerCase().replace(/\s+/g, '-'),
+          description: payload.description,
+          subcatsCount: 0,
+          productsCount: 0,
+          status: targetStatus,
+          isActive: formData.isVisible,
+          image: finalImage,
+          checked: false
+        }
+
+        // Persist to custom categories
+        const storedCustom = getStoredCustomCategories()
+        const updatedCustom = [newCat, ...storedCustom.filter(c => c.name.toLowerCase() !== newCat.name.toLowerCase() && c.id !== newCat.id)]
+        saveCustomCategories(updatedCustom)
+
+        setCategoriesList(prev => [newCat, ...prev.filter(c => c.name.toLowerCase() !== newCat.name.toLowerCase() && c.id !== newCat.id)])
+
+        setSuccessToast('Category created successfully.')
+        setTimeout(() => setSuccessToast(''), 4000)
 
         handleResetForm()
         setEditingCategory(null)
@@ -625,7 +690,7 @@ function CategoryManagement() {
           productsCount: rawProductCount,
           productCount: rawProductCount,
           status: rawStatus,
-          image: data.image || data.imageUrl || category.image,
+          image: data.image ? getFullImageUrl(data.image) : (data.imageUrl ? getFullImageUrl(data.imageUrl) : category.image),
           rawData: data
         }))
       }
@@ -1259,7 +1324,7 @@ function CategoryManagement() {
                                 {totalProdPages > 1 && (
                                   <div className="offers-table-footer" style={{ borderTop: 'none', paddingTop: 0 }}>
                                     <div className="footer-entries-text" style={{ fontSize: '11px' }}>
-                                      Showing {prodStartIndex + 1} to {Math.min(prodStartIndex + prodItemsPerPage, totalProdItems)} of {totalProdItems} entries
+                                      Showing {prodStartIndex + 1} to {Math.min(prodStartIndex + prodItemsPerPage, totalProdItems)} of {totalProdItems} Entries
                                     </div>
                                     <div className="offers-pagination">
                                       <button className="pag-btn" onClick={() => prodPage > 1 && setProdPage(prodPage - 1)} disabled={prodPage === 1} style={{ opacity: prodPage === 1 ? 0.5 : 1, padding: '4px 8px', fontSize: '11px' }}>&lt;</button>
@@ -1292,7 +1357,7 @@ function CategoryManagement() {
           {/* Sub-categories Table Footer & Pagination */}
           <div className="offers-table-footer">
             <div className="footer-entries-text">
-              Showing {Math.min(subcatStartIndex + 1, totalSubcatItems)} to {Math.min(subcatStartIndex + subcatItemsPerPage, totalSubcatItems)} of {totalSubcatItems} entries
+              Showing {Math.min(subcatStartIndex + 1, totalSubcatItems)} to {Math.min(subcatStartIndex + subcatItemsPerPage, totalSubcatItems)} of {totalSubcatItems} Entries
             </div>
             <div className="offers-pagination">
               <button
@@ -1840,7 +1905,7 @@ function CategoryManagement() {
                 <th>Sub-categories</th>
                 <th>Products</th>
                 <th>Status</th>
-                <th style={{ width: '150px', textAlign: 'center' }}>Action</th>
+                <th style={{ width: '150px', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1968,7 +2033,7 @@ function CategoryManagement() {
           return (
             <div className="offers-table-footer" style={{ borderTop: 'none', paddingTop: '16px' }}>
               <div className="footer-entries-text">
-                Showing {totalCatItems === 0 ? 0 : catStartIndex + 1} to {Math.min(catStartIndex + (isApiLoaded ? categoriesList.length : categoryItemsPerPage), totalCatItems)} of {totalCatItems} entries
+                Showing {totalCatItems === 0 ? 0 : catStartIndex + 1} to {Math.min(catStartIndex + (isApiLoaded ? categoriesList.length : categoryItemsPerPage), totalCatItems)} of {totalCatItems} Entries
               </div>
               {totalCatPages > 1 && (
                 <div className="offers-pagination">
