@@ -13,7 +13,7 @@ import {
   X,
   AlertCircle,
 } from 'lucide-react'
-import { getAllPayments, getPaymentStats, getFailedPayments } from '../services/superAdminService'
+import { getAllPayments, getPaymentStats, getFailedPayments, getPendingPayments, getPaymentRevenue, getPaymentByOrderId } from '../services/superAdminService'
 import './PaymentMonitoring.css'
 
 /* ─────────────────────────────────────────
@@ -333,6 +333,8 @@ function PaymentMonitoring() {
   const [fetchError, setFetchError] = useState(null)
   const [toastMessage, setToastMessage] = useState(null)
   const [paymentStats, setPaymentStats] = useState(null)
+  const [pendingApiStats, setPendingApiStats] = useState(null)
+  const [paymentRevenue, setPaymentRevenue] = useState(null)
 
   const showToast = (text, type = 'success') => {
     setToastMessage({ text, type })
@@ -341,15 +343,17 @@ function PaymentMonitoring() {
     }, 4000)
   }
 
-  // Fetch payments, stats, and failed payments from API
+  // Fetch payments, stats, failed, pending payments, and revenue from API
   const fetchPayments = useCallback(async (showToastNotice = false) => {
     setLoading(true)
     setFetchError(null)
     try {
-      const [paymentsRes, statsRes, failedRes] = await Promise.allSettled([
+      const [paymentsRes, statsRes, failedRes, pendingRes, revenueRes] = await Promise.allSettled([
         getAllPayments(),
         getPaymentStats(),
         getFailedPayments(),
+        getPendingPayments(),
+        getPaymentRevenue(),
       ])
 
       let response = null
@@ -403,6 +407,54 @@ function PaymentMonitoring() {
         }
       }
 
+      // If pending payments endpoint returned additional records, merge without duplicates
+      if (pendingRes.status === 'fulfilled') {
+        const pendingDataObj = pendingRes.value?.message || pendingRes.value?.data || pendingRes.value
+        const rawPendingList = Array.isArray(pendingDataObj?.payments)
+          ? pendingDataObj.payments
+          : (Array.isArray(pendingRes.value?.payments) ? pendingRes.value.payments : (Array.isArray(pendingDataObj) ? pendingDataObj : []))
+
+        if (pendingDataObj && typeof pendingDataObj === 'object' && pendingDataObj.count !== undefined) {
+          setPendingApiStats({
+            count: pendingDataObj.count,
+            totalAmount: pendingDataObj.totalAmount,
+          })
+        }
+
+        if (rawPendingList.length > 0) {
+          const existingIds = new Set(allMappedPayments.map((p) => p._id || p.id || p.paymentId))
+          const mappedPending = rawPendingList
+            .filter((item) => !existingIds.has(item._id || item.id || item.paymentId))
+            .map((item, index) => {
+              const createdDate = item.createdAt || item.paymentDate || item.date || item.updatedAt
+              return {
+                id: item._id || item.id || `pay-pending-${index + 1}`,
+                _id: item._id,
+                srNo: allMappedPayments.length + index + 1,
+                paymentId: item.paymentId || item.transactionId || item.transactionNo || item._id || `Pay_P${100 + index + 1}`,
+                orderId: item.orderId || item.order?.orderId || (item.order ? `Order#${item.order}` : `Order#2845687${index + 1}`),
+                customerName: item.customerName || item.customer?.fullName || item.customer?.name || item.user?.fullName || item.user?.name || item.userName || 'Customer',
+                customerPhone: item.customerPhone || item.customer?.mobile || item.customer?.phone || item.user?.mobile || item.user?.phone || '9875663201',
+                customerEmail: item.customerEmail || item.customer?.email || item.user?.email || 'customer@example.com',
+                method: item.method || item.paymentMethod || item.paymentMode || 'Online',
+                date: item.date ? item.date : formatDate(createdDate),
+                time: item.time ? item.time : formatTime(createdDate),
+                status: 'Pending',
+                amount: formatCurrency(item.amount || item.totalAmount || 0),
+                productName: item.productName || item.product?.name || item.order?.items?.[0]?.name || 'Sony Camera',
+                productSize: item.productSize || item.size || 'Free Size',
+                productColor: item.productColor || item.color || 'Black',
+                qty: item.qty || item.quantity || 1,
+                productPrice: formatCurrency(item.productPrice || item.price || item.amount || 0),
+                totalAmount: formatCurrency(item.totalAmount || item.amount || 0),
+                avatar: item.avatar || item.customer?.avatar || item.user?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150',
+                raw: item,
+              }
+            })
+          allMappedPayments = [...allMappedPayments, ...mappedPending]
+        }
+      }
+
       // If failed payments endpoint returned additional records, merge without duplicates
       if (failedRes.status === 'fulfilled') {
         const failedDataObj = failedRes.value?.message || failedRes.value?.data || failedRes.value
@@ -444,6 +496,14 @@ function PaymentMonitoring() {
         }
       }
 
+      // If revenue endpoint returned data
+      if (revenueRes.status === 'fulfilled') {
+        const revData = revenueRes.value?.message || revenueRes.value?.data || revenueRes.value
+        if (revData && typeof revData === 'object' && (revData.totalRevenue !== undefined || revData.totalTransactions !== undefined)) {
+          setPaymentRevenue(revData)
+        }
+      }
+
       if (allMappedPayments.length > 0) {
         setPaymentsList(allMappedPayments)
       } else if (paymentsRes.status === 'fulfilled' && Array.isArray(paymentsRes.value?.message?.payments)) {
@@ -480,12 +540,16 @@ function PaymentMonitoring() {
   }, [fetchPayments])
 
   // Calculations for stats
-  const totalPaymentsCount = paymentStats?.totalPayments !== undefined
-    ? paymentStats.totalPayments
-    : paymentsList.length
+  const totalPaymentsCount = paymentRevenue?.totalTransactions !== undefined
+    ? paymentRevenue.totalTransactions
+    : (paymentStats?.totalPayments !== undefined ? paymentStats.totalPayments : paymentsList.length)
 
-  const totalRevenueAmount = paymentStats?.totalAmount !== undefined
-    ? formatCurrency(paymentStats.totalAmount)
+  const totalRevenueAmount = paymentRevenue?.totalRevenue !== undefined
+    ? formatCurrency(paymentRevenue.totalRevenue)
+    : (paymentStats?.totalAmount !== undefined ? formatCurrency(paymentStats.totalAmount) : null)
+
+  const averageTransactionAmount = paymentRevenue?.averageTransaction !== undefined
+    ? formatCurrency(paymentRevenue.averageTransaction)
     : null
 
   const totalPaidCount = paymentStats?.paid?.count !== undefined
@@ -498,11 +562,11 @@ function PaymentMonitoring() {
 
   const totalPendingCount = paymentStats?.pending?.count !== undefined
     ? paymentStats.pending.count
-    : paymentsList.filter((p) => p.status === 'Pending').length
+    : (pendingApiStats?.count !== undefined ? pendingApiStats.count : paymentsList.filter((p) => (p.status || '').toLowerCase() === 'pending').length)
 
   const totalPendingAmount = paymentStats?.pending?.amount !== undefined
     ? formatCurrency(paymentStats.pending.amount)
-    : null
+    : (pendingApiStats?.totalAmount !== undefined ? formatCurrency(pendingApiStats.totalAmount) : null)
 
   const totalFailedCount = paymentStats?.failed?.count !== undefined
     ? paymentStats.failed.count
@@ -548,6 +612,52 @@ function PaymentMonitoring() {
 
   const handleNextPage = () => {
     if (currentPage < totalPages) setCurrentPage(currentPage + 1)
+  }
+
+  const handleViewPayment = async (paymentItem) => {
+    setViewedPayment(paymentItem)
+    const orderIdentifier =
+      paymentItem.raw?.orderId ||
+      paymentItem.raw?.order?._id ||
+      paymentItem.raw?.order ||
+      paymentItem.orderId?.replace(/^Order#/, '') ||
+      paymentItem.orderId
+
+    if (orderIdentifier) {
+      try {
+        const res = await getPaymentByOrderId(orderIdentifier)
+        const data = res?.message || res?.data || res
+        if (data && typeof data === 'object' && res?.success !== false && !res?.statusCode?.toString().startsWith('4')) {
+          const rawStatus = (data.status || paymentItem.status || 'Success').toString()
+          const capitalizedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()
+          const createdDate = data.createdAt || data.paymentDate || data.date || data.updatedAt
+
+          setViewedPayment((prev) => ({
+            ...prev,
+            paymentId: data.paymentId || data.transactionId || data.transactionNo || prev.paymentId,
+            orderId: data.orderId || (data.order ? `Order#${data.order}` : prev.orderId),
+            customerName: data.customerName || data.customer?.fullName || data.customer?.name || data.user?.fullName || data.user?.name || prev.customerName,
+            customerPhone: data.customerPhone || data.customer?.mobile || data.customer?.phone || data.user?.mobile || prev.customerPhone,
+            customerEmail: data.customerEmail || data.customer?.email || data.user?.email || prev.customerEmail,
+            method: data.method || data.paymentMethod || data.paymentMode || prev.method,
+            status: capitalizedStatus,
+            amount: formatCurrency(data.amount || data.totalAmount || prev.amount),
+            date: data.date ? data.date : (createdDate ? formatDate(createdDate) : prev.date),
+            time: data.time ? data.time : (createdDate ? formatTime(createdDate) : prev.time),
+            productName: data.productName || data.product?.name || prev.productName,
+            productSize: data.productSize || data.size || prev.productSize,
+            productColor: data.productColor || data.color || prev.productColor,
+            qty: data.qty || data.quantity || prev.qty,
+            productPrice: data.productPrice ? formatCurrency(data.productPrice) : prev.productPrice,
+            totalAmount: data.totalAmount ? formatCurrency(data.totalAmount) : (data.amount ? formatCurrency(data.amount) : prev.totalAmount),
+            raw: { ...prev.raw, ...data },
+          }))
+        }
+      } catch (err) {
+        // Fallback silently if single order record isn't found
+        console.log('Payment detail lookup notice:', err?.response?.data?.message || err.message)
+      }
+    }
   }
 
   const renderToast = () => {
@@ -608,7 +718,11 @@ function PaymentMonitoring() {
           <div className="payment-stat-value">{totalPaymentsCount}</div>
           <div className="payment-stat-label">
             Total Payments
-            {totalRevenueAmount && <span style={{ display: 'block', fontSize: '11px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>{totalRevenueAmount}</span>}
+            {totalRevenueAmount && (
+              <span style={{ display: 'block', fontSize: '11px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>
+                Revenue: {totalRevenueAmount}{averageTransactionAmount ? ` (Avg: ${averageTransactionAmount})` : ''}
+              </span>
+            )}
           </div>
         </div>
 
@@ -777,7 +891,7 @@ function PaymentMonitoring() {
                       <div className="payment-actions-row">
                         <button
                           className="payment-action-btn view"
-                          onClick={() => setViewedPayment(p)}
+                          onClick={() => handleViewPayment(p)}
                           aria-label="View Payment Details"
                         >
                           <Eye style={{ width: '16px', height: '16px', color: '#2196f3' }} />

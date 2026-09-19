@@ -134,12 +134,19 @@
   text-align: center;
 }
 
-.payment-status-badge.success {
+.payment-status-badge.success,
+.payment-status-badge.paid {
   background-color: #e8f5e9;
   color: #2e7d32;
 }
 
-.payment-status-badge.refund {
+.payment-status-badge.pending {
+  background-color: #fff8e1;
+  color: #f57f17;
+}
+
+.payment-status-badge.refund,
+.payment-status-badge.failed {
   background-color: #ffebee;
   color: #c62828;
 }

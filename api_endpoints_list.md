@@ -41,6 +41,91 @@ Endpoints for rendering the main dashboard viewport statistics and activity logs
 ## 3. Reports
 Endpoints for loading graphical visual representations and analytics.
 
+* **GET** `http://localhost:5000/api/super-admin/reports/sales`
+  * *Description:* Retrieves sales report including summary metrics, sales by date, and sales by payment method.
+  * *Authentication:* Bearer Token
+  * *Authorization:* Super Admin
+  * *Query Params (Optional):* `startDate`, `endDate`
+  * *Response (200):*
+    ```json
+    {
+      "success": true,
+      "statusCode": 200,
+      "message": {
+        "filters": {
+          "startDate": null,
+          "endDate": null
+        },
+        "summary": {
+          "totalSales": 0,
+          "totalOrders": 0,
+          "averageOrderValue": 0
+        },
+        "salesByDate": [],
+        "salesByPaymentMethod": []
+      },
+      "data": "Sales report fetched successfully."
+    }
+    ```
+* **GET** `http://localhost:5000/api/super-admin/reports/products`
+  * *Description:* Retrieves products report including inventory summary (total, active, inactive, out of stock, total stock) and top selling products.
+  * *Authentication:* Bearer Token
+  * *Authorization:* Super Admin
+  * *Query Params (Optional):* `startDate`, `endDate`
+  * *Response (200):*
+    ```json
+    {
+      "success": true,
+      "statusCode": 200,
+      "message": {
+        "filters": {
+          "startDate": null,
+          "endDate": null
+        },
+        "summary": {
+          "_id": null,
+          "totalProducts": 3,
+          "activeProducts": 3,
+          "inactiveProducts": 0,
+          "outOfStockProducts": 0,
+          "totalStock": 35
+        },
+        "topSellingProducts": []
+      },
+      "data": "Products report fetched successfully."
+    }
+    ```
+* **GET** `http://localhost:5000/api/super-admin/reports/orders`
+  * *Description:* Retrieves orders report including orders summary (total, order value, AOV, cancelled, paid, pending, failed), orders by status, and orders by payment status.
+  * *Authentication:* Bearer Token
+  * *Authorization:* Super Admin
+  * *Query Params (Optional):* `startDate`, `endDate`
+  * *Response (200):*
+    ```json
+    {
+      "success": true,
+      "statusCode": 200,
+      "message": {
+        "filters": {
+          "startDate": null,
+          "endDate": null
+        },
+        "summary": {
+          "totalOrders": 0,
+          "totalOrderValue": 0,
+          "averageOrderValue": 0,
+          "cancelledOrders": 0,
+          "paidOrders": 0,
+          "pendingPayments": 0,
+          "failedPayments": 0
+        },
+        "ordersByStatus": [],
+        "ordersByPaymentStatus": [],
+        "dailyOrders": []
+      },
+      "data": "Orders report fetched successfully."
+    }
+    ```
 * **GET** `http://localhost:5000/api/reports/stats`
   * *Description:* Returns stats summary for the Reports page (Revenue, Sales, Orders, Active Vendors, Active Customers).
 * **GET** `http://localhost:5000/api/reports/revenue-chart`
@@ -281,7 +366,55 @@ Endpoints for tracking customer transactions.
       "data": "Failed payments fetched successfully."
     }
     ```
+* **GET** `http://localhost:5000/api/super-admin/payments/pending`
+  * *Description:* Retrieves all pending payments list with count and total amount.
+  * *Authentication:* Bearer Token
+  * *Authorization:* Super Admin
+  * *Response (200):*
+    ```json
+    {
+      "success": true,
+      "statusCode": 200,
+      "message": {
+        "count": 0,
+        "totalAmount": 0,
+        "payments": []
+      },
+      "data": "Pending payments fetched successfully."
+    }
+    ```
+* **GET** `http://localhost:5000/api/super-admin/payments/revenue`
+  * *Description:* Retrieves payment revenue metrics (total transactions, total revenue, and average transaction).
+  * *Authentication:* Bearer Token
+  * *Authorization:* Super Admin
+  * *Response (200):*
+    ```json
+    {
+      "success": true,
+      "statusCode": 200,
+      "message": {
+        "totalTransactions": 0,
+        "totalRevenue": 0,
+        "averageTransaction": 0
+      },
+      "data": "Payment revenue fetched successfully."
+    }
+    ```
+* **GET** `http://localhost:5000/api/super-admin/payments/:orderId`
+  * *Description:* Retrieves payment details by order ID.
+  * *Authentication:* Bearer Token
+  * *Authorization:* Super Admin
+  * *Response (404 Not Found):*
+    ```json
+    {
+      "success": false,
+      "statusCode": 404,
+      "message": "Payment record not found.",
+      "data": null
+    }
+    ```
 * **GET** `http://localhost:5000/api/payments/details/:id`
   * *Description:* Retrieves specific transaction details, payment logs, and invoice details.
 * **POST** `http://localhost:5000/api/payments/process-refund/:id`
   * *Description:* Initiates a refund for the transaction.
+

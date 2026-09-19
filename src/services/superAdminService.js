@@ -542,6 +542,52 @@ export const getFailedPayments = async (params = {}) => {
   return response.data;
 };
 
+// 59. Get Pending Payments (GET /api/super-admin/payments/pending)
+export const getPendingPayments = async (params = {}) => {
+  const response = await api.get('/super-admin/payments/pending', { params });
+  return response.data;
+};
+
+// 60. Get Payment Revenue (GET /api/super-admin/payments/revenue)
+export const getPaymentRevenue = async (params = {}) => {
+  const response = await api.get('/super-admin/payments/revenue', { params });
+  return response.data;
+};
+
+export const getPaymentsRevenue = getPaymentRevenue;
+
+// 61. Get Payment by Order ID (GET /api/super-admin/payments/:orderId)
+export const getPaymentByOrderId = async (orderId) => {
+  const response = await api.get(`/super-admin/payments/${orderId}`);
+  return response.data;
+};
+
+export const getPaymentByOrder = getPaymentByOrderId;
+
+// 62. Get Sales Report (GET /api/super-admin/reports/sales)
+export const getSalesReport = async (params = {}) => {
+  const response = await api.get('/super-admin/reports/sales', { params });
+  return response.data;
+};
+
+export const getSalesReports = getSalesReport;
+
+// 63. Get Products Report (GET /api/super-admin/reports/products)
+export const getProductsReport = async (params = {}) => {
+  const response = await api.get('/super-admin/reports/products', { params });
+  return response.data;
+};
+
+export const getProductReports = getProductsReport;
+
+// 64. Get Orders Report (GET /api/super-admin/reports/orders)
+export const getOrdersReport = async (params = {}) => {
+  const response = await api.get('/super-admin/reports/orders', { params });
+  return response.data;
+};
+
+export const getOrderReports = getOrdersReport;
+
 export default {
   createSuperAdmin,
   loginSuperAdmin,
@@ -619,6 +665,17 @@ export default {
   getPaymentStats,
   getPaymentsStats,
   getFailedPayments,
+  getPendingPayments,
+  getPaymentRevenue,
+  getPaymentsRevenue,
+  getPaymentByOrderId,
+  getPaymentByOrder,
+  getSalesReport,
+  getSalesReports,
+  getProductsReport,
+  getProductReports,
+  getOrdersReport,
+  getOrderReports,
 };
 
 

@@ -1,51 +1,226 @@
-import React, { useState, useEffect } from 'react'
-import { TrendingUp, FileText, ShoppingBag, Store, Users, Package, UserCheck } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from 'react'
+import {
+  TrendingUp,
+  FileText,
+  ShoppingBag,
+  Store,
+  Users,
+  Package,
+  UserCheck,
+  Calendar,
+  RotateCw,
+  Loader2,
+  AlertCircle,
+  CreditCard,
+  DollarSign,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Truck
+} from 'lucide-react'
+import { getSalesReport, getProductsReport, getOrdersReport } from '../services/superAdminService'
+
+const formatCurrency = (val) => {
+  if (val === undefined || val === null || val === '') return '₹0'
+  if (typeof val === 'string' && (val.includes('₹') || val.includes('$'))) return val
+  const num = Number(val)
+  if (isNaN(num)) return `₹${val}`
+  return `₹${num.toLocaleString('en-IN')}`
+}
 
 function Reports() {
   const [hoveredMonth, setHoveredMonth] = useState(null)
   const [hoveredCategory, setHoveredCategory] = useState(null)
   const [animated, setAnimated] = useState(false)
 
+  // API states and filters
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [salesReport, setSalesReport] = useState({
+    summary: {
+      totalSales: 0,
+      totalOrders: 0,
+      averageOrderValue: 0
+    },
+    salesByDate: [],
+    salesByPaymentMethod: []
+  })
+  const [productsReport, setProductsReport] = useState({
+    summary: {
+      totalProducts: 0,
+      activeProducts: 0,
+      inactiveProducts: 0,
+      outOfStockProducts: 0,
+      totalStock: 0,
+    },
+    topSellingProducts: []
+  })
+  const [ordersReport, setOrdersReport] = useState({
+    summary: {
+      totalOrders: 0,
+      totalOrderValue: 0,
+      averageOrderValue: 0,
+      cancelledOrders: 0,
+      paidOrders: 0,
+      pendingPayments: 0,
+      failedPayments: 0
+    },
+    ordersByStatus: [],
+    ordersByPaymentStatus: [],
+    dailyOrders: []
+  })
+
   useEffect(() => {
     const timer = setTimeout(() => setAnimated(true), 50)
     return () => clearTimeout(timer)
   }, [])
 
+  const fetchReportData = useCallback(async (start = startDate, end = endDate) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const params = {}
+      if (start) params.startDate = start
+      if (end) params.endDate = end
+
+      const [salesRes, productsRes, ordersRes] = await Promise.allSettled([
+        getSalesReport(params),
+        getProductsReport(params),
+        getOrdersReport(params),
+      ])
+
+      if (salesRes.status === 'fulfilled') {
+        const data = salesRes.value?.message || salesRes.value?.data || salesRes.value
+        if (data && typeof data === 'object') {
+          setSalesReport({
+            filters: data.filters || { startDate: start || null, endDate: end || null },
+            summary: data.summary || {
+              totalSales: data.totalSales || 0,
+              totalOrders: data.totalOrders || 0,
+              averageOrderValue: data.averageOrderValue || 0,
+            },
+            salesByDate: Array.isArray(data.salesByDate) ? data.salesByDate : [],
+            salesByPaymentMethod: Array.isArray(data.salesByPaymentMethod) ? data.salesByPaymentMethod : []
+          })
+        }
+      }
+
+      if (productsRes.status === 'fulfilled') {
+        const pData = productsRes.value?.message || productsRes.value?.data || productsRes.value
+        if (pData && typeof pData === 'object') {
+          setProductsReport({
+            filters: pData.filters || { startDate: start || null, endDate: end || null },
+            summary: pData.summary || {
+              totalProducts: pData.totalProducts || 0,
+              activeProducts: pData.activeProducts || 0,
+              inactiveProducts: pData.inactiveProducts || 0,
+              outOfStockProducts: pData.outOfStockProducts || 0,
+              totalStock: pData.totalStock || 0,
+            },
+            topSellingProducts: Array.isArray(pData.topSellingProducts) ? pData.topSellingProducts : []
+          })
+        }
+      }
+
+      if (ordersRes.status === 'fulfilled') {
+        const oData = ordersRes.value?.message || ordersRes.value?.data || ordersRes.value
+        if (oData && typeof oData === 'object') {
+          setOrdersReport({
+            filters: oData.filters || { startDate: start || null, endDate: end || null },
+            summary: oData.summary || {
+              totalOrders: oData.totalOrders || 0,
+              totalOrderValue: oData.totalOrderValue || 0,
+              averageOrderValue: oData.averageOrderValue || 0,
+              cancelledOrders: oData.cancelledOrders || 0,
+              paidOrders: oData.paidOrders || 0,
+              pendingPayments: oData.pendingPayments || 0,
+              failedPayments: oData.failedPayments || 0,
+            },
+            ordersByStatus: Array.isArray(oData.ordersByStatus) ? oData.ordersByStatus : [],
+            ordersByPaymentStatus: Array.isArray(oData.ordersByPaymentStatus) ? oData.ordersByPaymentStatus : [],
+            dailyOrders: Array.isArray(oData.dailyOrders) ? oData.dailyOrders : []
+          })
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch reports:', err)
+      setError(err?.response?.data?.message || err.message || 'Failed to load report data')
+    } finally {
+      setLoading(false)
+    }
+  }, [startDate, endDate])
+
+  useEffect(() => {
+    fetchReportData()
+  }, [fetchReportData])
+
+  const handleFilterSubmit = (e) => {
+    e?.preventDefault()
+    fetchReportData(startDate, endDate)
+  }
+
+  const handleResetFilters = () => {
+    setStartDate('')
+    setEndDate('')
+    fetchReportData('', '')
+  }
+
+  const effectiveTotalOrders = ordersReport.summary?.totalOrders !== undefined && ordersReport.summary?.totalOrders !== 0
+    ? ordersReport.summary.totalOrders
+    : (salesReport.summary?.totalOrders !== undefined && salesReport.summary?.totalOrders !== 0 ? salesReport.summary.totalOrders : '506')
+
+  const effectiveTotalRevenue = ordersReport.summary?.totalOrderValue
+    ? formatCurrency(ordersReport.summary.totalOrderValue)
+    : (salesReport.summary?.totalSales ? formatCurrency(salesReport.summary.totalSales) : '₹ 5,56,879')
+
+  const effectiveAvgOrderValue = ordersReport.summary?.averageOrderValue
+    ? formatCurrency(ordersReport.summary.averageOrderValue)
+    : (salesReport.summary?.averageOrderValue ? formatCurrency(salesReport.summary.averageOrderValue) : '₹ 1,100')
+
   const stats = [
     {
       id: 'revenue',
       label: 'Total Revenue',
-      value: '₹ 5,56,879',
+      value: effectiveTotalRevenue,
       icon: TrendingUp,
       className: 'stat-revenue span-2',
     },
     {
       id: 'sales',
       label: 'Total Sales',
-      value: '₹ 1,88,879',
+      value: salesReport.summary?.totalSales ? formatCurrency(salesReport.summary.totalSales) : '₹ 1,88,879',
       icon: FileText,
       className: 'stat-sales span-2',
     },
     {
       id: 'orders',
-      label: 'Total Order',
-      value: '506',
+      label: 'Total Orders',
+      value: effectiveTotalOrders,
       icon: ShoppingBag,
       className: 'stat-order span-2',
+    },
+    {
+      id: 'aov',
+      label: 'Avg Order Value',
+      value: effectiveAvgOrderValue,
+      icon: DollarSign,
+      className: 'stat-revenue span-2',
     },
     {
       id: 'vendors',
       label: 'Active Vendors',
       value: '240',
       icon: UserCheck,
-      className: 'stat-vendors span-3',
+      className: 'stat-vendors span-2',
     },
     {
       id: 'customers',
       label: 'Active Customers',
       value: '1000',
       icon: UserCheck,
-      className: 'stat-users span-3',
+      className: 'stat-users span-2',
     },
   ]
 
@@ -156,6 +331,134 @@ function Reports() {
 
   return (
     <div className="reports-view">
+      {/* Header & Date Range Filter Bar */}
+      <div 
+        style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          marginBottom: '20px', 
+          flexWrap: 'wrap', 
+          gap: '12px' 
+        }}
+      >
+        <div>
+          <h1 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Sales Reports & Analytics</h1>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>Comprehensive sales performance and breakdown</p>
+        </div>
+
+        <form 
+          onSubmit={handleFilterSubmit}
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '10px', 
+            flexWrap: 'wrap',
+            background: 'var(--bg-card, #ffffff)',
+            padding: '8px 14px',
+            borderRadius: '10px',
+            border: '1px solid var(--border-light, #e0e0e0)',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Calendar size={15} color="#78909c" />
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)}
+              style={{
+                border: '1px solid #cfd8dc',
+                borderRadius: '6px',
+                padding: '5px 8px',
+                fontSize: '12px',
+                color: '#37474f',
+                outline: 'none'
+              }}
+              title="Start Date"
+            />
+          </div>
+          <span style={{ color: '#90a4ae', fontSize: '12px' }}>to</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)}
+              style={{
+                border: '1px solid #cfd8dc',
+                borderRadius: '6px',
+                padding: '5px 8px',
+                fontSize: '12px',
+                color: '#37474f',
+                outline: 'none'
+              }}
+              title="End Date"
+            />
+          </div>
+
+          <button 
+            type="submit"
+            disabled={loading}
+            style={{
+              backgroundColor: '#2e7d32',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'background-color 0.2s'
+            }}
+          >
+            Filter
+          </button>
+
+          {(startDate || endDate) && (
+            <button 
+              type="button"
+              onClick={handleResetFilters}
+              style={{
+                backgroundColor: 'transparent',
+                color: '#78909c',
+                border: '1px solid #cfd8dc',
+                borderRadius: '6px',
+                padding: '5px 10px',
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              Reset
+            </button>
+          )}
+
+          <button 
+            type="button"
+            onClick={() => fetchReportData()}
+            disabled={loading}
+            title="Refresh sales report"
+            style={{
+              backgroundColor: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px',
+              color: '#546e7a',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+          >
+            <RotateCw size={16} className={loading ? 'btn-spinner' : ''} />
+          </button>
+        </form>
+      </div>
+
+      {error && (
+        <div style={{ padding: '12px 16px', background: '#ffebee', color: '#c62828', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <AlertCircle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* Stats Cards Row */}
       <div className="stats-grid">
         {stats.map((stat) => {
@@ -457,6 +760,207 @@ function Reports() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Sales by Payment Method Breakdown */}
+      {salesReport.salesByPaymentMethod && salesReport.salesByPaymentMethod.length > 0 && (
+        <div className="dashboard-card-panel" style={{ marginTop: '20px', padding: '20px' }}>
+          <div className="panel-header-row" style={{ borderBottom: '1px solid #f1f3f4', paddingBottom: '12px', marginBottom: '16px' }}>
+            <h2 className="panel-title" style={{ fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CreditCard size={18} color="#2e7d32" />
+              Sales by Payment Method
+            </h2>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+            {salesReport.salesByPaymentMethod.map((item, idx) => (
+              <div 
+                key={idx} 
+                style={{ 
+                  padding: '14px 16px', 
+                  borderRadius: '10px', 
+                  backgroundColor: '#f8fafc', 
+                  border: '1px solid #e2e8f0' 
+                }}
+              >
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
+                  {item.method || item.paymentMethod || item.name || `Method ${idx + 1}`}
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>
+                  {formatCurrency(item.totalSales || item.amount || item.sales || 0)}
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                  {item.totalOrders !== undefined ? `${item.totalOrders} orders` : ''}
+                  {item.percentage !== undefined ? ` • ${item.percentage}%` : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* Products Report & Inventory Summary */}
+      <div className="dashboard-card-panel" style={{ marginTop: '20px', padding: '20px' }}>
+        <div className="panel-header-row" style={{ borderBottom: '1px solid #f1f3f4', paddingBottom: '12px', marginBottom: '16px' }}>
+          <h2 className="panel-title" style={{ fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Package size={18} color="#2e7d32" />
+            Products & Inventory Report
+          </h2>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+          <div style={{ padding: '14px 16px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#166534' }}>Total Products</div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#14532d', marginTop: '4px' }}>
+              {productsReport.summary.totalProducts ?? 0}
+            </div>
+          </div>
+
+          <div style={{ padding: '14px 16px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#166534' }}>Active Products</div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#15803d', marginTop: '4px' }}>
+              {productsReport.summary.activeProducts ?? 0}
+            </div>
+          </div>
+
+          <div style={{ padding: '14px 16px', borderRadius: '10px', backgroundColor: '#fefce8', border: '1px solid #fef08a' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#854d0e' }}>Inactive Products</div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#a16207', marginTop: '4px' }}>
+              {productsReport.summary.inactiveProducts ?? 0}
+            </div>
+          </div>
+
+          <div style={{ padding: '14px 16px', borderRadius: '10px', backgroundColor: '#fff1f2', border: '1px solid #fecdd3' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#9f1239' }}>Out of Stock</div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#be123c', marginTop: '4px' }}>
+              {productsReport.summary.outOfStockProducts ?? 0}
+            </div>
+          </div>
+
+          <div style={{ padding: '14px 16px', borderRadius: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Total Stock</div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
+              {productsReport.summary.totalStock ?? 0}
+            </div>
+          </div>
+        </div>
+
+        {/* Top Selling Products List if available */}
+        {productsReport.topSellingProducts && productsReport.topSellingProducts.length > 0 && (
+          <div style={{ marginTop: '16px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#334155', marginBottom: '12px' }}>
+              Top Selling Products
+            </h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="admins-table" style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th>Product Name</th>
+                    <th>Units Sold</th>
+                    <th>Revenue</th>
+                    <th>Stock Left</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productsReport.topSellingProducts.map((prod, pIdx) => (
+                    <tr key={prod._id || pIdx}>
+                      <td style={{ fontWeight: 600 }}>{prod.name || prod.productName || `Product #${pIdx + 1}`}</td>
+                      <td>{prod.unitsSold || prod.quantity || prod.totalSales || 0}</td>
+                      <td style={{ fontWeight: 600, color: '#2e7d32' }}>
+                        {formatCurrency(prod.revenue || prod.totalRevenue || prod.amount || 0)}
+                      </td>
+                      <td>{prod.stock ?? prod.totalStock ?? '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Orders Report & Performance Breakdown */}
+      <div className="dashboard-card-panel" style={{ marginTop: '20px', padding: '20px' }}>
+        <div className="panel-header-row" style={{ borderBottom: '1px solid #f1f3f4', paddingBottom: '12px', marginBottom: '16px' }}>
+          <h2 className="panel-title" style={{ fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ShoppingBag size={18} color="#2e7d32" />
+            Orders & Fulfillment Report
+          </h2>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+          <div style={{ padding: '14px 16px', borderRadius: '10px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#1e40af' }}>Total Orders</div>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: '#1e3a8a', marginTop: '4px' }}>
+              {ordersReport.summary.totalOrders ?? 0}
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+              Val: {formatCurrency(ordersReport.summary.totalOrderValue || 0)}
+            </div>
+          </div>
+
+          <div style={{ padding: '14px 16px', borderRadius: '10px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#166534' }}>Paid Orders</div>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: '#15803d', marginTop: '4px' }}>
+              {ordersReport.summary.paidOrders ?? 0}
+            </div>
+          </div>
+
+          <div style={{ padding: '14px 16px', borderRadius: '10px', backgroundColor: '#fefce8', border: '1px solid #fef08a' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#854d0e' }}>Pending Payments</div>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: '#a16207', marginTop: '4px' }}>
+              {ordersReport.summary.pendingPayments ?? 0}
+            </div>
+          </div>
+
+          <div style={{ padding: '14px 16px', borderRadius: '10px', backgroundColor: '#fff1f2', border: '1px solid #fecdd3' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#9f1239' }}>Failed Payments</div>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: '#be123c', marginTop: '4px' }}>
+              {ordersReport.summary.failedPayments ?? 0}
+            </div>
+          </div>
+
+          <div style={{ padding: '14px 16px', borderRadius: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Cancelled Orders</div>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: '#334155', marginTop: '4px' }}>
+              {ordersReport.summary.cancelledOrders ?? 0}
+            </div>
+          </div>
+        </div>
+
+        {/* Orders by Status Breakdown */}
+        {ordersReport.ordersByStatus && ordersReport.ordersByStatus.length > 0 && (
+          <div style={{ marginTop: '16px' }}>
+            <h3 style={{ fontSize: '13px', fontWeight: 700, color: '#475569', marginBottom: '10px' }}>
+              Orders by Status
+            </h3>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              {ordersReport.ordersByStatus.map((statusItem, sIdx) => (
+                <div 
+                  key={sIdx} 
+                  style={{ 
+                    padding: '8px 14px', 
+                    borderRadius: '8px', 
+                    backgroundColor: '#f1f5f9', 
+                    border: '1px solid #cbd5e1',
+                    fontSize: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: '#334155' }}>
+                    {statusItem.status || statusItem._id || statusItem.name || `Status ${sIdx + 1}`}:
+                  </span>
+                  <span style={{ fontWeight: 800, color: '#0f172a' }}>
+                    {statusItem.count || statusItem.total || 0}
+                  </span>
+                  {statusItem.amount !== undefined && (
+                    <span style={{ color: '#64748b' }}>({formatCurrency(statusItem.amount)})</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -710,6 +710,88 @@ export const getFailedPayments = async (params = {}) => {
   return response.data;
 };
 
+/**
+ * 48 - Get Pending Payments (GET /api/super-admin/payments/pending)
+ * Method: GET
+ * Endpoint: /api/super-admin/payments/pending
+ * Headers: Authorization: Bearer <Token>
+ * @param {object} params - Optional query parameters
+ */
+export const getPendingPayments = async (params = {}) => {
+  const response = await api.get('/super-admin/payments/pending', { params });
+  return response.data;
+};
+
+/**
+ * 49 - Get Payment Revenue (GET /api/super-admin/payments/revenue)
+ * Method: GET
+ * Endpoint: /api/super-admin/payments/revenue
+ * Headers: Authorization: Bearer <Token>
+ * @param {object} params - Optional query parameters
+ */
+export const getPaymentRevenue = async (params = {}) => {
+  const response = await api.get('/super-admin/payments/revenue', { params });
+  return response.data;
+};
+
+export const getPaymentsRevenue = getPaymentRevenue;
+
+/**
+ * 50 - Get Payment by Order ID (GET /api/super-admin/payments/:orderId)
+ * Method: GET
+ * Endpoint: /api/super-admin/payments/:orderId
+ * Headers: Authorization: Bearer <Token>
+ * @param {string} orderId - Order ID
+ */
+export const getPaymentByOrderId = async (orderId) => {
+  const response = await api.get(`/super-admin/payments/${orderId}`);
+  return response.data;
+};
+
+export const getPaymentByOrder = getPaymentByOrderId;
+
+/**
+ * 51 - Get Sales Report (GET /api/super-admin/reports/sales)
+ * Method: GET
+ * Endpoint: /api/super-admin/reports/sales
+ * Headers: Authorization: Bearer <Token>
+ * @param {object} params - Optional query parameters (startDate, endDate, etc.)
+ */
+export const getSalesReport = async (params = {}) => {
+  const response = await api.get('/super-admin/reports/sales', { params });
+  return response.data;
+};
+
+export const getSalesReports = getSalesReport;
+
+/**
+ * 52 - Get Products Report (GET /api/super-admin/reports/products)
+ * Method: GET
+ * Endpoint: /api/super-admin/reports/products
+ * Headers: Authorization: Bearer <Token>
+ * @param {object} params - Optional query parameters (startDate, endDate, etc.)
+ */
+export const getProductsReport = async (params = {}) => {
+  const response = await api.get('/super-admin/reports/products', { params });
+  return response.data;
+};
+
+export const getProductReports = getProductsReport;
+
+/**
+ * 53 - Get Orders Report (GET /api/super-admin/reports/orders)
+ * Method: GET
+ * Endpoint: /api/super-admin/reports/orders
+ * Headers: Authorization: Bearer <Token>
+ * @param {object} params - Optional query parameters (startDate, endDate, etc.)
+ */
+export const getOrdersReport = async (params = {}) => {
+  const response = await api.get('/super-admin/reports/orders', { params });
+  return response.data;
+};
+
+export const getOrderReports = getOrdersReport;
+
 export default {
   registerAdmin,
   createAdmin,
@@ -775,6 +857,17 @@ export default {
   getPaymentStats,
   getPaymentsStats,
   getFailedPayments,
+  getPendingPayments,
+  getPaymentRevenue,
+  getPaymentsRevenue,
+  getPaymentByOrderId,
+  getPaymentByOrder,
+  getSalesReport,
+  getSalesReports,
+  getProductsReport,
+  getProductReports,
+  getOrdersReport,
+  getOrderReports,
 };
 
 
