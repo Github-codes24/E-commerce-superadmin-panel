@@ -658,6 +658,100 @@ function CustomersManagement() {
     }
   ]
 
+  // Render Edit Customer Modal
+  const renderEditModal = () => {
+    if (!editingCustomer) return null
+    return (
+      <div className="modal-overlay" onClick={() => setEditingCustomer(null)}>
+        <div className="customer-edit-modal-box" onClick={(e) => e.stopPropagation()}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Edit Customer</h3>
+            <button 
+              type="button" 
+              onClick={() => setEditingCustomer(null)} 
+              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            >
+              <X style={{ width: '18px', height: '18px' }} />
+            </button>
+          </div>
+
+          {editError && (
+            <div style={{ backgroundColor: '#ffebee', color: '#c62828', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px', border: '1px solid #ffcdd2' }}>
+              {editError}
+            </div>
+          )}
+
+          <form onSubmit={handleEditSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>Full Name *</label>
+              <input 
+                type="text" 
+                value={editFormData.fullName} 
+                onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })} 
+                required 
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cfd8dc', fontSize: '14px', boxSizing: 'border-box' }} 
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>Email *</label>
+              <input 
+                type="email" 
+                value={editFormData.email} 
+                onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })} 
+                required 
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cfd8dc', fontSize: '14px', boxSizing: 'border-box' }} 
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>Mobile Number *</label>
+              <input 
+                type="text" 
+                value={editFormData.mobile} 
+                onChange={(e) => setEditFormData({ ...editFormData, mobile: e.target.value })} 
+                required 
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cfd8dc', fontSize: '14px', boxSizing: 'border-box' }} 
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+              <input 
+                type="checkbox" 
+                id="isVerifiedCheckbox" 
+                checked={editFormData.isVerified} 
+                onChange={(e) => setEditFormData({ ...editFormData, isVerified: e.target.checked })} 
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <label htmlFor="isVerifiedCheckbox" style={{ fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: '#374151' }}>
+                Is Verified Account
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+              <button 
+                type="button" 
+                className="btn-delete-cancel" 
+                onClick={() => setEditingCustomer(null)} 
+                disabled={editLoading}
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                className="btn-save-green" 
+                disabled={editLoading}
+                style={{ padding: '8px 20px', borderRadius: '8px', backgroundColor: '#388e3c', color: '#ffffff', border: 'none', fontWeight: '600', cursor: editLoading ? 'not-allowed' : 'pointer' }}
+              >
+                {editLoading ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
   // Render Customer profile view
   if (viewedCustomer) {
     const isProfileActive = viewedCustomer.status === 'active'
@@ -853,6 +947,9 @@ function CustomersManagement() {
             ))}
           </div>
         </div>
+
+        {/* Edit Customer Modal Overlay inside Customer Profile View */}
+        {renderEditModal()}
       </div>
     )
   }
@@ -1110,14 +1207,7 @@ function CustomersManagement() {
           <table className="admins-table">
             <thead>
               <tr>
-                <th style={{ width: '40px', textAlign: 'center' }}>
-                  <input 
-                    type="checkbox" 
-                    className="admins-table-checkbox"
-                    checked={customersList.length > 0 && customersList.every(c => c.checked)}
-                    onChange={handleSelectAll}
-                  />
-                </th>
+                <th style={{ width: '60px', textAlign: 'center' }}>S.No.</th>
                 <th>Customer Name</th>
                 <th>Mobile Number</th>
                 <th>Email</th>
@@ -1137,15 +1227,10 @@ function CustomersManagement() {
                   </td>
                 </tr>
               ) : paginatedCustomers.length > 0 ? (
-                paginatedCustomers.map((customer) => (
+                paginatedCustomers.map((customer, index) => (
                   <tr key={customer.id}>
-                    <td style={{ textAlign: 'center' }}>
-                      <input 
-                        type="checkbox" 
-                        className="admins-table-checkbox"
-                        checked={customer.checked}
-                        onChange={() => handleRowCheckbox(customer.id)}
-                      />
+                    <td style={{ textAlign: 'center', fontWeight: '500', color: '#64748b' }}>
+                      {startIndex + index + 1}
                     </td>
                     <td 
                       style={{ fontWeight: '700', cursor: 'pointer' }}
@@ -1256,95 +1341,7 @@ function CustomersManagement() {
       </div>
 
       {/* Edit Customer Modal Overlay */}
-      {editingCustomer && (
-        <div className="modal-overlay" onClick={() => setEditingCustomer(null)}>
-          <div className="customer-edit-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Edit Customer</h3>
-              <button 
-                type="button" 
-                onClick={() => setEditingCustomer(null)} 
-                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-              >
-                <X style={{ width: '18px', height: '18px' }} />
-              </button>
-            </div>
-
-            {editError && (
-              <div style={{ backgroundColor: '#ffebee', color: '#c62828', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px', border: '1px solid #ffcdd2' }}>
-                {editError}
-              </div>
-            )}
-
-            <form onSubmit={handleEditSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>Full Name *</label>
-                <input 
-                  type="text" 
-                  value={editFormData.fullName} 
-                  onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })} 
-                  required 
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cfd8dc', fontSize: '14px', boxSizing: 'border-box' }} 
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>Email *</label>
-                <input 
-                  type="email" 
-                  value={editFormData.email} 
-                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })} 
-                  required 
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cfd8dc', fontSize: '14px', boxSizing: 'border-box' }} 
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>Mobile Number *</label>
-                <input 
-                  type="text" 
-                  value={editFormData.mobile} 
-                  onChange={(e) => setEditFormData({ ...editFormData, mobile: e.target.value })} 
-                  required 
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cfd8dc', fontSize: '14px', boxSizing: 'border-box' }} 
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                <input 
-                  type="checkbox" 
-                  id="isVerifiedCheckbox" 
-                  checked={editFormData.isVerified} 
-                  onChange={(e) => setEditFormData({ ...editFormData, isVerified: e.target.checked })} 
-                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                />
-                <label htmlFor="isVerifiedCheckbox" style={{ fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: '#374151' }}>
-                  Is Verified Account
-                </label>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
-                <button 
-                  type="button" 
-                  className="btn-delete-cancel" 
-                  onClick={() => setEditingCustomer(null)} 
-                  disabled={editLoading}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  className="btn-save-green" 
-                  disabled={editLoading}
-                  style={{ padding: '8px 20px', borderRadius: '8px', backgroundColor: '#388e3c', color: '#ffffff', border: 'none', fontWeight: '600', cursor: editLoading ? 'not-allowed' : 'pointer' }}
-                >
-                  {editLoading ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {renderEditModal()}
 
       {/* Delete Confirmation Modal Overlay */}
       {deletingCustomerId && (

@@ -833,7 +833,7 @@ function PaymentMonitoring() {
                 <th>Method</th>
                 <th>Date</th>
                 <th>Status</th>
-                <th style={{ width: '100px', textAlign: 'center' }}>Action</th>
+                <th style={{ width: '100px', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>

@@ -1328,7 +1328,7 @@ function OffersCoupons() {
                   <th>Offer Name</th>
                   <th>Value</th>
                   <th>Status</th>
-                  <th style={{ width: '120px', textAlign: 'center' }}>Action</th>
+                  <th style={{ width: '120px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1409,7 +1409,7 @@ function OffersCoupons() {
                   <th>Start Date</th>
                   <th>End Date</th>
                   <th>Status</th>
-                  <th style={{ width: '120px', textAlign: 'center' }}>Action</th>
+                  <th style={{ width: '120px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>

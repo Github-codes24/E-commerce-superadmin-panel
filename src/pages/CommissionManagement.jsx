@@ -573,7 +573,7 @@ function CommissionManagement() {
                 <th>Rate</th>
                 <th>Vendors</th>
                 <th>Status</th>
-                <th style={{ width: '120px', textAlign: 'center' }}>Action</th>
+                <th style={{ width: '120px', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>

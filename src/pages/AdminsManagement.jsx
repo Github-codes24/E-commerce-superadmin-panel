@@ -1827,7 +1827,7 @@ function AdminsManagement() {
                 <th>Joined On</th>
                 <th>Last Login</th>
                 <th>Status</th>
-                <th style={{ width: '80px', textAlign: 'center' }}>Action</th>
+                <th style={{ width: '80px', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>

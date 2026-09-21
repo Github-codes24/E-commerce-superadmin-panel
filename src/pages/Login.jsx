@@ -7,6 +7,7 @@ import forgotArt from '../assets/Forgot password-pana 1.png'
 import otpArt from '../assets/EnterOPT.png'
 import resetArt from '../assets/aut-reset.png'
 import successArt from '../assets/Success.png'
+import zyvoraLogo from '../assets/Zyvora.jpeg'
 
 const pageData = {
   login: {
@@ -408,8 +409,25 @@ function Login({ onLogin }) {
           }
         } catch (error) {
           console.error('Login Error:', error)
-          const errMsg = error.response?.data?.message || (typeof error.response?.data === 'string' ? error.response?.data : null) || error.message || 'Login failed. Please check your credentials.'
-          setGeneralError(errMsg)
+          const status = error.response?.status
+          const rawMsg = (error.response?.data?.message || (typeof error.response?.data === 'string' ? error.response?.data : '') || error.message || '').toString().toLowerCase()
+          
+          if (
+            status === 401 ||
+            status === 404 ||
+            rawMsg.includes('not found') ||
+            rawMsg.includes('admin') ||
+            rawMsg.includes('user') ||
+            rawMsg.includes('password') ||
+            rawMsg.includes('credential') ||
+            rawMsg.includes('unauthorized') ||
+            rawMsg.includes('invalid')
+          ) {
+            setGeneralError('Invalid email or password')
+          } else {
+            const errMsg = error.response?.data?.message || (typeof error.response?.data === 'string' ? error.response?.data : null) || error.message || 'Login failed. Please try again.'
+            setGeneralError(errMsg)
+          }
         } finally {
           setLoading(false)
         }
@@ -499,12 +517,20 @@ function Login({ onLogin }) {
     <main className={`auth-page ${page}-page`}>
       <section className="auth-layout">
         <form className="auth-card" onSubmit={handleSubmit}>
-          <p className="auth-subtitle">{data.subtitle}</p>
+          {page === 'login' ? (
+            <p className="auth-subtitle">{data.subtitle}</p>
+          ) : (
+            <img src={zyvoraLogo} alt="Zyvora" className="auth-brand-logo-top" />
+          )}
           {page === 'success' ? (
             <SuccessContent />
           ) : (
             <>
-              <h1>{data.title}</h1>
+              {page === 'login' ? (
+                <img src={zyvoraLogo} alt="Zyvora" className="auth-brand-logo" />
+              ) : (
+                <h1>{data.title}</h1>
+              )}
               <p className="auth-desc">
                 {page === 'otp' && email ? `We've sent a verification code to ${email}` : data.description}
               </p>

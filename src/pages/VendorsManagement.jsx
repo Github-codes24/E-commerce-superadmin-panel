@@ -529,22 +529,15 @@ function VendorsManagement() {
     }
   }
 
-  // Load vendors on mount and when filter/page changes
+  // Load vendors on mount and when filter changes
   useEffect(() => {
     fetchVendors()
-  }, [currentPage, approvalFilter, accountFilter])
+  }, [approvalFilter, accountFilter])
 
-  // Debounced search
+  // Reset to page 1 on search or filter changes
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (currentPage === 1) {
-        fetchVendors()
-      } else {
-        setCurrentPage(1)
-      }
-    }, 400)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
+    setCurrentPage(1)
+  }, [searchQuery, approvalFilter, accountFilter])
 
   // Form states
   const [formData, setFormData] = useState({
@@ -922,24 +915,42 @@ function VendorsManagement() {
     }
   }
 
-  // Filter vendors list (client-side fallback filter if API didn't apply filters)
+  // Filter vendors list (applies search query, approval status, and account status)
   const filteredVendors = vendorsList.filter((vendor) => {
-    if (isApiLoaded) return true // When API is loaded, filtering is done on server
-    const matchesSearch =
-      vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vendor.shopName.toLowerCase().includes(searchQuery.toLowerCase())
+    const q = (searchQuery || '').trim().toLowerCase()
+    const nameStr = (vendor.name || vendor.fullName || '').toLowerCase()
+    const shopStr = (vendor.shopName || vendor.storeName || '').toLowerCase()
+    const catStr = (vendor.category || '').toLowerCase()
+    const emailStr = (vendor.email || '').toLowerCase()
+    const phoneStr = (vendor.phone || vendor.mobile || '').toLowerCase()
+
+    const matchesSearch = !q ||
+      nameStr.includes(q) ||
+      shopStr.includes(q) ||
+      catStr.includes(q) ||
+      emailStr.includes(q) ||
+      phoneStr.includes(q)
+
     const matchesApproval =
-      approvalFilter === 'all' ? true : vendor.approval === approvalFilter
+      approvalFilter === 'all' ? true : (vendor.approval || '').toLowerCase() === approvalFilter.toLowerCase()
     const matchesAccount =
-      accountFilter === 'all' ? true : vendor.status === accountFilter
+      accountFilter === 'all' ? true : (vendor.status || '').toLowerCase() === accountFilter.toLowerCase()
+
     return matchesSearch && matchesApproval && matchesAccount
   })
 
   // Pagination index slicing
-  const totalItems = isApiLoaded ? (paginationData.total || vendorsList.length) : filteredVendors.length
-  const totalPages = isApiLoaded ? (paginationData.totalPages || 1) : (Math.ceil(totalItems / itemsPerPage) || 1)
+  const totalItems = filteredVendors.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
   const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedVendors = isApiLoaded ? vendorsList : filteredVendors.slice(startIndex, startIndex + itemsPerPage)
+  const paginatedVendors = filteredVendors.slice(startIndex, startIndex + itemsPerPage)
+
+  // Clamp current page if totalPages shrinks due to filters or deletions
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages)
+    }
+  }, [totalPages, currentPage])
 
   // 1. Render Form View (Add / Edit)
   if (isAdding) {
@@ -1775,14 +1786,7 @@ function VendorsManagement() {
             <table className="admins-table">
               <thead>
                 <tr>
-                  <th style={{ width: '40px', textAlign: 'center' }}>
-                    <input 
-                      type="checkbox" 
-                      className="admins-table-checkbox"
-                      checked={paginatedVendors.length > 0 && paginatedVendors.every(v => v.checked)}
-                      onChange={handleSelectAll}
-                    />
-                  </th>
+                  <th style={{ width: '60px', textAlign: 'center' }}>S.No.</th>
                   <th>Vendor Name</th>
                   <th>Shop Name</th>
                   <th>Category</th>
@@ -1791,20 +1795,15 @@ function VendorsManagement() {
                   <th>Joined On</th>
                   <th>Approval</th>
                   <th>Account</th>
-                  <th style={{ width: '80px', textAlign: 'center' }}>Action</th>
+                  <th style={{ width: '80px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedVendors.length > 0 ? (
-                  paginatedVendors.map((vendor) => (
+                  paginatedVendors.map((vendor, index) => (
                     <tr key={vendor.id}>
-                      <td style={{ textAlign: 'center' }}>
-                        <input 
-                          type="checkbox" 
-                          className="admins-table-checkbox"
-                          checked={vendor.checked}
-                          onChange={() => handleRowCheckbox(vendor.id)}
-                        />
+                      <td style={{ textAlign: 'center', fontWeight: '500', color: '#64748b' }}>
+                        {startIndex + index + 1}
                       </td>
                       <td>
                         <div className="vendor-name-row">
