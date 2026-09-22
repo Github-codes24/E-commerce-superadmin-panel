@@ -1782,14 +1782,7 @@ function OrdersManagement({ initialSearchQuery }) {
           <table className="admins-table orders-table">
             <thead>
               <tr>
-                <th style={{ width: '40px', textAlign: 'center' }}>
-                  <input
-                    type="checkbox"
-                    className="admins-table-checkbox"
-                    checked={selectAll}
-                    onChange={handleSelectAll}
-                  />
-                </th>
+                <th style={{ width: '60px', textAlign: 'center' }}>Sr.No.</th>
                 <th>Order ID</th>
                 <th>Customer Name</th>
                 <th>Vendor Name</th>
@@ -1810,15 +1803,10 @@ function OrdersManagement({ initialSearchQuery }) {
                   </td>
                 </tr>
               ) : paginatedOrders.length > 0 ? (
-                paginatedOrders.map((order) => (
+                paginatedOrders.map((order, idx) => (
                   <tr key={order.id || order._id}>
-                    <td style={{ textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        className="admins-table-checkbox"
-                        checked={!!selected[order.id]}
-                        onChange={() => handleRowSelect(order.id)}
-                      />
+                    <td style={{ textAlign: 'center', fontWeight: '500', color: '#64748b' }}>
+                      {startIndex + idx + 1}
                     </td>
                     <td className="order-id-cell">{order.id}</td>
                     <td>{order.customer}</td>

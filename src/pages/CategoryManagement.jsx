@@ -1934,15 +1934,7 @@ function CategoryManagement() {
           <table className="admins-table">
             <thead>
               <tr>
-                <th style={{ width: '40px', textAlign: 'center' }}>
-                  <input
-                    type="checkbox"
-                    className="admins-table-checkbox"
-                    checked={categoriesList.length > 0 && categoriesList.every(c => c.checked)}
-                    onChange={handleSelectAll}
-                  />
-                </th>
-                <th>Sr.No.</th>
+                <th style={{ width: '60px', textAlign: 'center' }}>Sr.No.</th>
                 <th>Category Image</th>
                 <th>Category Name</th>
                 <th>Sub-categories</th>
@@ -1954,7 +1946,7 @@ function CategoryManagement() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '48px', color: '#607d8b' }}>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '48px', color: '#607d8b' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
                       <Loader2 className="spinning-loader" style={{ width: '32px', height: '32px', color: 'var(--primary-teal, #00897b)' }} />
                       <span style={{ fontSize: '14px', fontWeight: '500' }}>Fetching categories...</span>
@@ -1964,15 +1956,7 @@ function CategoryManagement() {
               ) : paginatedCategories.length > 0 ? (
                 paginatedCategories.map((cat, idx) => (
                   <tr key={cat.id || idx}>
-                    <td style={{ textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        className="admins-table-checkbox"
-                        checked={cat.checked || false}
-                        onChange={() => handleRowCheckbox(cat.id)}
-                      />
-                    </td>
-                    <td>{catStartIndex + idx + 1}</td>
+                    <td style={{ textAlign: 'center', fontWeight: '500', color: '#64748b' }}>{catStartIndex + idx + 1}</td>
                     <td>
                       <img
                         src={cat.image}
@@ -2044,7 +2028,7 @@ function CategoryManagement() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '32px', color: '#90a4ae' }}>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: '#90a4ae' }}>
                     No categories found matching criteria.
                   </td>
                 </tr>

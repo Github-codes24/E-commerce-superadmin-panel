@@ -1814,14 +1814,7 @@ function AdminsManagement() {
           <table className="admins-table">
             <thead>
               <tr>
-                <th style={{ width: '40px', textAlign: 'center' }}>
-                  <input
-                    type="checkbox"
-                    className="admins-table-checkbox"
-                    checked={adminsList.length > 0 && adminsList.every(a => a.checked)}
-                    onChange={handleSelectAll}
-                  />
-                </th>
+                <th style={{ width: '60px', textAlign: 'center' }}>Sr.No.</th>
                 <th>Admins Name</th>
                 <th>Email</th>
                 <th>Joined On</th>
@@ -1841,15 +1834,10 @@ function AdminsManagement() {
                   </td>
                 </tr>
               ) : paginatedAdmins.length > 0 ? (
-                paginatedAdmins.map((admin) => (
+                paginatedAdmins.map((admin, idx) => (
                   <tr key={admin.id}>
-                    <td style={{ textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        className="admins-table-checkbox"
-                        checked={admin.checked}
-                        onChange={() => handleRowCheckbox(admin.id)}
-                      />
+                    <td style={{ textAlign: 'center', fontWeight: '500', color: '#64748b' }}>
+                      {startIndex + idx + 1}
                     </td>
                     <td>
                       <div className="table-admin-name-cell">

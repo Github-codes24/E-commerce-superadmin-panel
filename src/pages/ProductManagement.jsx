@@ -1872,15 +1872,7 @@ function ProductManagement() {
           <table className="admins-table">
             <thead>
               <tr>
-                <th style={{ width: '40px', textAlign: 'center' }}>
-                  <input
-                    type="checkbox"
-                    className="admins-table-checkbox"
-                    checked={productsList.length > 0 && productsList.every(p => p.checked)}
-                    onChange={handleSelectAll}
-                  />
-                </th>
-                <th>Sr.No.</th>
+                <th style={{ width: '60px', textAlign: 'center' }}>Sr.No.</th>
                 <th>Product Image</th>
                 <th>Product Name</th>
                 <th>Vendor</th>
@@ -1892,7 +1884,7 @@ function ProductManagement() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                       <RotateCw style={{ width: '18px', height: '18px', animation: 'spin 1s linear infinite' }} />
                       <span>Loading products...</span>
@@ -1902,15 +1894,7 @@ function ProductManagement() {
               ) : paginatedProducts.length > 0 ? (
                 paginatedProducts.map((product, idx) => (
                   <tr key={product.id}>
-                    <td style={{ textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        className="admins-table-checkbox"
-                        checked={product.checked}
-                        onChange={() => handleRowCheckbox(product.id)}
-                      />
-                    </td>
-                    <td>{startIndex + idx + 1}</td>
+                    <td style={{ textAlign: 'center', fontWeight: '500', color: '#64748b' }}>{startIndex + idx + 1}</td>
                     <td>
                       <img
                         src={product.image || (Array.isArray(product.images) && product.images[0]) || getProductFallbackImage(product)}
@@ -2002,7 +1986,7 @@ function ProductManagement() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '32px', color: '#90a4ae' }}>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: '#90a4ae' }}>
                     No products found matching criteria.
                   </td>
                 </tr>
