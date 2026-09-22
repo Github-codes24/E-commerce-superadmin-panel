@@ -21,7 +21,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react'
-import { assignPermissions, getAllPermissions, getPermissionsByAdminId, updatePermissions, deletePermissions, checkModulePermission, getAllAdmins } from '../services/superAdminService'
+import { assignPermissions, getAllPermissions, getPermissionsByAdminId, updatePermissions, deletePermissions, checkModulePermission, getAllAdmins, deleteAdmin } from '../services/superAdminService'
 import './PermissionsManagement.css'
 
 /* ─────────────────────────────────────────
@@ -178,6 +178,11 @@ function PermissionsManagement() {
   const [isAssigning, setIsAssigning] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [assignError, setAssignError] = useState('')
+
+  // Delete Admin Modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [isDeletingAdmin, setIsDeletingAdmin] = useState(false)
+  const [deleteAdminError, setDeleteAdminError] = useState('')
 
   // List of active modules to display as rows (All modules from ADMIN_MODULES)
   const displayModules = ADMIN_MODULES
@@ -522,6 +527,58 @@ function PermissionsManagement() {
     }
   }
 
+  // Open Delete Admin Confirmation Modal
+  const handleOpenDeleteModal = () => {
+    if (!selectedAdminId) {
+      showToast('Please select an Administrator to delete.', 'error')
+      return
+    }
+    setDeleteAdminError('')
+    setShowDeleteModal(true)
+  }
+
+  // Delete Admin API Execution after confirmation
+  const handleDeleteAdmin = async () => {
+    if (!selectedAdminId) return
+
+    const targetAdmin = adminsList.find(a => a.id === selectedAdminId)
+    const adminName = targetAdmin ? targetAdmin.name : 'Administrator'
+
+    setIsDeletingAdmin(true)
+    setDeleteAdminError('')
+    try {
+      const res = await deleteAdmin(selectedAdminId)
+      const successMsg = res?.message || `Admin "${adminName}" deleted successfully.`
+      showToast(successMsg, 'success')
+
+      const remainingAdmins = adminsList.filter(a => a.id !== selectedAdminId)
+      setAdminsList(remainingAdmins)
+      setShowDeleteModal(false)
+
+      if (remainingAdmins.length > 0) {
+        setSelectedAdminId(remainingAdmins[0].id)
+        fetchAdminPermissions(remainingAdmins[0].id)
+      } else {
+        setSelectedAdminId('')
+        setPermissions(prev => {
+          const updated = JSON.parse(JSON.stringify(prev))
+          if (!updated.Admin) updated.Admin = {}
+          displayModules.forEach(mod => {
+            updated.Admin[mod] = {}
+          })
+          return updated
+        })
+      }
+    } catch (err) {
+      console.error('Failed to delete admin:', err)
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to delete admin.'
+      setDeleteAdminError(errMsg)
+      showToast(errMsg, 'error')
+    } finally {
+      setIsDeletingAdmin(false)
+    }
+  }
+
   // Drawer Edit Module Actions
   const handleOpenEditModule = async (moduleName) => {
     setEditingModule(moduleName)
@@ -735,9 +792,20 @@ function PermissionsManagement() {
           </div>
 
           <button
+            type="button"
+            className="delete-admin-btn"
+            onClick={handleOpenDeleteModal}
+            disabled={!selectedAdminId || isDeletingAdmin || loadingAdmins}
+            title="Delete Selected Administrator"
+          >
+            <Trash2 size={16} />
+            <span>Delete Admin</span>
+          </button>
+
+          <button
             className="save-changes-btn"
             onClick={handleSaveAndAssign}
-            disabled={isAssigning}
+            disabled={isAssigning || !selectedAdminId}
             style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             {isAssigning ? (
@@ -924,6 +992,73 @@ function PermissionsManagement() {
           </div>
         )}
       </div>
+
+      {/* Delete Admin Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="delete-modal-backdrop" onClick={() => !isDeletingAdmin && setShowDeleteModal(false)}>
+          <div className="delete-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-modal-icon-wrapper" style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                backgroundColor: '#fef2f2',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ef4444'
+              }}>
+                <Trash2 size={24} />
+              </div>
+            </div>
+            <div className="delete-modal-title">Delete Admin</div>
+            <div className="delete-modal-subtitle">
+              Are you sure you want to delete admin <strong>{selectedAdmin?.name || 'this administrator'}</strong>{selectedAdmin?.email ? ` (${selectedAdmin?.email})` : ''}? This action cannot be undone.
+            </div>
+
+            {deleteAdminError && (
+              <div style={{
+                backgroundColor: '#FEF2F2',
+                border: '1px solid #F87171',
+                color: '#DC2626',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                marginBottom: '16px'
+              }}>
+                ⚠️ {deleteAdminError}
+              </div>
+            )}
+
+            <div className="delete-modal-buttons">
+              <button
+                type="button"
+                className="btn-modal-cancel"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeletingAdmin}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-modal-delete"
+                onClick={handleDeleteAdmin}
+                disabled={isDeletingAdmin}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+              >
+                {isDeletingAdmin ? (
+                  <>
+                    <RotateCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  'Delete Admin'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

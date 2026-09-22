@@ -455,12 +455,17 @@ function Login({ onLogin }) {
           if (res.success) {
             setPage('otp')
           } else {
-            setGeneralError(res.message || 'Admin not found')
+            setGeneralError(res.message && !res.message.toLowerCase().includes('not found') && !res.message.toLowerCase().includes('admin') ? res.message : 'Failed to send OTP. Please try again.')
           }
         } catch (error) {
           console.error('Forgot Password Error:', error)
-          const errMsg = error.response?.data?.message || (typeof error.response?.data === 'string' ? error.response?.data : null) || error.message || 'Failed to send OTP.'
-          setGeneralError(errMsg)
+          const rawMsg = (error.response?.data?.message || (typeof error.response?.data === 'string' ? error.response?.data : null) || error.message || '').toString().toLowerCase()
+          if (error.response?.status === 404 || rawMsg.includes('not found') || rawMsg.includes('admin') || rawMsg.includes('user')) {
+            setGeneralError('If an account is associated with this email, an OTP has been sent.')
+          } else {
+            const errMsg = error.response?.data?.message || (typeof error.response?.data === 'string' ? error.response?.data : null) || error.message || 'Failed to send OTP.'
+            setGeneralError(errMsg)
+          }
         } finally {
           setLoading(false)
         }

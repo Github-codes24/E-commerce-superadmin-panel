@@ -317,6 +317,7 @@ function AdminsManagement() {
     password: '',
     phone: '',
     gender: 'Male',
+    role: 'ADMIN',
     isActive: true,
     imageFile: null,
     imagePreview: ''
@@ -1399,6 +1400,23 @@ function AdminsManagement() {
               </select>
             </div>
 
+            {/* Role Field */}
+            <div className="form-field-item">
+              <label htmlFor="admin-role">Role *</label>
+              <select
+                id="admin-role"
+                name="admin_role_field"
+                value={formData.role || 'ADMIN'}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                required
+              >
+                <option value="ADMIN">ADMIN</option>
+                <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                <option value="MANAGER">MANAGER</option>
+                <option value="EDITOR">EDITOR</option>
+              </select>
+            </div>
+
             <div className="status-toggle-wrapper">
               <div
                 className={`status-toggle-container ${formData.isActive ? 'active' : ''}`}
@@ -1560,6 +1578,10 @@ function AdminsManagement() {
             <div className="admin-detail-item">
               <span className="label">Gender</span>
               <span className="value">{viewedAdmin.gender || 'Select'}</span>
+            </div>
+            <div className="admin-detail-item">
+              <span className="label">Role</span>
+              <span className="value">{viewedAdmin.role || 'ADMIN'}</span>
             </div>
             <div className="admin-detail-item">
               <span className="label">Joined Date</span>
