@@ -167,46 +167,101 @@ export const deleteAdmin = async (id) => {
   return response.data;
 };
 
-// 15. Get All Products (GET /api/superadmin/products)
+// 15. Get All Products (GET /api/superadmin/products or /api/products)
 export const getAllProducts = async (params = {}) => {
-  const response = await api.get('/superadmin/products', { params });
-  return response.data;
+  try {
+    const response = await api.get('/superadmin/products', { params });
+    return response.data;
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      const fallback = await api.get('/products', { params });
+      return fallback.data;
+    }
+    throw err;
+  }
 };
 
-// 16. Get Product By ID (GET /api/superadmin/products/:id)
+// 16. Get Product By ID (GET /api/superadmin/products/:id or /api/products/:id)
 export const getProductById = async (id) => {
-  const response = await api.get(`/superadmin/products/${id}`);
-  return response.data;
+  try {
+    const response = await api.get(`/superadmin/products/${id}`);
+    return response.data;
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      const fallback = await api.get(`/products/${id}`);
+      return fallback.data;
+    }
+    throw err;
+  }
 };
 
-// 17. Create Product (POST /api/superadmin/products)
+// 17. Create Product (POST /api/superadmin/products or /api/products)
 export const createProduct = async (formData) => {
-  const response = await api.post('/superadmin/products', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-  return response.data;
+  try {
+    const response = await api.post('/superadmin/products', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      const fallback = await api.post('/products', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return fallback.data;
+    }
+    throw err;
+  }
 };
 
-// 18. Update Product (PUT /api/superadmin/products/:id)
+// 18. Update Product (PUT /api/superadmin/products/:id or /api/products/:id)
 export const updateProduct = async (id, data) => {
-  const response = await api.put(`/superadmin/products/${id}`, data);
-  return response.data;
+  try {
+    const response = await api.put(`/superadmin/products/${id}`, data);
+    return response.data;
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      const fallback = await api.put(`/products/${id}`, data);
+      return fallback.data;
+    }
+    throw err;
+  }
 };
 
-// 19. Delete Product (DELETE /api/superadmin/products/:id)
+// 19. Delete Product (DELETE /api/superadmin/products/:id or /api/products/:id)
 export const deleteProduct = async (id) => {
-  const response = await api.delete(`/superadmin/products/${id}`);
-  return response.data;
+  try {
+    const response = await api.delete(`/superadmin/products/${id}`);
+    return response.data;
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      const fallback = await api.delete(`/products/${id}`);
+      return fallback.data;
+    }
+    throw err;
+  }
 };
 
-// 20. Update Product Status (PATCH /api/superadmin/products/:id/status)
+// 20. Update Product Status (PATCH /api/superadmin/products/:id/status or /api/products/:id/status)
 export const updateProductStatus = async (id, status) => {
-  const response = await api.patch(`/superadmin/products/${id}/status`, {
-    status: typeof status === 'string' ? status.toUpperCase() : (status ? 'ACTIVE' : 'INACTIVE'),
-  });
-  return response.data;
+  const payloadStatus = typeof status === 'string' ? status.toUpperCase() : (status ? 'ACTIVE' : 'INACTIVE');
+  try {
+    const response = await api.patch(`/superadmin/products/${id}/status`, {
+      status: payloadStatus,
+    });
+    return response.data;
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      const fallback = await api.patch(`/products/${id}/status`, {
+        status: payloadStatus,
+      });
+      return fallback.data;
+    }
+    throw err;
+  }
 };
 
 // 21. Get All Customers (GET /api/superadmin/customers)

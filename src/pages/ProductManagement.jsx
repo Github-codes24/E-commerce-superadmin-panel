@@ -21,6 +21,16 @@ const saveCustomProducts = (products) => {
   }
 }
 
+// Helper to get custom categories from localStorage
+const getStoredCustomCategories = () => {
+  try {
+    const saved = localStorage.getItem('zyvora_custom_categories')
+    return saved ? JSON.parse(saved) : []
+  } catch {
+    return []
+  }
+}
+
 const DEFAULT_PRODUCTS = [
   {
     id: 1,
@@ -264,24 +274,72 @@ function ProductManagement() {
     return 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&q=80&w=350&h=350'
   }
 
+  // Universal response extractor for products API responses
+  const extractProductsList = (res) => {
+    if (!res) return []
+    if (Array.isArray(res)) return res
+    if (Array.isArray(res?.data?.products)) return res.data.products
+    if (Array.isArray(res?.data?.data)) return res.data.data
+    if (Array.isArray(res?.data?.items)) return res.data.items
+    if (Array.isArray(res?.data?.result)) return res.data.result
+    if (Array.isArray(res?.data?.results)) return res.data.results
+    if (Array.isArray(res?.data?.docs)) return res.data.docs
+    if (Array.isArray(res?.data)) return res.data
+    if (Array.isArray(res?.message?.products)) return res.message.products
+    if (Array.isArray(res?.message?.data)) return res.message.data
+    if (Array.isArray(res?.message?.items)) return res.message.items
+    if (Array.isArray(res?.message)) return res.message
+    if (Array.isArray(res?.products)) return res.products
+    if (Array.isArray(res?.items)) return res.items
+    if (Array.isArray(res?.result)) return res.result
+    if (Array.isArray(res?.results)) return res.results
+    if (Array.isArray(res?.docs)) return res.docs
+    return []
+  }
+
   // Format single product response object
   const formatProductItem = (p, index) => {
-    const rawId = p._id || p.id || `prod-${index}`
-    const rawName = p.productName || p.name || 'Unnamed Product'
-    const rawBrand = p.brandName || p.brand || 'N/A'
-    const rawPrice = p.price !== undefined ? p.price : 0
-    const rawDiscountPrice = p.discountPrice !== undefined ? p.discountPrice : (p.discountedPrice || null)
-    const rawStock = p.stock !== undefined ? Number(p.stock) : 0
-    const rawSku = p.sku || 'N/A'
-    const rawColor = p.color || 'N/A'
-    const rawCategory = typeof p.categoryId === 'object' && p.categoryId?.name
-      ? p.categoryId.name
-      : (typeof p.category === 'object' && p.category?.name ? p.category.name : (p.category || p.categoryName || 'General'))
-    const rawVendor = typeof p.vendorId === 'object' && (p.vendorId?.fullName || p.vendorId?.name)
-      ? (p.vendorId.fullName || p.vendorId.name)
-      : (typeof p.vendor === 'object' && (p.vendor?.name || p.vendor?.vendorName) ? (p.vendor.name || p.vendor.vendorName) : (p.vendor || p.vendorName || 'Super Admin'))
+    if (!p) return null
+    const rawId = p._id || p.id || `prod-${index}-${Date.now()}`
+    const rawName = p.productName || p.name || p.title || 'Unnamed Product'
+    const rawBrand = p.brandName || p.brand || p.brand_name || 'N/A'
+    const rawPrice = p.price !== undefined ? p.price : (p.regularPrice !== undefined ? p.regularPrice : (p.originalPrice !== undefined ? p.originalPrice : 0))
+    const rawDiscountPrice = p.discountPrice !== undefined ? p.discountPrice : (p.discountedPrice !== undefined ? p.discountedPrice : (p.salePrice !== undefined ? p.salePrice : (p.offerPrice !== undefined ? p.offerPrice : null)))
+    const rawStock = p.stock !== undefined ? Number(p.stock) : (p.quantity !== undefined ? Number(p.quantity) : (p.countInStock !== undefined ? Number(p.countInStock) : 0))
+    const rawSku = p.sku || p.productSku || p.code || 'N/A'
+    const rawColor = p.color || p.colour || 'N/A'
 
-    let rawStatus = (p.status || (rawStock === 0 ? 'OUT_OF_STOCK' : 'ACTIVE')).toString().toLowerCase()
+    // Category resolution
+    let rawCategory = 'General'
+    if (typeof p.categoryId === 'object' && p.categoryId !== null) {
+      rawCategory = p.categoryId.name || p.categoryId.title || p.categoryId.categoryName || 'General'
+    } else if (typeof p.category === 'object' && p.category !== null) {
+      rawCategory = p.category.name || p.category.title || p.category.categoryName || 'General'
+    } else if (p.category) {
+      rawCategory = p.category
+    } else if (p.categoryName) {
+      rawCategory = p.categoryName
+    }
+
+    // Vendor resolution
+    let rawVendor = 'Super Admin'
+    if (typeof p.vendorId === 'object' && p.vendorId !== null) {
+      rawVendor = p.vendorId.fullName || p.vendorId.name || p.vendorId.storeName || p.vendorId.shopName || 'Super Admin'
+    } else if (typeof p.vendor === 'object' && p.vendor !== null) {
+      rawVendor = p.vendor.fullName || p.vendor.name || p.vendor.storeName || p.vendor.vendorName || 'Super Admin'
+    } else if (p.vendor) {
+      rawVendor = p.vendor
+    } else if (p.vendorName) {
+      rawVendor = p.vendorName
+    }
+
+    // Status resolution
+    let rawStatus = 'active'
+    if (p.status !== undefined) {
+      rawStatus = p.status.toString().toLowerCase()
+    } else if (p.isActive !== undefined) {
+      rawStatus = p.isActive ? 'active' : 'inactive'
+    }
     if (rawStatus === 'active' && rawStock === 0) {
       rawStatus = 'out-of-stock'
     } else if (rawStatus === 'out_of_stock') {
@@ -290,16 +348,28 @@ function ProductManagement() {
 
     const smartFallback = getProductFallbackImage({ productName: rawName, category: rawCategory })
 
-    const rawImages = Array.isArray(p.images) && p.images.length > 0
-      ? p.images
-      : (p.image ? [p.image] : [])
+    // Images resolution
+    let rawImages = []
+    if (Array.isArray(p.images) && p.images.length > 0) {
+      rawImages = p.images
+    } else if (Array.isArray(p.gallery) && p.gallery.length > 0) {
+      rawImages = p.gallery
+    } else if (Array.isArray(p.photos) && p.photos.length > 0) {
+      rawImages = p.photos
+    } else if (p.image) {
+      rawImages = [p.image]
+    } else if (p.thumbnail) {
+      rawImages = [p.thumbnail]
+    } else if (p.productImage) {
+      rawImages = [p.productImage]
+    }
 
-    const formattedImages = rawImages.map(img => getFullImageUrl(img)).filter(Boolean)
+    const formattedImages = rawImages.map(img => (typeof img === 'string' ? getFullImageUrl(img) : (img?.url ? getFullImageUrl(img.url) : ''))).filter(Boolean)
     const imagesList = formattedImages.length > 0 ? formattedImages : [smartFallback]
     const primaryImage = imagesList[0] || smartFallback
 
-    const joinedDateFormatted = p.createdAt || p.joinedOn
-      ? new Date(p.createdAt || p.joinedOn).toLocaleDateString('en-US', {
+    const joinedDateFormatted = p.createdAt || p.joinedOn || p.date
+      ? new Date(p.createdAt || p.joinedOn || p.date).toLocaleDateString('en-US', {
         day: '2-digit',
         month: 'long',
         year: 'numeric'
@@ -325,7 +395,7 @@ function ProductManagement() {
       status: rawStatus,
       tag: Array.isArray(p.tags) ? p.tags.join(', ') : (p.tag || `${rawCategory}, ${rawBrand}`),
       returnPolicy: p.returnPolicy || '7 Days Replacement',
-      desc: p.description || p.desc || `High quality ${rawName} by ${rawBrand}.`,
+      desc: p.description || p.desc || p.details || `High quality ${rawName} by ${rawBrand}.`,
       image: primaryImage,
       images: imagesList,
       joinedOn: joinedDateFormatted,
@@ -341,26 +411,14 @@ function ProductManagement() {
       setFetchError(null)
       const res = await getAllProducts()
 
-      // Handle response formats:
-      // 1. { success: true, message: "...", data: { products: [...], pagination: { ... } } }
-      // 2. { success: true, data: [...] }
-      // 3. { products: [...] }
-      let productsData = []
-      if (res?.data && Array.isArray(res.data.products)) {
-        productsData = res.data.products
-      } else if (Array.isArray(res?.data)) {
-        productsData = res.data
-      } else if (Array.isArray(res?.products)) {
-        productsData = res.products
-      } else if (Array.isArray(res)) {
-        productsData = res
-      }
+      // Robust extraction of products data from any backend response format
+      const productsData = extractProductsList(res)
 
       const custom = getStoredCustomProducts()
-      const apiFormatted = productsData.map((item, idx) => formatProductItem(item, idx))
+      const apiFormatted = productsData.map((item, idx) => formatProductItem(item, idx)).filter(Boolean)
 
       const mergedMap = new Map()
-      // Custom created products first
+      // Custom created products first so admin creations always stay at the top
       custom.forEach(p => {
         const key = String(p._id || p.id || p.sku || p.name)
         mergedMap.set(key, p)
@@ -380,14 +438,20 @@ function ProductManagement() {
       setProductsList(mergedList)
       setIsApiLoaded(true)
 
-      const pagination = res?.data?.pagination || res?.pagination
+      const pagination = res?.data?.pagination || res?.pagination || res?.message?.pagination
       if (pagination) {
         setPaginationData({
-          currentPage: pagination.currentPage || 1,
-          totalPages: pagination.totalPages || 1,
-          totalProducts: pagination.totalProducts !== undefined ? pagination.totalProducts : (productsData.length || 500),
+          currentPage: pagination.currentPage || pagination.page || 1,
+          totalPages: pagination.totalPages || Math.ceil((pagination.total || pagination.totalProducts || mergedList.length) / 10) || 1,
+          totalProducts: pagination.totalProducts !== undefined ? pagination.totalProducts : (pagination.total !== undefined ? pagination.total : mergedList.length),
           limit: pagination.limit || 10
         })
+      } else {
+        setPaginationData(prev => ({
+          ...prev,
+          totalProducts: mergedList.length,
+          totalPages: Math.ceil(mergedList.length / 10) || 1
+        }))
       }
     } catch (err) {
       console.error('Failed to fetch products:', err)
@@ -624,12 +688,21 @@ function ProductManagement() {
 
   const fileInputRef = useRef(null)
 
-  // Dynamic category dropdown options derived from live backend categories & products
+  // Dynamic category dropdown options derived from live backend categories, custom categories & products
   const categoriesList = useMemo(() => {
     const list = []
     const seen = new Set()
 
     backendCategories.forEach(cat => {
+      const name = (cat.name || cat.categoryName || '').trim()
+      if (name && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase())
+        list.push({ id: cat._id || cat.id, name })
+      }
+    })
+
+    const customCats = getStoredCustomCategories()
+    customCats.forEach(cat => {
       const name = (cat.name || cat.categoryName || '').trim()
       if (name && !seen.has(name.toLowerCase())) {
         seen.add(name.toLowerCase())
@@ -1059,8 +1132,9 @@ function ProductManagement() {
       // Call PATCH /api/superadmin/products/:id/status if ID is a valid backend MongoDB ID
       const isValidMongoId = typeof productId === 'string' && /^[0-9a-fA-F]{24}$/.test(productId)
       if (isValidMongoId) {
+        let res = null
         try {
-          const res = await updateProductStatus(productId, targetStatus)
+          res = await updateProductStatus(productId, targetStatus)
           const successMsg = res?.message || `Product status updated to ${targetStatus} successfully.`
           showToast(successMsg, 'success')
         } catch (apiErr) {
@@ -1122,9 +1196,9 @@ function ProductManagement() {
       (product.vendor || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (product.sku || '').toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory =
-      categoryFilter === 'all' ? true : product.category === categoryFilter
+      categoryFilter === 'all' ? true : (product.category || '').trim().toLowerCase() === categoryFilter.trim().toLowerCase()
     const matchesStatus =
-      statusFilter === 'all' ? true : product.status === statusFilter
+      statusFilter === 'all' ? true : (product.status || '').trim().toLowerCase() === statusFilter.trim().toLowerCase()
     return matchesSearch && matchesCategory && matchesStatus
   })
 
@@ -1703,7 +1777,7 @@ function ProductManagement() {
     { id: 'total', filterVal: 'all', label: 'Total Products', value: productsList.length, icon: Package, background: '#ffecb3', color: '#3b82f6' },
     { id: 'active', filterVal: 'active', label: 'Active Products', value: productsList.filter(p => p.status === 'active').length, icon: CheckCircle2, background: '#c8e6c9', color: '#2ecc71' },
     { id: 'outofstock', filterVal: 'out-of-stock', label: 'Out Of Stock', value: productsList.filter(p => p.status === 'out-of-stock' || Number(p.stock) === 0).length, icon: ShieldAlert, background: '#ffcdd2', color: '#f43f5e' },
-    { id: 'category', filterVal: 'category', label: 'Product Category', value: new Set(productsList.map(p => p.category)).size, icon: LayoutGrid, background: '#b2dfdb', color: '#3b82f6' }
+    { id: 'category', filterVal: 'category', label: 'Product Category', value: categoriesList.length > 0 ? categoriesList.length : new Set(productsList.map(p => (p.category || '').trim()).filter(Boolean)).size, icon: LayoutGrid, background: '#b2dfdb', color: '#3b82f6' }
   ]
 
   return (

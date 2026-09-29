@@ -21,6 +21,39 @@ const saveCustomCategories = (categories) => {
   }
 }
 
+// Helper to get custom created products from localStorage
+const getStoredCustomProducts = () => {
+  try {
+    const saved = localStorage.getItem('zyvora_custom_products')
+    return saved ? JSON.parse(saved) : []
+  } catch {
+    return []
+  }
+}
+
+// Universal response extractor for products API responses
+const extractProductsList = (res) => {
+  if (!res) return []
+  if (Array.isArray(res)) return res
+  if (Array.isArray(res?.data?.products)) return res.data.products
+  if (Array.isArray(res?.data?.data)) return res.data.data
+  if (Array.isArray(res?.data?.items)) return res.data.items
+  if (Array.isArray(res?.data?.result)) return res.data.result
+  if (Array.isArray(res?.data?.results)) return res.data.results
+  if (Array.isArray(res?.data?.docs)) return res.data.docs
+  if (Array.isArray(res?.data)) return res.data
+  if (Array.isArray(res?.message?.products)) return res.message.products
+  if (Array.isArray(res?.message?.data)) return res.message.data
+  if (Array.isArray(res?.message?.items)) return res.message.items
+  if (Array.isArray(res?.message)) return res.message
+  if (Array.isArray(res?.products)) return res.products
+  if (Array.isArray(res?.items)) return res.items
+  if (Array.isArray(res?.result)) return res.result
+  if (Array.isArray(res?.results)) return res.results
+  if (Array.isArray(res?.docs)) return res.docs
+  return []
+}
+
 const DEFAULT_CATEGORIES = [
   { id: 2, name: 'Beauty', subcatsCount: 5, productsCount: 76, status: 'inactive', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
   { id: 3, name: 'Home', subcatsCount: 4, productsCount: 543, status: 'active', image: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
@@ -36,6 +69,7 @@ function CategoryManagement() {
   const [categoryDetailsLoading, setCategoryDetailsLoading] = useState(false)
   const [fetchError, setFetchError] = useState(null)
   const [isApiLoaded, setIsApiLoaded] = useState(false)
+  const [totalProductsCount, setTotalProductsCount] = useState(0)
   const [paginationData, setPaginationData] = useState({
     currentPage: 1,
     totalPages: 1,
@@ -139,19 +173,24 @@ function CategoryManagement() {
     const rawImg = cat.image || cat.imageUrl || cat.categoryImage || cat.icon
     const image = rawImg ? getFullImageUrl(rawImg) : 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200'
 
-    const catName = cat.name || cat.categoryName || 'Unnamed Category'
+    const catName = (cat.name || cat.categoryName || 'Unnamed Category').trim()
+    const catId = String(cat._id || cat.id || `cat-${idx + 1}`)
     const subcatsCount = cat.subcategoriesCount ?? cat.subcatsCount ?? (Array.isArray(cat.subcategories) ? cat.subcategories.length : 0)
-    
-    // Live product count from backend or cross-referenced map
-    const mappedProductCount = productCountsMap[catName.toLowerCase()] ?? productCountsMap[cat._id]
-    const productsCount = cat.productsCount ?? cat.totalProducts ?? cat.productCount ?? (Array.isArray(cat.products) ? cat.products.length : (mappedProductCount !== undefined ? mappedProductCount : 0))
+
+    // Live product count from cross-referenced products map or backend
+    const mappedByName = productCountsMap[catName.toLowerCase()]
+    const mappedById = productCountsMap[catId.toLowerCase()]
+    const liveCalculatedCount = mappedByName !== undefined ? mappedByName : (mappedById !== undefined ? mappedById : undefined)
+
+    const rawBackendCount = cat.productsCount || cat.totalProducts || cat.productCount || (Array.isArray(cat.products) ? cat.products.length : 0)
+    const productsCount = liveCalculatedCount !== undefined ? liveCalculatedCount : (rawBackendCount || 0)
 
     return {
-      id: cat._id || cat.id || `cat-${idx + 1}`,
+      id: catId,
       rawId: cat._id || cat.id,
       _id: cat._id || cat.id,
       name: catName,
-      slug: cat.slug || '',
+      slug: cat.slug || catName.toLowerCase().replace(/\s+/g, '-'),
       description: cat.description || '',
       subcatsCount: typeof subcatsCount === 'number' ? subcatsCount : 0,
       productsCount: typeof productsCount === 'number' ? productsCount : 0,
@@ -189,25 +228,34 @@ function CategoryManagement() {
       const productCountsMap = {}
       try {
         const prodRes = await getAllProducts()
-        let products = []
-        if (prodRes?.data && Array.isArray(prodRes.data.products)) {
-          products = prodRes.data.products
-        } else if (Array.isArray(prodRes?.data)) {
-          products = prodRes.data
-        } else if (Array.isArray(prodRes?.products)) {
-          products = prodRes.products
-        } else if (Array.isArray(prodRes)) {
-          products = prodRes
-        }
+        const apiProducts = extractProductsList(prodRes)
+        const customProducts = getStoredCustomProducts()
 
-        products.forEach(p => {
+        // Merge API products and custom products
+        const allProductsMap = new Map()
+        customProducts.forEach(p => {
+          const key = String(p._id || p.id || p.sku || p.name).toLowerCase()
+          allProductsMap.set(key, p)
+        })
+        apiProducts.forEach(p => {
+          const key = String(p._id || p.id || p.sku || p.name).toLowerCase()
+          if (!allProductsMap.has(key)) {
+            allProductsMap.set(key, p)
+          }
+        })
+        const allProducts = Array.from(allProductsMap.values())
+        setTotalProductsCount(allProducts.length)
+
+        allProducts.forEach(p => {
           const catObj = typeof p.categoryId === 'object' && p.categoryId !== null ? p.categoryId : null
-          const pCatName = (catObj?.name || (typeof p.category === 'object' ? p.category?.name : p.category) || p.categoryName || '').trim().toLowerCase()
+          const pCatName = (catObj?.name || (typeof p.category === 'object' ? p.category?.name : p.category) || p.categoryName || p.category || '').trim().toLowerCase()
+          const pCatId = catObj?._id || (typeof p.categoryId === 'string' ? p.categoryId : '')
+
           if (pCatName) {
             productCountsMap[pCatName] = (productCountsMap[pCatName] || 0) + 1
           }
-          if (catObj?._id) {
-            productCountsMap[catObj._id] = (productCountsMap[catObj._id] || 0) + 1
+          if (pCatId) {
+            productCountsMap[String(pCatId).toLowerCase()] = (productCountsMap[String(pCatId).toLowerCase()] || 0) + 1
           }
         })
       } catch (prodErr) {
@@ -241,16 +289,7 @@ function CategoryManagement() {
       if (!categoriesData || categoriesData.length === 0) {
         try {
           const prodRes = await getAllProducts()
-          let products = []
-          if (prodRes?.data && Array.isArray(prodRes.data.products)) {
-            products = prodRes.data.products
-          } else if (Array.isArray(prodRes?.data)) {
-            products = prodRes.data
-          } else if (Array.isArray(prodRes?.products)) {
-            products = prodRes.products
-          } else if (Array.isArray(prodRes)) {
-            products = prodRes
-          }
+          const products = extractProductsList(prodRes)
 
           if (products.length > 0) {
             const catMap = new Map()
@@ -297,23 +336,30 @@ function CategoryManagement() {
       const apiFormatted = (categoriesData || []).map((item, idx) => formatCategoryItem(item, idx, productCountsMap))
 
       const mergedMap = new Map()
-      // Custom created categories first (preserve user uploaded images)
-      custom.forEach(c => {
-        const key = String(c._id || c.id || c.name).toLowerCase()
-        mergedMap.set(key, c)
-      })
+      // API categories first - indexed by lowercase normalized name to deduplicate
       apiFormatted.forEach(c => {
-        const key = String(c._id || c.id || c.name).toLowerCase()
-        if (!mergedMap.has(key)) {
+        const key = (c.name || '').trim().toLowerCase()
+        if (key) {
           mergedMap.set(key, c)
-        } else {
-          // If custom has an uploaded image (e.g. data URL or custom image), keep the custom image
+        }
+      })
+
+      // Custom created categories merged on top
+      custom.forEach(c => {
+        const key = (c.name || '').trim().toLowerCase()
+        if (key) {
           const existing = mergedMap.get(key)
-          mergedMap.set(key, {
-            ...c,
-            ...existing,
-            image: existing.image || c.image
-          })
+          if (existing) {
+            mergedMap.set(key, {
+              ...existing,
+              ...c,
+              image: c.image || existing.image,
+              productsCount: Math.max(c.productsCount || 0, existing.productsCount || 0)
+            })
+          } else {
+            const formattedCustom = formatCategoryItem(c, mergedMap.size, productCountsMap)
+            mergedMap.set(key, formattedCustom)
+          }
         }
       })
 
@@ -995,7 +1041,7 @@ function CategoryManagement() {
   const displayTotalCount = categoriesList.length
   const displayActiveCount = categoriesList.filter(c => c.status === 'active').length
   const displayInactiveCount = categoriesList.filter(c => c.status === 'inactive').length
-  const displayTotalProds = categoriesList.reduce((sum, c) => sum + (c.productsCount || 0), 0)
+  const displayTotalProds = totalProductsCount > 0 ? totalProductsCount : categoriesList.reduce((sum, c) => sum + (c.productsCount || 0), 0)
 
   // Clamp current page when total pages shrink
   useEffect(() => {
