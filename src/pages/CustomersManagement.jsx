@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Calendar, DollarSign, Box, Gift, ChevronLeft, ChevronRight, X, ArrowDown, RotateCw, AlertCircle, CheckCircle2, MapPin, ShoppingBag, Check } from 'lucide-react'
+import { Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Calendar, DollarSign, Box, Gift, ChevronLeft, ChevronRight, X, ArrowDown, RotateCw, AlertCircle, CheckCircle2, MapPin, ShoppingBag, Check, Camera, Upload } from 'lucide-react'
 import { getAllCustomers, getCustomerById, updateCustomer, updateCustomerStatus, deleteCustomer, getOrdersByCustomer } from '../services/superAdminService'
 import './CustomersManagement.css'
 
@@ -160,9 +160,12 @@ function CustomersManagement() {
         const cart = customerData?.cart || {}
         const orders = customerOrdersData.length > 0 ? customerOrdersData : (Array.isArray(customerData?.orders) ? customerData.orders : [])
 
-        const rawName = cust.fullName || cust.name || customer.name
-        const rawEmail = cust.email || customer.email
-        const rawPhone = cust.mobile || cust.phone || cust.phoneNumber || customer.phone
+        const editOverrides = getStoredCustomerEditOverrides()
+        const edited = editOverrides[String(customerId)] || {}
+        const rawName = edited.fullName || edited.name || cust.fullName || cust.name || customer.name
+        const rawEmail = edited.email || cust.email || customer.email
+        const rawPhone = edited.mobile || edited.phone || cust.mobile || cust.phone || cust.phoneNumber || customer.phone
+        const rawAvatar = edited.avatar || edited.profilePhoto || edited.image || cust.avatar || cust.profileImage || cust.image || customer.avatar
         const rawStatus = (cust.status || customer.status || 'ACTIVE').toString().toLowerCase() === 'active' ? 'active' : 'blocked'
         const rawJoinedOn = cust.createdAt
           ? new Date(cust.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -217,7 +220,7 @@ function CustomersManagement() {
           addresses,
           cart,
           ordersList: mappedOrders.length > 0 ? mappedOrders : null,
-          avatar: cust.avatar || cust.profileImage || cust.image || customer.avatar
+          avatar: rawAvatar
         }))
       }
     } catch (err) {
@@ -235,7 +238,8 @@ function CustomersManagement() {
       fullName: customer.fullName || customer.name || '',
       email: customer.email || '',
       mobile: customer.mobile || customer.phone || '',
-      isVerified: customer.isVerified !== undefined ? customer.isVerified : true
+      isVerified: customer.isVerified !== undefined ? customer.isVerified : true,
+      avatar: customer.avatar || (customer.id === 4 ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256&h=256' : 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=256&h=256')
     })
     setEditError('')
   }
@@ -268,7 +272,8 @@ function CustomersManagement() {
         email: editFormData.email.trim(),
         mobile: editFormData.mobile.trim(),
         phone: editFormData.mobile.trim(),
-        isVerified: editFormData.isVerified
+        isVerified: editFormData.isVerified,
+        avatar: editFormData.avatar
       }
 
       if (customerId && typeof customerId === 'string' && !customerId.startsWith('cust-')) {
@@ -277,7 +282,8 @@ function CustomersManagement() {
             fullName: updatedPayload.fullName,
             email: updatedPayload.email,
             mobile: updatedPayload.mobile,
-            isVerified: updatedPayload.isVerified
+            isVerified: updatedPayload.isVerified,
+            avatar: updatedPayload.avatar
           })
           const successMsg = res?.message || 'Customer updated successfully.'
           showToast(successMsg, 'success')
@@ -302,7 +308,8 @@ function CustomersManagement() {
             email: updatedPayload.email,
             phone: updatedPayload.mobile,
             mobile: updatedPayload.mobile,
-            isVerified: updatedPayload.isVerified
+            isVerified: updatedPayload.isVerified,
+            avatar: updatedPayload.avatar
           }
         }
         return c
@@ -317,7 +324,8 @@ function CustomersManagement() {
           email: updatedPayload.email,
           phone: updatedPayload.mobile,
           mobile: updatedPayload.mobile,
-          isVerified: updatedPayload.isVerified
+          isVerified: updatedPayload.isVerified,
+          avatar: updatedPayload.avatar
         }) : null)
       }
 
@@ -340,6 +348,7 @@ function CustomersManagement() {
     const rawName = edited.fullName || edited.name || c.fullName || c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown Customer'
     const rawEmail = edited.email || c.email || 'N/A'
     const rawPhone = edited.mobile || edited.phone || c.mobile || c.phone || c.phoneNumber || '9876543210'
+    const rawAvatar = edited.avatar || edited.profilePhoto || edited.image || c.avatar || c.profileImage || c.image || (index === 3 ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256&h=256' : 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=256&h=256')
     const overrides = getStoredCustomerStatusOverrides()
     let rawStatus = (c.status || 'ACTIVE').toString().toLowerCase() === 'active' ? 'active' : 'blocked'
     if (c.isActive !== undefined) {
@@ -379,7 +388,7 @@ function CustomersManagement() {
       spent: rawSpent,
       returns: rawReturns,
       rawCreatedAt: c.createdAt || c.joinedOn,
-      avatar: c.avatar || c.profileImage || c.image || null,
+      avatar: rawAvatar,
     }
   }
 
@@ -682,6 +691,70 @@ function CustomersManagement() {
           )}
 
           <form onSubmit={handleEditSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Customer Profile Photo Upload & Change Section */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '8px' }}>
+              <div style={{ position: 'relative', width: '96px', height: '96px' }}>
+                <img 
+                  src={editFormData.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=256&h=256'} 
+                  alt="Customer Profile" 
+                  style={{
+                    width: '96px',
+                    height: '96px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '2.5px solid #a8d572',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}
+                  onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
+                />
+                <button
+                  type="button"
+                  title="Upload / Change Photo"
+                  onClick={() => document.getElementById('customer-photo-file-input').click()}
+                  style={{
+                    position: 'absolute',
+                    bottom: '0px',
+                    right: '0px',
+                    backgroundColor: '#1e293b',
+                    color: '#ffffff',
+                    border: '2px solid #ffffff',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+                    transition: 'transform 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                  <Camera style={{ width: '16px', height: '16px' }} />
+                </button>
+                <input
+                  type="file"
+                  id="customer-photo-file-input"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files[0]
+                    if (file) {
+                      const reader = new FileReader()
+                      reader.onloadend = () => {
+                        setEditFormData(prev => ({ ...prev, avatar: reader.result }))
+                      }
+                      reader.readAsDataURL(file)
+                    }
+                  }}
+                />
+              </div>
+              <span style={{ fontSize: '12px', color: '#64748b', marginTop: '8px', fontWeight: '500' }}>
+                Upload / Change Profile Photo
+              </span>
+            </div>
+
             <div>
               <label style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>Full Name *</label>
               <input 
@@ -1237,7 +1310,15 @@ function CustomersManagement() {
                       className="table-link-name"
                       onClick={() => handleViewCustomer(customer)}
                     >
-                      {customer.name}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <img 
+                          src={customer.avatar || (customer.id === 4 ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256&h=256' : 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=256&h=256')} 
+                          alt=""
+                          style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                          onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
+                        />
+                        <span>{customer.name}</span>
+                      </div>
                     </td>
                     <td>{customer.phone}</td>
                     <td>{customer.email}</td>

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { LayoutGrid, Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, X, ChevronLeft, ChevronRight, Palette, Calendar, Layers, Tag, Package, CheckCircle2, RotateCw, Mail, Phone, AlertCircle, ToggleLeft, ToggleRight, Check } from 'lucide-react'
+import { LayoutGrid, Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, X, ChevronLeft, ChevronRight, Palette, Calendar, Layers, Tag, Package, CheckCircle2, RotateCw, Mail, Phone, AlertCircle, ToggleLeft, ToggleRight, Check, Maximize2, ZoomIn, ZoomOut } from 'lucide-react'
 import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, updateProductStatus, getAllCategories, getAllVendors } from '../services/superAdminService'
 import './ProductManagement.css'
 
@@ -274,6 +274,108 @@ function ProductManagement() {
     return 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&q=80&w=350&h=350'
   }
 
+  // Get complete gallery with distinct corresponding images for each thumbnail & slide
+  const getContextualProductGallery = (product) => {
+    if (!product) return ['https://via.placeholder.com/350']
+    const smartFallback = getProductFallbackImage(product)
+    const name = (product?.productName || product?.name || '').toLowerCase()
+    const cat = (product?.category || product?.categoryId?.name || '').toLowerCase()
+
+    let rawList = []
+    if (Array.isArray(product?.images) && product.images.length > 0) {
+      rawList = product.images
+    } else if (product?.image) {
+      rawList = [product.image]
+    }
+
+    const cleanList = rawList
+      .map(img => (typeof img === 'string' ? getFullImageUrl(img) : (img?.url ? getFullImageUrl(img.url) : '')))
+      .filter(img => typeof img === 'string' && img.trim().length > 0 && !img.includes('via.placeholder.com'))
+
+    if (cleanList.length > 1) {
+      return cleanList
+    }
+
+    const mainImg = cleanList[0] || smartFallback
+
+    if (name.includes('headphone') || name.includes('earphone') || name.includes('sound') || name.includes('audio')) {
+      return [
+        mainImg,
+        'https://images.unsplash.com/photo-1546435770-a3e426bf472b?auto=format&fit=crop&q=80&w=350&h=350',
+        'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&q=80&w=350&h=350'
+      ]
+    }
+    if (name.includes('bag') || cat.includes('bag')) {
+      return [
+        mainImg,
+        'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&q=80&w=350&h=350',
+        'https://images.unsplash.com/photo-1566150905458-1bf1fc15a690?auto=format&fit=crop&q=80&w=350&h=350'
+      ]
+    }
+    if (name.includes('shirt') || name.includes('formal') || cat.includes('fashion') || cat.includes('cloth')) {
+      return [
+        mainImg,
+        'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&q=80&w=350&h=350',
+        'https://images.unsplash.com/photo-1620012253295-c05cb3e65df4?auto=format&fit=crop&q=80&w=350&h=350'
+      ]
+    }
+    if (name.includes('chair') || name.includes('furniture') || name.includes('sofa') || name.includes('table') || name.includes('bed')) {
+      return [
+        mainImg,
+        'https://images.unsplash.com/photo-1580481077195-c990b79374e2?auto=format&fit=crop&q=80&w=350&h=350',
+        'https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?auto=format&fit=crop&q=80&w=350&h=350'
+      ]
+    }
+    if (name.includes('lamp') || name.includes('light') || cat.includes('home')) {
+      return [
+        mainImg,
+        'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&q=80&w=350&h=350',
+        'https://images.unsplash.com/photo-1534073828943-f801091bb18c?auto=format&fit=crop&q=80&w=350&h=350'
+      ]
+    }
+    if (name.includes('jewel') || name.includes('neckless') || name.includes('ring')) {
+      return [
+        mainImg,
+        'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&q=80&w=350&h=350',
+        'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?auto=format&fit=crop&q=80&w=350&h=350'
+      ]
+    }
+    if (name.includes('tv') || name.includes('screen') || cat.includes('electronics')) {
+      return [
+        mainImg,
+        'https://images.unsplash.com/photo-1461151351977-2244026b8f83?auto=format&fit=crop&q=80&w=350&h=350',
+        'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?auto=format&fit=crop&q=80&w=350&h=350'
+      ]
+    }
+    if (name.includes('shoe') || name.includes('sneaker') || cat.includes('footwear')) {
+      return [
+        mainImg,
+        'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&q=80&w=350&h=350',
+        'https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?auto=format&fit=crop&q=80&w=350&h=350'
+      ]
+    }
+    if (name.includes('watch') || cat.includes('watch')) {
+      return [
+        mainImg,
+        'https://images.unsplash.com/photo-1542496658-e33a6d0d50f6?auto=format&fit=crop&q=80&w=350&h=350',
+        'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&q=80&w=350&h=350'
+      ]
+    }
+    if (name.includes('phone') || name.includes('mobile')) {
+      return [
+        mainImg,
+        'https://images.unsplash.com/photo-1580910051074-3eb694886505?auto=format&fit=crop&q=80&w=350&h=350',
+        'https://images.unsplash.com/photo-1565849904461-04a58ad377e0?auto=format&fit=crop&q=80&w=350&h=350'
+      ]
+    }
+
+    return [
+      mainImg,
+      'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=350&h=350',
+      'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&q=80&w=350&h=350'
+    ]
+  }
+
   // Universal response extractor for products API responses
   const extractProductsList = (res) => {
     if (!res) return []
@@ -525,10 +627,29 @@ function ProductManagement() {
   const [deletingProductId, setDeletingProductId] = useState(null)
   const [viewedProduct, setViewedProduct] = useState(null) // customer in details profile view
   const [activeSlideIndex, setActiveSlideIndex] = useState(0) // image slider index
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false) // full-screen enlarged image modal
+  const [zoomLevel, setZoomLevel] = useState(1) // lightbox zoom level
   const [productDetailsLoading, setProductDetailsLoading] = useState(false)
   const [productDetailsError, setProductDetailsError] = useState(null)
   const [statusUpdatingId, setStatusUpdatingId] = useState(null)
   const [toastMessage, setToastMessage] = useState(null)
+
+  // Keyboard navigation for full-screen lightbox
+  useEffect(() => {
+    if (!isLightboxOpen) return
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsLightboxOpen(false)
+        setZoomLevel(1)
+      } else if (e.key === 'ArrowLeft') {
+        setActiveSlideIndex(prev => (prev === 0 ? 2 : prev - 1))
+      } else if (e.key === 'ArrowRight') {
+        setActiveSlideIndex(prev => (prev >= 2 ? 0 : prev + 1))
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isLightboxOpen])
 
   const showToast = (text, type = 'success') => {
     setToastMessage({ text, type })
@@ -1211,16 +1332,16 @@ function ProductManagement() {
 
   // 1. Render Product Profile View Details
   if (viewedProduct) {
-    // Generate variant image slides based on product image
-    const sliderImages = viewedProduct.images && viewedProduct.images.length > 0
-      ? viewedProduct.images
-      : [viewedProduct.image]
+    // Generate variant image slides based on product gallery
+    const sliderImages = getContextualProductGallery(viewedProduct)
 
-    const handlePrevSlide = () => {
+    const handlePrevSlide = (e) => {
+      if (e) e.stopPropagation()
       setActiveSlideIndex(prev => (prev === 0 ? sliderImages.length - 1 : prev - 1))
     }
 
-    const handleNextSlide = () => {
+    const handleNextSlide = (e) => {
+      if (e) e.stopPropagation()
       setActiveSlideIndex(prev => (prev === sliderImages.length - 1 ? 0 : prev + 1))
     }
 
@@ -1228,7 +1349,6 @@ function ProductManagement() {
     const tagPills = viewedProduct.tag
       ? viewedProduct.tag.split(',').map(t => t.trim())
       : ['Product', 'New']
-    console.log(" paginatedProducts", paginatedProducts)
 
     return (
       <div className="product-profile-view" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -1269,15 +1389,30 @@ function ProductManagement() {
           {/* Left Column (Image Slider and Details table) */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
 
-            {/* Image Slider Container */}
-            <div className="product-slider-container">
-              <button type="button" className="slider-nav-btn prev" onClick={handlePrevSlide}>
-                <ChevronLeft style={{ width: '16px', height: '16px' }} />
-              </button>
+            {/* Image Slider Container with Full-screen click */}
+            <div
+              className="product-slider-container"
+              style={{ position: 'relative', cursor: 'zoom-in' }}
+              onClick={() => {
+                setIsLightboxOpen(true)
+                setZoomLevel(1)
+              }}
+              title="Click to open full-screen enlarged view"
+            >
+              {sliderImages.length > 1 && (
+                <button
+                  type="button"
+                  className="slider-nav-btn prev"
+                  onClick={handlePrevSlide}
+                  title="Previous Image"
+                >
+                  <ChevronLeft style={{ width: '16px', height: '16px' }} />
+                </button>
+              )}
 
               <img
                 src={sliderImages[activeSlideIndex] || getProductFallbackImage(viewedProduct)}
-                alt="Product slider view"
+                alt={`Product view ${activeSlideIndex + 1}`}
                 className="slider-main-img"
                 onError={(e) => {
                   e.target.onerror = null;
@@ -1285,9 +1420,49 @@ function ProductManagement() {
                 }}
               />
 
-              <button type="button" className="slider-nav-btn next" onClick={handleNextSlide}>
-                <ChevronRight style={{ width: '16px', height: '16px' }} />
+              {/* Full Screen Hint Button */}
+              <button
+                type="button"
+                className="slider-fullscreen-btn"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsLightboxOpen(true)
+                  setZoomLevel(1)
+                }}
+                title="Open in Full Screen (Enlarge)"
+              >
+                <Maximize2 style={{ width: '14px', height: '14px' }} />
+                <span>Enlarge</span>
               </button>
+
+              {sliderImages.length > 1 && (
+                <button
+                  type="button"
+                  className="slider-nav-btn next"
+                  onClick={handleNextSlide}
+                  title="Next Image"
+                >
+                  <ChevronRight style={{ width: '16px', height: '16px' }} />
+                </button>
+              )}
+
+              {sliderImages.length > 1 && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '12px',
+                  right: '16px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                  color: '#ffffff',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  padding: '3px 8px',
+                  borderRadius: '12px',
+                  backdropFilter: 'blur(4px)',
+                  letterSpacing: '0.5px'
+                }}>
+                  {activeSlideIndex + 1} / {sliderImages.length}
+                </div>
+              )}
             </div>
 
             {/* Thumbnails Row */}
@@ -1296,13 +1471,136 @@ function ProductManagement() {
                 <img
                   key={idx}
                   src={img}
-                  alt={`Thumbnail ${idx}`}
+                  alt={`Product thumbnail angle ${idx + 1}`}
                   className={`product-thumbnail-item ${idx === activeSlideIndex ? 'active' : ''}`}
                   onClick={() => setActiveSlideIndex(idx)}
-                  onError={(e) => { e.target.src = 'https://via.placeholder.com/60' }}
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = getProductFallbackImage(viewedProduct);
+                  }}
+                  title={`View image ${idx + 1}`}
                 />
               ))}
             </div>
+
+            {/* Full-Screen Enlarged Lightbox Modal */}
+            {isLightboxOpen && (
+              <div
+                className="product-lightbox-overlay"
+                onClick={() => {
+                  setIsLightboxOpen(false)
+                  setZoomLevel(1)
+                }}
+              >
+                <div
+                  className="product-lightbox-content"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Lightbox Header Bar */}
+                  <div className="product-lightbox-header">
+                    <div className="product-lightbox-title-info">
+                      <h4>{viewedProduct.name || viewedProduct.productName}</h4>
+                      <span>Image {activeSlideIndex + 1} of {sliderImages.length}</span>
+                    </div>
+
+                    <div className="product-lightbox-actions">
+                      <button
+                        type="button"
+                        className="lightbox-action-btn"
+                        onClick={() => setZoomLevel(prev => (prev >= 2.5 ? 1 : prev + 0.5))}
+                        title={zoomLevel > 1 ? "Reset Zoom" : "Zoom In"}
+                      >
+                        {zoomLevel > 1 ? (
+                          <ZoomOut style={{ width: '18px', height: '18px' }} />
+                        ) : (
+                          <ZoomIn style={{ width: '18px', height: '18px' }} />
+                        )}
+                        <span style={{ fontSize: '12px', marginLeft: '4px' }}>{Math.round(zoomLevel * 100)}%</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="lightbox-action-btn close-btn"
+                        onClick={() => {
+                          setIsLightboxOpen(false)
+                          setZoomLevel(1)
+                        }}
+                        title="Close Full Screen View"
+                      >
+                        <X style={{ width: '20px', height: '20px' }} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Lightbox Stage Area */}
+                  <div className="product-lightbox-stage">
+                    {sliderImages.length > 1 && (
+                      <button
+                        type="button"
+                        className="lightbox-nav-btn prev"
+                        onClick={handlePrevSlide}
+                        title="Previous Image (Left Arrow)"
+                      >
+                        <ChevronLeft style={{ width: '28px', height: '28px' }} />
+                      </button>
+                    )}
+
+                    <div className="product-lightbox-image-box">
+                      <img
+                        src={sliderImages[activeSlideIndex] || getProductFallbackImage(viewedProduct)}
+                        alt={`Full screen product view ${activeSlideIndex + 1}`}
+                        className="product-lightbox-image"
+                        style={{
+                          transform: `scale(${zoomLevel})`,
+                          cursor: zoomLevel > 1 ? 'zoom-out' : 'zoom-in'
+                        }}
+                        onClick={() => setZoomLevel(prev => (prev === 1 ? 1.8 : 1))}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = getProductFallbackImage(viewedProduct);
+                        }}
+                      />
+                    </div>
+
+                    {sliderImages.length > 1 && (
+                      <button
+                        type="button"
+                        className="lightbox-nav-btn next"
+                        onClick={handleNextSlide}
+                        title="Next Image (Right Arrow)"
+                      >
+                        <ChevronRight style={{ width: '28px', height: '28px' }} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Lightbox Bottom Thumbnails Row */}
+                  {sliderImages.length > 1 && (
+                    <div className="product-lightbox-bottom-thumbnails">
+                      {sliderImages.map((img, idx) => (
+                        <div
+                          key={idx}
+                          className={`lightbox-thumbnail-box ${idx === activeSlideIndex ? 'active' : ''}`}
+                          onClick={() => {
+                            setActiveSlideIndex(idx)
+                            setZoomLevel(1)
+                          }}
+                        >
+                          <img
+                            src={img}
+                            alt={`Thumbnail angle ${idx + 1}`}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = getProductFallbackImage(viewedProduct);
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Product Details properties card */}
             <div className="product-props-card">
@@ -1541,9 +1839,9 @@ function ProductManagement() {
               <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
                 {formData.imagePreviews.map((preview, index) => (
                   <div key={index} style={{ position: 'relative', width: '70px', height: '70px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
-                    <img 
-                      src={getFullImageUrl(preview) || preview} 
-                      alt={`upload-${index}`} 
+                    <img
+                      src={getFullImageUrl(preview) || preview}
+                      alt={`upload-${index}`}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       onError={(e) => {
                         e.target.src = getProductFallbackImage({ productName: formData.name, category: formData.category }) || 'https://via.placeholder.com/150'

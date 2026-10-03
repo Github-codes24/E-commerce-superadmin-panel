@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
-import { Phone, Mail, Lock, Shield, Camera } from 'lucide-react'
+import { Phone, Mail, Lock, Shield, Camera, ArrowLeft } from 'lucide-react'
 import './Profile.css'
 
 
-function Profile({ profileData, setProfileData }) {
+function Profile({ profileData, setProfileData, onBack }) {
   const [isEditing, setIsEditing] = useState(false)
   const [tempData, setTempData] = useState({ ...profileData })
 
@@ -32,8 +32,23 @@ function Profile({ profileData, setProfileData }) {
   return (
     <div className="profile-panel-container">
       <div className="profile-header-meta">
-        <h1>Profile</h1>
-        <p>Manage Your Profile</p>
+        <div className="profile-header-title-row">
+          {onBack && (
+            <button
+              type="button"
+              className="back-circle-btn"
+              onClick={onBack}
+              title="Back"
+              aria-label="Back to previous page"
+            >
+              <ArrowLeft style={{ width: '18px', height: '18px' }} />
+            </button>
+          )}
+          <div className="profile-header-text">
+            <h1>Profile</h1>
+            <p>Manage Your Profile</p>
+          </div>
+        </div>
       </div>
 
       <div className="profile-card-details">

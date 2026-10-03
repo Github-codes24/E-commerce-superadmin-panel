@@ -7,6 +7,7 @@ import {
   Search,
   ChevronDown,
   ChevronLeft,
+  ChevronRight,
   Eye,
   Star,
   MapPin,
@@ -18,6 +19,17 @@ import {
   AlertCircle,
   X,
   RotateCw,
+  Package,
+  Layers,
+  Tag,
+  Palette,
+  Calendar,
+  ShieldCheck,
+  Maximize2,
+  ZoomIn,
+  ZoomOut,
+  Copy,
+  ExternalLink
 } from 'lucide-react'
 import { getAllOrders, getOrderById, updateOrderStatus, cancelOrder } from '../services/superAdminService'
 import './OrdersManagement.css'
@@ -520,6 +532,151 @@ export const mapBackendToFrontendStatus = (status) => {
 };
 
 /* ─────────────────────────────────────────
+   Product Catalog Enrichment Helper
+   ───────────────────────────────────────── */
+const getEnrichedProductDetails = (prod, defaultVendor = null) => {
+  if (!prod) return null
+  const name = prod.name || prod.productName || prod.title || 'Product'
+  const nameLower = name.toLowerCase()
+
+  // Match against localStorage custom products if created
+  let matched = null
+  try {
+    const custom = JSON.parse(localStorage.getItem('zyvora_custom_products') || '[]')
+    matched = custom.find(p => 
+      (p.name && p.name.toLowerCase() === nameLower) ||
+      (p.productName && p.productName.toLowerCase() === nameLower) ||
+      (p.id && prod.id && String(p.id) === String(prod.id)) ||
+      (p.sku && prod.sku && p.sku.toLowerCase() === prod.sku.toLowerCase())
+    )
+  } catch (e) {}
+
+  // Contextual gallery generation
+  let gallery = []
+  if (Array.isArray(prod.images) && prod.images.length > 0) {
+    gallery = prod.images
+  } else if (matched && Array.isArray(matched.images) && matched.images.length > 0) {
+    gallery = matched.images
+  } else if (prod.image) {
+    if (nameLower.includes('camera') || nameLower.includes('sony')) {
+      gallery = [
+        prod.image,
+        'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?auto=format&fit=crop&q=80&w=400&h=400',
+        'https://images.unsplash.com/photo-1512790182412-b19e6d62bc39?auto=format&fit=crop&q=80&w=400&h=400'
+      ]
+    } else if (nameLower.includes('lamp') || nameLower.includes('light')) {
+      gallery = [
+        prod.image,
+        'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&q=80&w=400&h=400',
+        'https://images.unsplash.com/photo-1534073828943-f801091bb18c?auto=format&fit=crop&q=80&w=400&h=400'
+      ]
+    } else if (nameLower.includes('shirt') || nameLower.includes('fashion') || nameLower.includes('cloth') || nameLower.includes('dress')) {
+      gallery = [
+        prod.image,
+        'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&q=80&w=400&h=400',
+        'https://images.unsplash.com/photo-1620012253295-c05cb3e65df4?auto=format&fit=crop&q=80&w=400&h=400'
+      ]
+    } else if (nameLower.includes('headphone') || nameLower.includes('audio') || nameLower.includes('sound') || nameLower.includes('earphone')) {
+      gallery = [
+        prod.image,
+        'https://images.unsplash.com/photo-1546435770-a3e426bf472b?auto=format&fit=crop&q=80&w=400&h=400',
+        'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&q=80&w=400&h=400'
+      ]
+    } else if (nameLower.includes('tv') || nameLower.includes('screen')) {
+      gallery = [
+        prod.image,
+        'https://images.unsplash.com/photo-1461151351977-2244026b8f83?auto=format&fit=crop&q=80&w=400&h=400',
+        'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?auto=format&fit=crop&q=80&w=400&h=400'
+      ]
+    } else {
+      gallery = [
+        prod.image,
+        'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&q=80&w=400&h=400',
+        'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=400&h=400'
+      ]
+    }
+  }
+
+  // Pricing calculations
+  const priceStr = prod.price || matched?.price || '₹ 7,198'
+  const discountPercent = prod.discount !== undefined ? prod.discount : (matched?.discount || 64)
+  const numericPrice = typeof priceStr === 'number' ? priceStr : (parseInt(String(priceStr).replace(/[^\d]/g, '')) || 7198)
+  const originalPriceNum = Math.round(numericPrice / (1 - (discountPercent / 100))) || Math.round(numericPrice * 2.5)
+  const savedAmountNum = Math.max(0, originalPriceNum - numericPrice)
+
+  // Determine category & brand
+  let category = prod.category || matched?.category
+  if (!category) {
+    if (nameLower.includes('camera') || nameLower.includes('tv') || nameLower.includes('headphone')) category = 'Electronics'
+    else if (nameLower.includes('lamp') || nameLower.includes('light') || nameLower.includes('chair')) category = 'Home & Living'
+    else if (nameLower.includes('shirt') || nameLower.includes('wear') || nameLower.includes('dress')) category = 'Fashion'
+    else if (nameLower.includes('neckless') || nameLower.includes('jewel')) category = 'Jewellery'
+    else category = 'General'
+  }
+
+  let brand = prod.brand || prod.brandName || matched?.brand || matched?.brandName
+  if (!brand) {
+    if (nameLower.includes('sony')) brand = 'Sony'
+    else if (nameLower.includes('lamp')) brand = 'City Lights'
+    else if (nameLower.includes('shirt')) brand = 'A.K.Fashion'
+    else brand = 'Premium Brand'
+  }
+
+  const sku = prod.sku || matched?.sku || `SKU-${name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'PROD'}-${Math.abs(name.split('').reduce((a,b)=>(((a<<5)-a)+b.charCodeAt(0))|0, 0)) % 9000 + 1000}`
+  const stock = prod.stock !== undefined ? prod.stock : (matched?.stock !== undefined ? matched.stock : 48)
+  const sales = prod.sales !== undefined ? prod.sales : (matched?.sales !== undefined ? matched.sales : 128)
+  const color = prod.color || matched?.color || 'Standard'
+  const size = prod.size || matched?.size || 'Free Size'
+  const rating = prod.rating || matched?.rating || 4.8
+  const returnPolicy = prod.returnPolicy || matched?.returnPolicy || '7 Days Replacement'
+  const description = prod.desc || prod.description || matched?.desc || matched?.description || `High-performance ${name} crafted with premium components and industry-grade engineering for maximum reliability and user satisfaction.`
+  
+  let tags = []
+  if (prod.tag) {
+    tags = Array.isArray(prod.tag) ? prod.tag : prod.tag.split(',').map(s => s.trim())
+  } else if (matched?.tag) {
+    tags = Array.isArray(matched.tag) ? matched.tag : matched.tag.split(',').map(s => s.trim())
+  } else {
+    tags = [category, brand, 'Official Warranty', 'Verified Product', 'Top Rated']
+  }
+
+  const vendorName = prod.vendor?.name || prod.vendor || defaultVendor?.name || matched?.vendor || 'Authorized Platform Vendor'
+  const vendorAddress = prod.vendor?.address || defaultVendor?.address || '456, Business Bay, T. Nagar, Pune, Maharashtra – 987654'
+  const vendorGst = prod.vendor?.gst || defaultVendor?.gst || '27AAAA0000A1Z5'
+
+  return {
+    ...matched,
+    ...prod,
+    name,
+    productName: name,
+    category,
+    brand,
+    sku,
+    stock,
+    sales,
+    color,
+    size,
+    rating,
+    price: `₹ ${numericPrice.toLocaleString('en-IN')}`,
+    originalPrice: `₹ ${originalPriceNum.toLocaleString('en-IN')}`,
+    saved: `₹ ${savedAmountNum.toLocaleString('en-IN')}`,
+    discount: discountPercent,
+    returnPolicy,
+    description,
+    tags,
+    images: gallery,
+    image: gallery[0] || prod.image,
+    vendorDetails: {
+      name: vendorName,
+      address: vendorAddress,
+      gst: vendorGst
+    },
+    status: stock > 0 ? 'active' : 'out-of-stock',
+    addedDate: matched?.joinedOn || '15 March 2026'
+  }
+}
+
+/* ─────────────────────────────────────────
    Order Detail View
    ───────────────────────────────────────── */
 function OrderDetailView({ 
@@ -539,12 +696,49 @@ function OrderDetailView({
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
 
+  // Product Details / Catalog Modal States
+  const [selectedProductModal, setSelectedProductModal] = useState(null)
+  const [activeProductSlide, setActiveProductSlide] = useState(0)
+  const [isProductLightboxOpen, setIsProductLightboxOpen] = useState(false)
+  const [productLightboxZoom, setProductLightboxZoom] = useState(1)
+  const [copiedNotification, setCopiedNotification] = useState(null)
+
+  // Keyboard navigation for Lightbox and Modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (isProductLightboxOpen) {
+          setIsProductLightboxOpen(false)
+          setProductLightboxZoom(1)
+        } else if (selectedProductModal) {
+          setSelectedProductModal(null)
+        }
+      } else if (isProductLightboxOpen && selectedProductModal?.images?.length > 1) {
+        if (e.key === 'ArrowLeft') {
+          setActiveProductSlide(prev => (prev === 0 ? selectedProductModal.images.length - 1 : prev - 1))
+        } else if (e.key === 'ArrowRight') {
+          setActiveProductSlide(prev => (prev >= selectedProductModal.images.length - 1 ? 0 : prev + 1))
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isProductLightboxOpen, selectedProductModal])
+
   const triggerToast = (msg) => {
     setToastMessage(msg)
     const t = setTimeout(() => {
       setToastMessage('')
     }, 2500)
     return () => clearTimeout(t)
+  }
+
+  const handleOpenProductModal = (prodItem) => {
+    const enriched = getEnrichedProductDetails(prodItem, d.vendor)
+    setSelectedProductModal(enriched)
+    setActiveProductSlide(0)
+    setIsProductLightboxOpen(false)
+    setProductLightboxZoom(1)
   }
 
   const handleCopy = (text, label, e) => {
@@ -1019,8 +1213,8 @@ function OrderDetailView({
                 <div 
                   key={prod.id || pIdx}
                   className="orders-product-card interactive"
-                  onClick={() => triggerToast(`Viewing ${prod.name} in product catalog...`)}
-                  title="Click to view product details"
+                  onClick={() => handleOpenProductModal(prod)}
+                  title="Click to view complete product catalog details"
                 >
                   <img
                     src={prod.image}
@@ -1054,8 +1248,8 @@ function OrderDetailView({
           ) : (
             <div 
               className="orders-product-card interactive"
-              onClick={() => triggerToast(`Viewing ${d.product.name} in product catalog...`)}
-              title="Click to view product details"
+              onClick={() => handleOpenProductModal(d.product)}
+              title="Click to view complete product catalog details"
             >
               <img
                 src={d.product.image}
@@ -1213,6 +1407,423 @@ function OrderDetailView({
           </div>
         </div>
       </div>
+
+      {/* Product Details & Catalog Modal */}
+      {selectedProductModal && (
+        <div 
+          className="orders-product-modal-overlay"
+          onClick={() => {
+            setSelectedProductModal(null)
+            setIsProductLightboxOpen(false)
+            setProductLightboxZoom(1)
+          }}
+        >
+          <div 
+            className="orders-product-modal-dialog"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="orders-product-modal-header">
+              <div className="orders-product-modal-title-box">
+                <div className="orders-product-modal-eyebrow">
+                  <span className="orders-product-modal-cat-badge">{selectedProductModal.category}</span>
+                  <span className="orders-product-modal-sku-badge">{selectedProductModal.sku}</span>
+                </div>
+                <h3 className="orders-product-modal-title">{selectedProductModal.name}</h3>
+              </div>
+
+              <div className="orders-product-modal-header-actions">
+                <span className={`orders-product-modal-status-pill ${selectedProductModal.status}`}>
+                  ● {selectedProductModal.status === 'out-of-stock' ? 'Out of Stock' : 'In Stock'}
+                </span>
+                <button
+                  type="button"
+                  className="orders-product-modal-close-btn"
+                  onClick={() => setSelectedProductModal(null)}
+                  title="Close Product Details (Esc)"
+                >
+                  <X style={{ width: '18px', height: '18px' }} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="orders-product-modal-body">
+              <div className="orders-product-modal-grid">
+                
+                {/* Left Column: Image Slider + Specs */}
+                <div className="orders-product-modal-left">
+                  {/* Slider Card */}
+                  <div 
+                    className="orders-product-slider-card"
+                    onClick={() => {
+                      setIsProductLightboxOpen(true)
+                      setProductLightboxZoom(1)
+                    }}
+                    title="Click to Enlarge / Fullscreen"
+                  >
+                    {selectedProductModal.images?.length > 1 && (
+                      <button
+                        type="button"
+                        className="orders-product-slider-nav-btn prev"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setActiveProductSlide(prev => (prev === 0 ? selectedProductModal.images.length - 1 : prev - 1))
+                        }}
+                        title="Previous Image"
+                      >
+                        <ChevronLeft style={{ width: '18px', height: '18px' }} />
+                      </button>
+                    )}
+
+                    <img 
+                      src={selectedProductModal.images?.[activeProductSlide] || selectedProductModal.image} 
+                      alt={selectedProductModal.name}
+                      className="orders-product-slider-img"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=400&h=400'
+                      }}
+                    />
+
+                    <button
+                      type="button"
+                      className="orders-product-enlarge-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setIsProductLightboxOpen(true)
+                        setProductLightboxZoom(1)
+                      }}
+                      title="Open in Full Screen (Enlarge)"
+                    >
+                      <Maximize2 style={{ width: '13px', height: '13px' }} />
+                      <span>Enlarge</span>
+                    </button>
+
+                    {selectedProductModal.images?.length > 1 && (
+                      <div className="orders-product-slide-counter">
+                        {activeProductSlide + 1} / {selectedProductModal.images.length}
+                      </div>
+                    )}
+
+                    {selectedProductModal.images?.length > 1 && (
+                      <button
+                        type="button"
+                        className="orders-product-slider-nav-btn next"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setActiveProductSlide(prev => (prev >= selectedProductModal.images.length - 1 ? 0 : prev + 1))
+                        }}
+                        title="Next Image"
+                      >
+                        <ChevronRight style={{ width: '18px', height: '18px' }} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Thumbnails */}
+                  {selectedProductModal.images?.length > 1 && (
+                    <div className="orders-product-modal-thumbs">
+                      {selectedProductModal.images.map((img, tIdx) => (
+                        <img 
+                          key={tIdx}
+                          src={img}
+                          alt={`Thumbnail angle ${tIdx + 1}`}
+                          className={`orders-product-modal-thumb ${tIdx === activeProductSlide ? 'active' : ''}`}
+                          onClick={() => setActiveProductSlide(tIdx)}
+                          onError={(e) => {
+                            e.target.src = 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200&h=200'
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Product Specification Card */}
+                  <div className="orders-product-spec-card">
+                    <div className="orders-product-spec-title">
+                      <Package style={{ width: '15px', height: '15px', color: '#3b82f6' }} />
+                      Product Specifications
+                    </div>
+                    <div className="orders-product-spec-list">
+                      <div className="orders-product-spec-row">
+                        <span className="orders-product-spec-key">
+                          <Layers style={{ width: '14px', height: '14px' }} /> Category
+                        </span>
+                        <span className="orders-product-spec-val">{selectedProductModal.category}</span>
+                      </div>
+                      <div className="orders-product-spec-row">
+                        <span className="orders-product-spec-key">
+                          <Tag style={{ width: '14px', height: '14px' }} /> Brand
+                        </span>
+                        <span className="orders-product-spec-val">{selectedProductModal.brand}</span>
+                      </div>
+                      <div className="orders-product-spec-row">
+                        <span className="orders-product-spec-key">
+                          <Package style={{ width: '14px', height: '14px' }} /> SKU
+                        </span>
+                        <span className="orders-product-spec-val">{selectedProductModal.sku}</span>
+                      </div>
+                      <div className="orders-product-spec-row">
+                        <span className="orders-product-spec-key">
+                          <Palette style={{ width: '14px', height: '14px' }} /> Color
+                        </span>
+                        <span className="orders-product-spec-val">{selectedProductModal.color}</span>
+                      </div>
+                      <div className="orders-product-spec-row">
+                        <span className="orders-product-spec-key">
+                          Size
+                        </span>
+                        <span className="orders-product-spec-val">{selectedProductModal.size}</span>
+                      </div>
+                      <div className="orders-product-spec-row">
+                        <span className="orders-product-spec-key">
+                          <Calendar style={{ width: '14px', height: '14px' }} /> Catalog Date
+                        </span>
+                        <span className="orders-product-spec-val">{selectedProductModal.addedDate}</span>
+                      </div>
+                      <div className="orders-product-spec-row">
+                        <span className="orders-product-spec-key">
+                          <ShieldCheck style={{ width: '14px', height: '14px' }} /> Return Policy
+                        </span>
+                        <span className="orders-product-spec-val">{selectedProductModal.returnPolicy}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Pricing, Stats, Description, Vendor */}
+                <div className="orders-product-modal-right">
+                  {/* Price Banner */}
+                  <div className="orders-product-price-banner">
+                    <div className="orders-product-price-left">
+                      <span className="orders-product-price-main">{selectedProductModal.price}</span>
+                      {selectedProductModal.originalPrice && (
+                        <span className="orders-product-price-orig">{selectedProductModal.originalPrice}</span>
+                      )}
+                      {selectedProductModal.discount > 0 && (
+                        <span className="orders-product-discount-badge">{selectedProductModal.discount}% OFF</span>
+                      )}
+                    </div>
+                    {selectedProductModal.saved && (
+                      <div className="orders-product-savings-callout">
+                        🎉 Save {selectedProductModal.saved}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Rating */}
+                  <div className="orders-product-rating-row">
+                    <div className="orders-product-rating-stars">
+                      <Star style={{ width: '16px', height: '16px', fill: '#f59e0b', color: '#f59e0b' }} />
+                      <Star style={{ width: '16px', height: '16px', fill: '#f59e0b', color: '#f59e0b' }} />
+                      <Star style={{ width: '16px', height: '16px', fill: '#f59e0b', color: '#f59e0b' }} />
+                      <Star style={{ width: '16px', height: '16px', fill: '#f59e0b', color: '#f59e0b' }} />
+                      <Star style={{ width: '16px', height: '16px', fill: '#f59e0b', color: '#f59e0b' }} />
+                    </div>
+                    <strong>{selectedProductModal.rating}</strong>
+                    <span>(128 Customer Ratings & Reviews)</span>
+                  </div>
+
+                  {/* Stats Cards */}
+                  <div className="orders-product-stat-cards">
+                    <div className="orders-product-stat-box">
+                      <span className="orders-product-stat-val">{selectedProductModal.stock} units</span>
+                      <span className="orders-product-stat-lbl">Stock Availability</span>
+                    </div>
+                    <div className="orders-product-stat-box">
+                      <span className="orders-product-stat-val">{selectedProductModal.sales || 128}</span>
+                      <span className="orders-product-stat-lbl">Total Sales / Units</span>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div className="orders-product-desc-box">
+                    <div className="orders-product-desc-title">Product Description</div>
+                    <p className="orders-product-desc-text">{selectedProductModal.description}</p>
+                  </div>
+
+                  {/* Tags */}
+                  {selectedProductModal.tags && selectedProductModal.tags.length > 0 && (
+                    <div className="orders-product-tags-box">
+                      <div className="orders-product-tags-title">Tags & Search Keywords</div>
+                      <div className="orders-product-tags-flex">
+                        {selectedProductModal.tags.map((tg, idx) => (
+                          <span key={idx} className="orders-product-tag-chip">
+                            #{tg}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Vendor Info Box */}
+                  <div className="orders-product-vendor-info-box">
+                    <div className="orders-product-vendor-header">
+                      <div className="orders-product-vendor-title">
+                        <Store style={{ width: '15px', height: '15px', color: '#3b82f6' }} />
+                        Vendor & Manufacturer Details
+                      </div>
+                      <span className="orders-product-spec-val" style={{ fontSize: '11px', color: '#64748b' }}>
+                        GST: {selectedProductModal.vendorDetails?.gst || '27AAAA0000A1Z5'}
+                      </span>
+                    </div>
+                    <div className="orders-product-vendor-content">
+                      <div className="orders-product-vendor-name">{selectedProductModal.vendorDetails?.name}</div>
+                      <div>{selectedProductModal.vendorDetails?.address}</div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="orders-product-modal-footer">
+              <button
+                type="button"
+                className="orders-product-footer-btn secondary"
+                onClick={(e) => handleCopy(selectedProductModal.sku, 'Product SKU', e)}
+              >
+                <Copy style={{ width: '14px', height: '14px' }} />
+                <span>Copy SKU</span>
+              </button>
+              <button
+                type="button"
+                className="orders-product-footer-btn secondary"
+                onClick={(e) => {
+                  const detailsText = `${selectedProductModal.name} | SKU: ${selectedProductModal.sku} | Price: ${selectedProductModal.price} | Brand: ${selectedProductModal.brand} | Category: ${selectedProductModal.category}`
+                  handleCopy(detailsText, 'Product Details', e)
+                }}
+              >
+                <Copy style={{ width: '14px', height: '14px' }} />
+                <span>Copy Product Details</span>
+              </button>
+              <button
+                type="button"
+                className="orders-product-footer-btn primary"
+                onClick={() => setSelectedProductModal(null)}
+              >
+                Done / Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Fullscreen Modal */}
+      {isProductLightboxOpen && selectedProductModal && (
+        <div 
+          className="orders-product-lightbox-overlay"
+          onClick={() => {
+            setIsProductLightboxOpen(false)
+            setProductLightboxZoom(1)
+          }}
+        >
+          <div 
+            className="orders-product-lightbox-dialog"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="orders-product-lightbox-header">
+              <div className="orders-product-lightbox-title">
+                <h4>{selectedProductModal.name}</h4>
+                <span>Image {activeProductSlide + 1} of {selectedProductModal.images?.length || 1}</span>
+              </div>
+              <div className="orders-product-lightbox-actions">
+                <button
+                  type="button"
+                  className="orders-product-lightbox-action-btn"
+                  onClick={() => setProductLightboxZoom(prev => (prev >= 2.5 ? 1 : prev + 0.5))}
+                  title={productLightboxZoom > 1 ? "Reset Zoom" : "Zoom In"}
+                >
+                  {productLightboxZoom > 1 ? (
+                    <ZoomOut style={{ width: '16px', height: '16px' }} />
+                  ) : (
+                    <ZoomIn style={{ width: '16px', height: '16px' }} />
+                  )}
+                  <span>{Math.round(productLightboxZoom * 100)}%</span>
+                </button>
+                <button
+                  type="button"
+                  className="orders-product-lightbox-action-btn close"
+                  onClick={() => {
+                    setIsProductLightboxOpen(false)
+                    setProductLightboxZoom(1)
+                  }}
+                  title="Close Full Screen (Esc)"
+                >
+                  <X style={{ width: '18px', height: '18px' }} />
+                </button>
+              </div>
+            </div>
+
+            {/* Stage */}
+            <div className="orders-product-lightbox-stage">
+              {selectedProductModal.images?.length > 1 && (
+                <button
+                  type="button"
+                  className="orders-product-lightbox-nav-btn prev"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setActiveProductSlide(prev => (prev === 0 ? selectedProductModal.images.length - 1 : prev - 1))
+                  }}
+                  title="Previous Image (Left Arrow)"
+                >
+                  <ChevronLeft style={{ width: '24px', height: '24px' }} />
+                </button>
+              )}
+
+              <div className="orders-product-lightbox-img-wrap">
+                <img 
+                  src={selectedProductModal.images?.[activeProductSlide] || selectedProductModal.image} 
+                  alt={selectedProductModal.name}
+                  className="orders-product-lightbox-img"
+                  style={{
+                    transform: `scale(${productLightboxZoom})`,
+                    cursor: productLightboxZoom > 1 ? 'zoom-out' : 'zoom-in'
+                  }}
+                  onClick={() => setProductLightboxZoom(prev => (prev === 1 ? 1.8 : 1))}
+                  onError={(e) => {
+                    e.target.src = 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=800&h=800'
+                  }}
+                />
+              </div>
+
+              {selectedProductModal.images?.length > 1 && (
+                <button
+                  type="button"
+                  className="orders-product-lightbox-nav-btn next"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setActiveProductSlide(prev => (prev >= selectedProductModal.images.length - 1 ? 0 : prev + 1))
+                  }}
+                  title="Next Image (Right Arrow)"
+                >
+                  <ChevronRight style={{ width: '24px', height: '24px' }} />
+                </button>
+              )}
+            </div>
+
+            {/* Lightbox Thumbs */}
+            {selectedProductModal.images?.length > 1 && (
+              <div className="orders-product-lightbox-thumbs">
+                {selectedProductModal.images.map((img, lIdx) => (
+                  <img 
+                    key={lIdx}
+                    src={img}
+                    alt={`Thumb ${lIdx + 1}`}
+                    className={`orders-product-lightbox-thumb ${lIdx === activeProductSlide ? 'active' : ''}`}
+                    onClick={() => {
+                      setActiveProductSlide(lIdx)
+                      setProductLightboxZoom(1)
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

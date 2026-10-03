@@ -45,6 +45,7 @@ import logoImg from '../assets/Logo.jpeg'
 
 function AdminLayout({ onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard')
+  const [prevTab, setPrevTab] = useState('Dashboard')
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false)
@@ -113,14 +114,17 @@ function AdminLayout({ onLogout }) {
   ]
 
   const handleTabClick = (tabName) => {
-    setActiveTab(tabName)
+    if (tabName !== activeTab) {
+      setPrevTab(activeTab)
+      setActiveTab(tabName)
+    }
     setShowProfileDropdown(false)
   }
 
   const renderContent = () => {
     switch (activeTab) {
       case 'Dashboard':
-        return <Dashboard onViewAllOrders={() => setActiveTab('Orders Management')} />
+        return <Dashboard onViewAllOrders={() => handleTabClick('Orders Management')} />
       case 'Reports':
         return <Reports />
       case 'Admins Management':
@@ -144,9 +148,15 @@ function AdminLayout({ onLogout }) {
       case 'Payment Monitoring':
         return <PaymentMonitoring />
       case 'Notifications':
-        return <Notifications />
+        return <Notifications onBack={() => handleTabClick(prevTab && prevTab !== 'Notifications' ? prevTab : 'Dashboard')} />
       case 'Profile':
-        return <Profile profileData={profileData} setProfileData={setProfileData} />
+        return (
+          <Profile
+            profileData={profileData}
+            setProfileData={setProfileData}
+            onBack={() => handleTabClick(prevTab && prevTab !== 'Profile' ? prevTab : 'Dashboard')}
+          />
+        )
       default:
         // Render a premium looking placeholder for other tabs
         return (
@@ -217,7 +227,7 @@ function AdminLayout({ onLogout }) {
               <Search
                 className="search-icon-header"
                 onClick={() => {
-                  if (searchQuery.trim()) setActiveTab('Orders Management')
+                  if (searchQuery.trim()) handleTabClick('Orders Management')
                 }}
                 style={{ cursor: 'pointer' }}
               />
@@ -228,7 +238,7 @@ function AdminLayout({ onLogout }) {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && searchQuery.trim()) {
-                    setActiveTab('Orders Management')
+                    handleTabClick('Orders Management')
                   }
                 }}
               />

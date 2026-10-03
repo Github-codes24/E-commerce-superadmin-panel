@@ -1531,6 +1531,8 @@ function OffersCoupons() {
                 className="offer-modal-circle-close"
                 onClick={() => { if (!isSubmitting) { setIsAdding(false); setEditingOffer(null); setEditingCoupon(null); setFormError(null); } }}
                 disabled={isSubmitting}
+                aria-label="Close modal"
+                title="Close"
               >
                 <X style={{ width: '18px', height: '18px' }} />
               </button>

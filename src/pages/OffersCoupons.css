@@ -293,24 +293,29 @@
 /* ── Form Modal Overlay & Form ──────────── */
 .offer-form-modal-box {
   background-color: #ffffff;
-  border-radius: 16px;
+  border-radius: 18px;
   width: 100%;
-  max-width: 480px;
-  padding: 24px;
+  max-width: 500px;
+  max-height: calc(100vh - 40px);
+  max-height: 90vh;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
   position: relative;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05);
   border: 1px solid var(--border-light);
-  animation: modalSlideUp 0.3s ease-out;
+  animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
 }
 
 @keyframes modalSlideUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -318,41 +323,57 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  background-color: #ffffff;
+  z-index: 5;
 }
 
 .offer-modal-header-row h2 {
   font-size: 18px;
   font-weight: 700;
   color: var(--text-dark);
+  margin: 0;
 }
 
 .offer-modal-circle-close {
-  position: absolute;
-  top: -16px;
-  right: -16px;
-  width: 38px;
-  height: 38px;
+  position: static;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background-color: var(--active-tab-bg);
-  border: none;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--active-tab-text);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s;
+  color: #64748b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
-.offer-modal-circle-close:hover {
-  transform: scale(1.08);
+.offer-modal-circle-close:hover:not(:disabled) {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+  transform: rotate(90deg) scale(1.05);
+}
+
+.offer-modal-circle-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .offer-modal-form {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 20px 24px 24px 24px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .offer-modal-field {
