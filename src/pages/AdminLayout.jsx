@@ -41,7 +41,7 @@ import PermissionsManagement from './PermissionsManagement'
 import OffersCoupons from './OffersCoupons'
 import CommissionManagement from './CommissionManagement'
 import PaymentMonitoring from './PaymentMonitoring'
-import logoImg from '../assets/Logo.jpeg'
+import logoImg from '../assets/new logo.jpeg'
 
 function AdminLayout({ onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard')
@@ -184,8 +184,7 @@ function AdminLayout({ onLogout }) {
       {/* Left Sidebar */}
       <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-logo-container">
-          <img src={logoImg} alt="Zyvora Logo" className="sidebar-logo-image" />
-          {!isSidebarCollapsed && <span className="sidebar-logo">Zyvora</span>}
+          <img src={logoImg} alt="Logo" className="sidebar-logo-image" />
         </div>
         <ul className="sidebar-menu">
           {menuItems.map((item) => {

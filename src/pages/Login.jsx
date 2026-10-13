@@ -7,7 +7,7 @@ import forgotArt from '../assets/Forgot password-pana 1.png'
 import otpArt from '../assets/EnterOPT.png'
 import resetArt from '../assets/aut-reset.png'
 import successArt from '../assets/Success.png'
-import zyvoraLogo from '../assets/Zyvora.jpeg'
+import newLogo from '../assets/new logo.jpeg'
 
 const pageData = {
   login: {
@@ -525,14 +525,14 @@ function Login({ onLogin }) {
           {page === 'login' ? (
             <p className="auth-subtitle">{data.subtitle}</p>
           ) : (
-            <img src={zyvoraLogo} alt="Zyvora" className="auth-brand-logo-top" />
+            <img src={newLogo} alt="Logo" className="auth-brand-logo-top" />
           )}
           {page === 'success' ? (
             <SuccessContent />
           ) : (
             <>
               {page === 'login' ? (
-                <img src={zyvoraLogo} alt="Zyvora" className="auth-brand-logo" />
+                <img src={newLogo} alt="Logo" className="auth-brand-logo" />
               ) : (
                 <h1>{data.title}</h1>
               )}
