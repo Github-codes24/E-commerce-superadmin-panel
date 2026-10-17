@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { loginSuperAdmin, forgotPassword, verifyOtp } from '../services/superAdminService'
 import './login.css'
 import loginArt from '../assets/Mobile login-panal.png'
@@ -141,7 +141,6 @@ function ForgotFields({ setPage, email, setEmail, emailError, setEmailError }) {
             if (emailError) setEmailError('')
           }}
           className={emailError ? 'error' : ''}
-          required 
         />
         {emailError && <span className="error-text">{emailError}</span>}
       </div>
@@ -316,13 +315,14 @@ function SuccessContent() {
   )
 }
 
-function Login({ onLogin }) {
+function Login({ onLogin, showToast }) {
   const [page, setPage] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [emailError, setEmailError] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [generalError, setGeneralError] = useState('')
+  const [generalSuccess, setGeneralSuccess] = useState('')
   const [loading, setLoading] = useState(false)
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const [otpError, setOtpError] = useState('')
@@ -332,11 +332,78 @@ function Login({ onLogin }) {
 
   const data = pageData[page]
 
+  const navigateTo = (targetPage, pushHistory = true) => {
+    setLoading(false)
+    setGeneralError('')
+    setGeneralSuccess('')
+    setEmailError('')
+    setPasswordError('')
+    setOtpError('')
+    setResetError('')
+
+    if (pushHistory) {
+      const url = targetPage === 'login' ? window.location.pathname : `${window.location.pathname}#${targetPage}`
+      window.history.pushState({ authPage: targetPage }, '', url)
+    }
+    setPage(targetPage)
+  }
+
+  // Handle browser Back / Forward buttons and page restoration
+  useEffect(() => {
+    const initialHash = window.location.hash ? window.location.hash.replace('#', '') : ''
+    const validPages = ['login', 'forgot', 'otp', 'reset']
+    const initialPage = validPages.includes(initialHash) ? initialHash : 'login'
+
+    const url = initialPage === 'login' ? window.location.pathname : `${window.location.pathname}#${initialPage}`
+    window.history.replaceState({ authPage: initialPage }, '', url)
+    setPage(initialPage)
+
+    const handlePopState = (event) => {
+      const targetPage = event.state?.authPage ||
+        (window.location.hash ? window.location.hash.replace('#', '') : 'login')
+      const valid = ['login', 'forgot', 'otp', 'reset', 'success']
+      const newPage = valid.includes(targetPage) ? targetPage : 'login'
+
+      // Cancel any ongoing loading or error states
+      setLoading(false)
+      setGeneralError('')
+      setGeneralSuccess('')
+      setEmailError('')
+      setPasswordError('')
+      setOtpError('')
+      setResetError('')
+
+      // When returning to login screen via browser back button,
+      // reset password so no automatic login or validation is triggered
+      if (newPage === 'login') {
+        setPassword('')
+      }
+
+      setPage(newPage)
+    }
+
+    const handlePageShow = (event) => {
+      if (event.persisted) {
+        setLoading(false)
+        setGeneralError('')
+        setGeneralSuccess('')
+      }
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    window.addEventListener('pageshow', handlePageShow)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+      window.removeEventListener('pageshow', handlePageShow)
+    }
+  }, [])
+
   useEffect(() => {
     // Reset errors whenever page changes
     setEmailError('')
     setPasswordError('')
     setGeneralError('')
+    setGeneralSuccess('')
     setOtpError('')
     setResetError('')
     setOtp(['', '', '', '', '', ''])
@@ -344,8 +411,12 @@ function Login({ onLogin }) {
     setConfirmPassword('')
   }, [page])
 
+
   const handleSubmit = async (event) => {
-    event.preventDefault()
+    if (event) {
+      event.preventDefault()
+    }
+    setGeneralSuccess('')
 
     if (page === 'login') {
       let valid = true
@@ -354,7 +425,7 @@ function Login({ onLogin }) {
         valid = false
       } else {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailRegex.test(email)) {
+        if (!emailRegex.test(email.trim())) {
           setEmailError('Please enter a valid email address')
           valid = false
         } else {
@@ -384,8 +455,8 @@ function Login({ onLogin }) {
 
           if (token) {
             localStorage.setItem('token', token)
+            localStorage.setItem('adminToken', token)
           } else {
-            // If token not in standard field, set dummy valid token
             localStorage.setItem('token', 'logged_in_' + Date.now())
           }
 
@@ -393,21 +464,41 @@ function Login({ onLogin }) {
             localStorage.setItem('refreshToken', refreshToken)
           }
 
-          if (adminObj.email || adminObj.name) {
-            localStorage.setItem('adminUser', JSON.stringify(adminObj))
-            localStorage.setItem('profileData', JSON.stringify({
-              name: adminObj.name || 'Super Admin',
-              email: adminObj.email || email,
-              role: adminObj.role || 'SUPER_ADMIN',
-              phone: adminObj.phone || '+91 9876543210',
-              avatar: adminObj.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256&h=256'
-            }))
-          }
+          let existingProfile = {}
+          try {
+            const saved = localStorage.getItem('profileData')
+            if (saved) existingProfile = JSON.parse(saved)
+          } catch {}
 
-          if (onLogin) {
-            onLogin(adminObj)
+          const merged = {
+            ...existingProfile,
+            name: adminObj.name || adminObj.fullName || existingProfile.name || 'Super Admin',
+            email: adminObj.email || email.trim() || existingProfile.email || 'admin@ecommerce.com',
+            role: adminObj.role || existingProfile.role || 'Super Admin',
+            phone: adminObj.phone || adminObj.mobile || existingProfile.phone || '9876543210',
+            avatar: adminObj.avatar || adminObj.profileImage || existingProfile.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256&h=256'
           }
+          localStorage.setItem('adminUser', JSON.stringify({ ...existingProfile, ...adminObj }))
+          localStorage.setItem('profileData', JSON.stringify(merged))
+
+          setGeneralSuccess('Login Successfully')
+          if (showToast) {
+            showToast('Login Successfully', 'success')
+          }
+          window.dispatchEvent(
+            new CustomEvent('app:toast', {
+              detail: { text: 'Login Successfully', type: 'success' }
+            })
+          )
+
+          // Smooth transition directly into Dashboard
+          setTimeout(() => {
+            if (onLogin) {
+              onLogin(adminObj)
+            }
+          }, 150)
         } catch (error) {
+          setLoading(false)
           console.error('Login Error:', error)
           const status = error.response?.status
           const rawMsg = (error.response?.data?.message || (typeof error.response?.data === 'string' ? error.response?.data : '') || error.message || '').toString().toLowerCase()
@@ -428,8 +519,6 @@ function Login({ onLogin }) {
             const errMsg = error.response?.data?.message || (typeof error.response?.data === 'string' ? error.response?.data : null) || error.message || 'Login failed. Please try again.'
             setGeneralError(errMsg)
           }
-        } finally {
-          setLoading(false)
         }
       }
     } else if (page === 'forgot') {
@@ -453,17 +542,18 @@ function Login({ onLogin }) {
         try {
           const res = await forgotPassword({ email: email.trim() })
           if (res.success) {
-            setPage('otp')
+            navigateTo('otp')
           } else {
-            setGeneralError(res.message && !res.message.toLowerCase().includes('not found') && !res.message.toLowerCase().includes('admin') ? res.message : 'Failed to send OTP. Please try again.')
+            setGeneralError(res.message || 'Admin not found')
           }
         } catch (error) {
           console.error('Forgot Password Error:', error)
-          const rawMsg = (error.response?.data?.message || (typeof error.response?.data === 'string' ? error.response?.data : null) || error.message || '').toString().toLowerCase()
+          const serverMsg = error.response?.data?.message || (typeof error.response?.data === 'string' ? error.response?.data : null)
+          const rawMsg = (serverMsg || error.message || '').toString().toLowerCase()
           if (error.response?.status === 404 || rawMsg.includes('not found') || rawMsg.includes('admin') || rawMsg.includes('user')) {
-            setGeneralError('If an account is associated with this email, an OTP has been sent.')
+            setGeneralError('Admin not found')
           } else {
-            const errMsg = error.response?.data?.message || (typeof error.response?.data === 'string' ? error.response?.data : null) || error.message || 'Failed to send OTP.'
+            const errMsg = serverMsg || error.message || 'Failed to send OTP.'
             setGeneralError(errMsg)
           }
         } finally {
@@ -485,7 +575,7 @@ function Login({ onLogin }) {
           otp: fullOtp
         })
         if (res.success) {
-          setPage('reset')
+          navigateTo('reset')
         } else {
           setOtpError(res.message || 'Invalid OTP')
           setGeneralError(res.message || 'Invalid OTP')
@@ -507,13 +597,13 @@ function Login({ onLogin }) {
         setResetError('Passwords do not match')
       } else {
         setResetError('')
-        setPage('success')
+        navigateTo('success')
       }
     } else if (page === 'success') {
       if (onLogin) {
         onLogin()
       } else {
-        setPage('login')
+        navigateTo('login')
       }
     }
   }
@@ -521,7 +611,12 @@ function Login({ onLogin }) {
   return (
     <main className={`auth-page ${page}-page`}>
       <section className="auth-layout">
-        <form className="auth-card" onSubmit={handleSubmit}>
+        <form 
+          className="auth-card" 
+          onSubmit={handleSubmit}
+          autoComplete="off"
+          noValidate
+        >
           {page === 'login' ? (
             <p className="auth-subtitle">{data.subtitle}</p>
           ) : (
@@ -542,6 +637,25 @@ function Login({ onLogin }) {
             </>
           )}
 
+          {generalSuccess && (
+            <div style={{
+              backgroundColor: '#ECFDF5',
+              border: '1px solid #6EE7B7',
+              color: '#065F46',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              fontSize: '13px',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <CheckCircle2 size={16} color="#059669" />
+              <span>{generalSuccess}</span>
+            </div>
+          )}
+
           {generalError && (
             <div style={{
               backgroundColor: '#FEF2F2',
@@ -559,7 +673,7 @@ function Login({ onLogin }) {
 
           {page === 'login' && (
             <LoginFields 
-              setPage={setPage} 
+              setPage={navigateTo} 
               email={email}
               setEmail={setEmail}
               password={password}
@@ -572,7 +686,7 @@ function Login({ onLogin }) {
           )}
           {page === 'forgot' && (
             <ForgotFields 
-              setPage={setPage} 
+              setPage={navigateTo} 
               email={email}
               setEmail={setEmail}
               emailError={emailError}
@@ -581,7 +695,7 @@ function Login({ onLogin }) {
           )}
           {page === 'otp' && (
             <OtpFields 
-              setPage={setPage} 
+              setPage={navigateTo} 
               otp={otp}
               setOtp={setOtp}
               otpError={otpError}
@@ -592,7 +706,7 @@ function Login({ onLogin }) {
           )}
           {page === 'reset' && (
             <ResetFields 
-              setPage={setPage} 
+              setPage={navigateTo} 
               newPassword={newPassword}
               setNewPassword={setNewPassword}
               confirmPassword={confirmPassword}
@@ -602,7 +716,11 @@ function Login({ onLogin }) {
             />
           )}
 
-          <button type="submit" className="main-btn" disabled={loading}>
+          <button 
+            type="submit" 
+            className="main-btn" 
+            disabled={loading}
+          >
             {loading ? 'Please wait...' : data.button}
           </button>
         </form>

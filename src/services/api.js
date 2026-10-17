@@ -27,14 +27,26 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response) {
+      const url = (error.config?.url || '').toLowerCase();
       const msg = (error.response.data?.message || error.response.data?.error || '').toString().toLowerCase();
-      if (
-        error.response.status === 401 ||
+      const status = error.response.status;
+
+      // Do NOT trigger session_expired on auth endpoints (login, forgot, otp) or optional profile endpoints
+      const isAuthOrOptionalRoute =
+        url.includes('/login') ||
+        url.includes('/forgot') ||
+        url.includes('/verify-otp') ||
+        url.includes('/profile');
+
+      const isExplicitTokenExpired =
         msg.includes('jwt expired') ||
         msg.includes('token expired') ||
         msg.includes('jwt malformed') ||
-        msg.includes('invalid token')
-      ) {
+        msg.includes('invalid token');
+
+      const hasActiveToken = Boolean(localStorage.getItem('token') || localStorage.getItem('adminToken'));
+
+      if (!isAuthOrOptionalRoute && hasActiveToken && (isExplicitTokenExpired || (status === 401 && msg.includes('token')))) {
         console.warn('Session expired or unauthorized token:', msg);
         window.dispatchEvent(
           new CustomEvent('auth:session_expired', {

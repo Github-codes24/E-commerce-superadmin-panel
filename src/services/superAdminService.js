@@ -35,16 +35,52 @@ export const verifyOtp = async ({ email, otp }) => {
   return response.data;
 };
 
-// 5. Get Super Admin Profile (GET /api/super-admin/profile)
+// 5. Get Super Admin Profile (GET /api/admin/profile with fallbacks)
 export const getSuperAdminProfile = async () => {
-  const response = await api.get('/super-admin/profile');
-  return response.data;
+  try {
+    const response = await api.get('/admin/profile');
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 404) {
+      try {
+        const fb1 = await api.get('/super-admin/profile');
+        return fb1.data;
+      } catch {
+        const fb2 = await api.get('/superadmin/profile');
+        return fb2.data;
+      }
+    }
+    throw error;
+  }
 };
 
-// 6. Update Super Admin Profile (PUT /api/super-admin/profile/update)
+// 6. Update Super Admin Profile (PUT /api/admin/profile with fallbacks)
 export const updateSuperAdminProfile = async (profileData) => {
-  const response = await api.put('/super-admin/profile/update', profileData);
-  return response.data;
+  const payload = {
+    name: profileData.name || profileData.fullName,
+    fullName: profileData.name || profileData.fullName,
+    email: profileData.email,
+    phone: profileData.phone || profileData.mobile,
+    mobile: profileData.phone || profileData.mobile,
+    avatar: profileData.avatar,
+    role: profileData.role || 'Super Admin',
+  };
+
+  try {
+    const response = await api.put('/admin/profile', payload);
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 404) {
+      try {
+        const fb1 = await api.put('/super-admin/profile/update', payload);
+        return fb1.data;
+      } catch {
+        const fb2 = await api.put('/super-admin/profile', payload);
+        return fb2.data;
+      }
+    }
+    throw error;
+  }
 };
 
 // 7. Change Password (POST /api/super-admin/change-password)

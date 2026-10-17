@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { CheckCircle2, AlertCircle, X } from 'lucide-react'
 import './App.css'
 import Login from './pages/Login'
 import AdminLayout from './pages/AdminLayout'
@@ -7,6 +8,14 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return Boolean(localStorage.getItem('token'))
   })
+  const [toastMessage, setToastMessage] = useState(null)
+
+  const showToast = (text, type = 'success') => {
+    setToastMessage({ text, type })
+    setTimeout(() => {
+      setToastMessage(prev => (prev?.text === text ? null : prev))
+    }, 4000)
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('token')
@@ -17,21 +26,63 @@ function App() {
   }
 
   useEffect(() => {
+    document.title = 'e-commerce-superadmin'
     const handleSessionExpired = () => {
       handleLogout()
     }
+    const handleAppToast = (e) => {
+      if (e.detail?.text) {
+        showToast(e.detail.text, e.detail.type || 'success')
+      }
+    }
     window.addEventListener('auth:session_expired', handleSessionExpired)
+    window.addEventListener('app:toast', handleAppToast)
     return () => {
       window.removeEventListener('auth:session_expired', handleSessionExpired)
+      window.removeEventListener('app:toast', handleAppToast)
     }
   }, [])
 
-  if (isLoggedIn) {
-    return <AdminLayout onLogout={handleLogout} />
+  const handleLoginSuccess = () => {
+    showToast('Login Successfully', 'success')
+    setIsLoggedIn(true)
   }
 
   return (
-    <Login onLogin={() => setIsLoggedIn(true)} />
+    <>
+      {toastMessage && (
+        <div className={`product-toast-banner ${toastMessage.type}`} role="alert">
+          {toastMessage.type === 'success' ? (
+            <CheckCircle2 style={{ width: '18px', height: '18px', flexShrink: 0 }} />
+          ) : (
+            <AlertCircle style={{ width: '18px', height: '18px', flexShrink: 0 }} />
+          )}
+          <span>{toastMessage.text}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+              padding: 0,
+              marginLeft: '8px',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+            aria-label="Close notification"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+      {isLoggedIn ? (
+        <AdminLayout onLogout={handleLogout} />
+      ) : (
+        <Login onLogin={handleLoginSuccess} showToast={showToast} />
+      )}
+    </>
   )
 }
 

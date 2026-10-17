@@ -42,6 +42,7 @@ import OffersCoupons from './OffersCoupons'
 import CommissionManagement from './CommissionManagement'
 import PaymentMonitoring from './PaymentMonitoring'
 import logoImg from '../assets/new logo.jpeg'
+import { getSuperAdminProfile } from '../services/superAdminService'
 
 function AdminLayout({ onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard')
@@ -79,6 +80,27 @@ function AdminLayout({ onLogout }) {
       }
     }
   })
+
+  // Sync profile data when updated locally or via events
+  useEffect(() => {
+    const handleProfileSync = () => {
+      try {
+        const saved = localStorage.getItem('profileData') || localStorage.getItem('adminUser')
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          setProfileData(prev => ({ ...prev, ...parsed }))
+        }
+      } catch (err) {
+        console.warn('Could not sync admin profile from storage:', err)
+      }
+    }
+    window.addEventListener('profile:updated', handleProfileSync)
+    window.addEventListener('storage', handleProfileSync)
+    return () => {
+      window.removeEventListener('profile:updated', handleProfileSync)
+      window.removeEventListener('storage', handleProfileSync)
+    }
+  }, [])
 
   React.useEffect(() => {
     localStorage.setItem('profileData', JSON.stringify(profileData))
