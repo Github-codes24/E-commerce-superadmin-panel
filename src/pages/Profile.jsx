@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import { Phone, Mail, Lock, Camera, ArrowLeft, Loader2 } from 'lucide-react'
+import { Phone, Mail, Lock, Camera, ArrowLeft, Loader2, Eye, EyeOff, KeyRound } from 'lucide-react'
 import { getSuperAdminProfile, updateSuperAdminProfile } from '../services/superAdminService'
 import './Profile.css'
 
-function Profile({ profileData, setProfileData, onBack }) {
+function Profile({ profileData, setProfileData, onBack, onChangePassword }) {
   const [isEditing, setIsEditing] = useState(false)
   const [tempData, setTempData] = useState({ ...profileData })
+  const [showPasswordValue, setShowPasswordValue] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -226,14 +227,50 @@ function Profile({ profileData, setProfileData, onBack }) {
             </div>
           </div>
 
-          <div className="info-box-field password">
-            <div className="info-box-icon-container">
-              <Lock />
+          <div className="info-box-field password" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <div className="info-box-icon-container">
+                <Lock />
+              </div>
+              <div className="info-box-content">
+                <div className="info-box-label">Password</div>
+                <div className="info-box-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>
+                    {showPasswordValue
+                      ? (profileData.password || '*************')
+                      : '••••••••••••'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordValue(!showPasswordValue)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#94a3b8',
+                      padding: '2px',
+                      display: 'inline-flex',
+                      alignItems: 'center'
+                    }}
+                    title={showPasswordValue ? 'Hide password' : 'Show password'}
+                    aria-label={showPasswordValue ? 'Hide password' : 'Show password'}
+                  >
+                    {showPasswordValue ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="info-box-content">
-              <div className="info-box-label">Password</div>
-              <div className="info-box-value">{profileData.password || '*************'}</div>
-            </div>
+            {onChangePassword && (
+              <button
+                type="button"
+                className="change-pass-profile-btn"
+                onClick={onChangePassword}
+                title="Change Password"
+              >
+                <KeyRound size={14} />
+                Change Password
+              </button>
+            )}
           </div>
         </div>
       </div>

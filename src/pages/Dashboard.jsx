@@ -24,12 +24,29 @@ import {
   LayoutGrid,
   RotateCw
 } from 'lucide-react'
-import { getDashboardStats } from '../services/superAdminService'
+import { getDashboardStats, getAllAdmins, getAllCustomers } from '../services/superAdminService'
+import { resolveCustomerStatus } from './CustomersManagement'
 import './Dashboard.css'
 
-function Dashboard({ onViewAllOrders }) {
+function Dashboard({ onViewAllOrders, onNavigate }) {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [statsData, setStatsData] = useState(null)
+  const [adminCounts, setAdminCounts] = useState(() => {
+    try {
+      const stored = localStorage.getItem('admin_counts_summary')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  })
+  const [customerCounts, setCustomerCounts] = useState(() => {
+    try {
+      const stored = localStorage.getItem('customer_counts_summary')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -42,6 +59,78 @@ function Dashboard({ onViewAllOrders }) {
         setStatsData(res.data)
       } else if (res && res.data) {
         setStatsData(res.data)
+      }
+
+      // Also fetch live admin counts and respect persistent overrides
+      try {
+        const adminsRes = await getAllAdmins()
+        const admins = Array.isArray(adminsRes?.data) ? adminsRes.data : (Array.isArray(adminsRes) ? adminsRes : [])
+        if (admins.length > 0) {
+          let overrides = {}
+          try {
+            overrides = JSON.parse(localStorage.getItem('admin_status_overrides') || '{}')
+          } catch {}
+
+          const total = admins.length
+          let active = 0
+          let inactive = 0
+
+          admins.forEach((admin, idx) => {
+            const rawId = admin.id || admin._id || admin.userId?._id || admin.userId?.id || `admin-${idx}`
+            const userId = admin.userId?._id || admin.userId?.id
+
+            let status = 'active'
+            if (rawId && overrides[rawId]) {
+              status = overrides[rawId]
+            } else if (userId && overrides[userId]) {
+              status = overrides[userId]
+            } else if (admin.userId?.isActive !== undefined && admin.userId?.isActive !== null) {
+              status = admin.userId.isActive ? 'active' : 'inactive'
+            } else if (admin.isActive !== undefined && admin.isActive !== null) {
+              status = admin.isActive ? 'active' : 'inactive'
+            } else if (admin.userId?.userStatus) {
+              status = admin.userId.userStatus.toString().toLowerCase() === 'inactive' ? 'inactive' : 'active'
+            } else if (admin.status && admin.status.toString().toLowerCase() !== 'pending') {
+              status = admin.status.toString().toLowerCase() === 'inactive' ? 'inactive' : 'active'
+            }
+
+            if (status === 'active') active++
+            else inactive++
+          })
+
+          const counts = { total, active, inactive }
+          setAdminCounts(counts)
+          localStorage.setItem('admin_counts_summary', JSON.stringify(counts))
+        }
+      } catch (adminErr) {
+        console.warn('Failed to load admin stats for dashboard:', adminErr)
+      }
+
+      // Also fetch live customer counts and respect persistent overrides
+      try {
+        const custRes = await getAllCustomers({ page: 1, limit: 100 })
+        const customers = Array.isArray(custRes?.data) ? custRes.data : (Array.isArray(custRes?.customers) ? custRes.customers : (Array.isArray(custRes) ? custRes : []))
+        if (customers.length > 0) {
+          let overrides = {}
+          try {
+            overrides = JSON.parse(localStorage.getItem('zyvora_customer_status_overrides') || '{}')
+          } catch {}
+
+          let active = 0
+          let blocked = 0
+
+          customers.forEach((c) => {
+            const status = resolveCustomerStatus(c, overrides)
+            if (status === 'active') active++
+            else blocked++
+          })
+
+          const counts = { total: customers.length, active, blocked }
+          setCustomerCounts(counts)
+          localStorage.setItem('customer_counts_summary', JSON.stringify(counts))
+        }
+      } catch (custErr) {
+        console.warn('Failed to load customer stats for dashboard:', custErr)
       }
     } catch (err) {
       console.error('Failed to fetch dashboard stats:', err)
@@ -112,12 +201,30 @@ function Dashboard({ onViewAllOrders }) {
         { 
           id: 'total-customers', 
           label: 'Total Customers', 
-          value: statsData?.totalCustomers !== undefined ? Number(statsData.totalCustomers).toLocaleString() : '150', 
+          value: customerCounts?.total !== undefined ? Number(customerCounts.total).toLocaleString() : (statsData?.totalCustomers !== undefined ? Number(statsData.totalCustomers).toLocaleString() : '30'), 
           icon: Users, 
-          colorClass: 'blue' 
+          colorClass: 'blue',
+          filterVal: 'all',
+          clickable: true
         },
-        { id: 'active-customers', label: 'Active Customers', value: '900', icon: UserCheck, colorClass: 'green' },
-        { id: 'blocked-customers', label: 'Blocked Customers', value: '100', icon: ShieldAlert, colorClass: 'red' },
+        { 
+          id: 'active-customers', 
+          label: 'Active Customers', 
+          value: customerCounts?.active !== undefined ? Number(customerCounts.active).toLocaleString() : '16', 
+          icon: UserCheck, 
+          colorClass: 'green',
+          filterVal: 'active',
+          clickable: true
+        },
+        { 
+          id: 'blocked-customers', 
+          label: 'Blocked Customers', 
+          value: customerCounts?.blocked !== undefined ? Number(customerCounts.blocked).toLocaleString() : '14', 
+          icon: ShieldAlert, 
+          colorClass: 'red',
+          filterVal: 'blocked',
+          clickable: true
+        },
         { 
           id: 'total-vendors', 
           label: 'Total Vendors', 
@@ -130,12 +237,24 @@ function Dashboard({ onViewAllOrders }) {
         { 
           id: 'total-admins', 
           label: 'Total Admins', 
-          value: statsData?.totalAdmins !== undefined ? Number(statsData.totalAdmins).toLocaleString() : '10', 
+          value: adminCounts?.total !== undefined ? Number(adminCounts.total).toLocaleString() : (statsData?.totalAdmins !== undefined ? Number(statsData.totalAdmins).toLocaleString() : '32'), 
           icon: Users, 
           colorClass: 'blue' 
         },
-        { id: 'active-admins', label: 'Active Admins', value: '5', icon: UserCheck, colorClass: 'green' },
-        { id: 'inactive-admins', label: 'Inactive Admins', value: '1', icon: UserMinus, colorClass: 'red' }
+        { 
+          id: 'active-admins', 
+          label: 'Active Admins', 
+          value: adminCounts?.active !== undefined ? Number(adminCounts.active).toLocaleString() : '25', 
+          icon: UserCheck, 
+          colorClass: 'green' 
+        },
+        { 
+          id: 'inactive-admins', 
+          label: 'Inactive Admins', 
+          value: adminCounts?.inactive !== undefined ? Number(adminCounts.inactive).toLocaleString() : '7', 
+          icon: UserMinus, 
+          colorClass: 'red' 
+        }
       ]
     },
     {
@@ -235,8 +354,26 @@ function Dashboard({ onViewAllOrders }) {
           <div className="stats-grid">
             {section.items.map((stat) => {
               const Icon = stat.icon
+              const isClickable = Boolean(stat.clickable || stat.filterVal !== undefined)
+              const handleStatClick = () => {
+                if (stat.filterVal !== undefined) {
+                  try {
+                    sessionStorage.setItem('customers_initial_filter', stat.filterVal)
+                  } catch {}
+                  if (onNavigate) {
+                    onNavigate('Customers Management')
+                  }
+                }
+              }
+
               return (
-                <div key={stat.id} className="stat-card-new">
+                <div 
+                  key={stat.id} 
+                  className={`stat-card-new ${isClickable ? 'clickable' : ''}`}
+                  onClick={isClickable ? handleStatClick : undefined}
+                  style={isClickable ? { cursor: 'pointer', transition: 'transform 0.15s ease, box-shadow 0.15s ease' } : {}}
+                  title={isClickable ? `Click to view ${stat.label} list` : undefined}
+                >
                   <div className={`stat-icon-new ${stat.colorClass}`}>
                     <Icon />
                   </div>

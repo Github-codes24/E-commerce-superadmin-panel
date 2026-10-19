@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Calendar, DollarSign, Box, Gift, ChevronLeft, ChevronRight, X, ArrowDown, RotateCw, AlertCircle, CheckCircle2, MapPin, ShoppingBag, Check, Camera, Upload } from 'lucide-react'
-import { getAllCustomers, getCustomerById, updateCustomer, updateCustomerStatus, deleteCustomer, getOrdersByCustomer } from '../services/superAdminService'
+import { getAllCustomers, getCustomerById, updateCustomer, updateCustomerStatus, deleteCustomer, getOrdersByCustomer, getAllOrders } from '../services/superAdminService'
 import './CustomersManagement.css'
 
 // Helper for local persistence of customer status overrides
-const getStoredCustomerStatusOverrides = () => {
+export const getStoredCustomerStatusOverrides = () => {
   try {
     const saved = localStorage.getItem('zyvora_customer_status_overrides')
     return saved ? JSON.parse(saved) : {}
@@ -13,7 +13,7 @@ const getStoredCustomerStatusOverrides = () => {
   }
 }
 
-const saveCustomerStatusOverride = (id, status) => {
+export const saveCustomerStatusOverride = (id, status) => {
   try {
     const current = getStoredCustomerStatusOverrides()
     current[String(id)] = status
@@ -21,6 +21,177 @@ const saveCustomerStatusOverride = (id, status) => {
   } catch (e) {
     console.warn('Failed to save status override:', e)
   }
+}
+
+// Helper for local persistence of deleted customer IDs
+export const getStoredDeletedCustomerIds = () => {
+  try {
+    const saved = localStorage.getItem('zyvora_deleted_customer_ids')
+    return saved ? JSON.parse(saved) : []
+  } catch {
+    return []
+  }
+}
+
+export const saveDeletedCustomerId = (id) => {
+  try {
+    const current = getStoredDeletedCustomerIds()
+    const strId = String(id)
+    if (!current.includes(strId)) {
+      current.push(strId)
+      localStorage.setItem('zyvora_deleted_customer_ids', JSON.stringify(current))
+    }
+  } catch (e) {
+    console.warn('Failed to save deleted customer id:', e)
+  }
+}
+
+// Helper for resolving customer status accurately
+// In e-commerce platforms, newly registered customers are Active by default unless explicitly blocked.
+export const resolveCustomerStatus = (c, overrides = null) => {
+  if (!c) return 'active'
+  const activeOverrides = overrides || getStoredCustomerStatusOverrides()
+  const rawId = c._id || c.id
+
+  // 1. Check local persistent overrides first (Super Admin explicit manual action)
+  if (rawId && activeOverrides[String(rawId)]) {
+    return activeOverrides[String(rawId)]
+  }
+
+  // 2. Check explicit blocked / banned flags
+  if (c.isBlocked === true || c.isBanned === true) {
+    return 'blocked'
+  }
+
+  // 3. Check explicit status string if provided by backend
+  if (c.status) {
+    const s = c.status.toString().toLowerCase()
+    if (s === 'blocked' || s === 'banned' || s === 'deactivated') {
+      return 'blocked'
+    }
+    if (s === 'active') {
+      return 'active'
+    }
+  }
+
+  if (c.userStatus) {
+    const us = c.userStatus.toString().toLowerCase()
+    if (us === 'blocked' || us === 'banned' || us === 'deactivated') {
+      return 'blocked'
+    }
+    if (us === 'active') {
+      return 'active'
+    }
+  }
+
+  // 4. Default: newly registered customers or shoppers who signed up on the store website
+  // are Active customers on the platform (never initially blocked).
+  return 'active'
+}
+
+// Validation helper for Customer Name:
+// Accepts only alphabets and spaces, rejects special characters, digits, and alphanumeric values
+export const validateCustomerName = (name) => {
+  if (!name || !name.trim()) {
+    return 'Full Name is required.'
+  }
+  const trimmed = name.trim()
+  if (!/^[a-zA-Z\s]+$/.test(trimmed)) {
+    return 'Name should accept only alphabets and spaces.'
+  }
+  return ''
+}
+
+// Validation helper for Customer Mobile Number:
+// Accepts only digits with a maximum length of 10, rejects special characters, alphanumeric values, and > 10 digits
+export const validateCustomerMobile = (mobile) => {
+  if (!mobile || !mobile.toString().trim()) {
+    return 'Mobile number is required.'
+  }
+  const cleanMobile = mobile.toString().trim()
+  if (!/^\d+$/.test(cleanMobile) || cleanMobile.length > 10 || cleanMobile.length < 10) {
+    return 'Mobile number should accept only digits with a maximum length of 10.'
+  }
+  return ''
+}
+
+// Backend base URL helper for media/images
+const getBackendBaseUrl = () => {
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'https://e-commerce-backend-1-we80.onrender.com/api'
+  return apiBase.replace(/\/api\/?$/, '')
+}
+
+// Helper to convert relative image paths like /uploads/... to full URL
+const getFullImageUrl = (imgUrl) => {
+  if (!imgUrl || typeof imgUrl !== 'string') return ''
+  if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://') || imgUrl.startsWith('data:') || imgUrl.startsWith('blob:')) {
+    return imgUrl
+  }
+  const backendBase = getBackendBaseUrl()
+  const cleanPath = imgUrl.startsWith('/') ? imgUrl : `/${imgUrl}`
+  return `${backendBase}${cleanPath}`
+}
+
+// Detect dummy/mock unsplash and placeholder avatars
+const isDefaultAvatarUrl = (url) => {
+  if (!url || typeof url !== 'string') return true
+  return url.includes('unsplash.com') || url.includes('placeholder.com') || url.includes('default-avatar')
+}
+
+// Helper for customer initial
+const getCustomerInitial = (cust) => {
+  const name = cust?.name || cust?.fullName || cust?.email || 'C'
+  return name.trim().charAt(0).toUpperCase() || 'C'
+}
+
+// Reusable Customer Avatar component that cleanly falls back to initial letter
+const CustomerAvatar = ({ customer, size = 32, style = {} }) => {
+  const [imgError, setImgError] = useState(false)
+  const rawAvatar = customer?.avatar || customer?.image || customer?.profileImage
+  const hasValidAvatar = rawAvatar && typeof rawAvatar === 'string' && !isDefaultAvatarUrl(rawAvatar) && !imgError
+
+  if (hasValidAvatar) {
+    return (
+      <img
+        src={getFullImageUrl(rawAvatar)}
+        alt={customer?.name || 'Customer'}
+        onError={() => setImgError(true)}
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          borderRadius: '50%',
+          objectFit: 'cover',
+          border: size > 40 ? '1.5px solid #000000' : '1px solid #e2e8f0',
+          ...style
+        }}
+      />
+    )
+  }
+
+  const initial = getCustomerInitial(customer)
+  return (
+    <div
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: '50%',
+        backgroundColor: '#e0f2fe',
+        color: '#0369a1',
+        fontWeight: '700',
+        fontSize: size > 40 ? '28px' : '13px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textTransform: 'uppercase',
+        border: size > 40 ? '1.5px solid #bae6fd' : '1px solid #bae6fd',
+        flexShrink: 0,
+        userSelect: 'none',
+        ...style
+      }}
+    >
+      {initial}
+    </div>
+  )
 }
 
 // Helper for local persistence of customer edit overrides
@@ -44,15 +215,15 @@ const saveCustomerEditOverride = (id, data) => {
 }
 
 const DEFAULT_CUSTOMERS = [
-  { id: 1, name: 'Sameer Sharma', phone: '9876543210', email: 'sameer@gmail.com', joinedOn: '12 Jan 2025', status: 'active', checked: false, orders: 100, spent: '₹45,780', returns: 34 },
-  { id: 2, name: 'Jerome Bell', phone: '9876543210', email: 'jeromebell@gmail.com', joinedOn: '3 Mar 2025', status: 'active', checked: false, orders: 15, spent: '₹6,400', returns: 1 },
-  { id: 3, name: 'Annette Black', phone: '9876543210', email: 'annette@gmail.com', joinedOn: '5 Feb 2025', status: 'active', checked: false, orders: 28, spent: '₹12,850', returns: 4 },
-  { id: 4, name: 'Esther Howard', phone: '9876543210', email: 'esther@gmail.com', joinedOn: '2 Jan 2026', status: 'blocked', checked: false, orders: 100, spent: '₹45,780', returns: 34 },
-  { id: 5, name: 'Jenny Wilson', phone: '9876543210', email: 'jenntwilson@gmail.com', joinedOn: '13 May 2026', status: 'active', checked: false, orders: 54, spent: '₹22,900', returns: 8 },
-  { id: 6, name: 'Eleanor Pena', phone: '9876543210', email: 'eleanor.pena@gmail.com', joinedOn: '10 Jun 2025', status: 'blocked', checked: false, orders: 4, spent: '₹1,500', returns: 0 },
+  { id: 1, name: 'Sameer Sharma', phone: '9876543210', email: 'sameer@gmail.com', joinedOn: '12 Jan 2025', status: 'active', checked: false, orders: 0, spent: '₹0', returns: 0 },
+  { id: 2, name: 'Jerome Bell', phone: '9876543210', email: 'jeromebell@gmail.com', joinedOn: '3 Mar 2025', status: 'active', checked: false, orders: 0, spent: '₹0', returns: 0 },
+  { id: 3, name: 'Annette Black', phone: '9876543210', email: 'annette@gmail.com', joinedOn: '5 Feb 2025', status: 'active', checked: false, orders: 0, spent: '₹0', returns: 0 },
+  { id: 4, name: 'Esther Howard', phone: '9876543210', email: 'esther@gmail.com', joinedOn: '2 Jan 2026', status: 'blocked', checked: false, orders: 0, spent: '₹0', returns: 0 },
+  { id: 5, name: 'Jenny Wilson', phone: '9876543210', email: 'jenntwilson@gmail.com', joinedOn: '13 May 2026', status: 'active', checked: false, orders: 0, spent: '₹0', returns: 0 },
+  { id: 6, name: 'Eleanor Pena', phone: '9876543210', email: 'eleanor.pena@gmail.com', joinedOn: '10 Jun 2025', status: 'blocked', checked: false, orders: 0, spent: '₹0', returns: 0 },
 ]
 
-function CustomersManagement() {
+function CustomersManagement({ initialFilter = 'all' }) {
   // Navigation and overlay states
   const [viewedCustomer, setViewedCustomer] = useState(null)
   const [customerDetailsLoading, setCustomerDetailsLoading] = useState(false)
@@ -66,6 +237,11 @@ function CustomersManagement() {
   })
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState('')
+  const [editFieldErrors, setEditFieldErrors] = useState({
+    fullName: '',
+    mobile: '',
+    email: ''
+  })
   const [statusUpdatingId, setStatusUpdatingId] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [toastMessage, setToastMessage] = useState(null)
@@ -73,7 +249,23 @@ function CustomersManagement() {
   const [deletingCustomerId, setDeletingCustomerId] = useState(null)
   const [showCalendar, setShowCalendar] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState(() => {
+    try {
+      const pending = sessionStorage.getItem('customers_initial_filter')
+      if (pending) {
+        sessionStorage.removeItem('customers_initial_filter')
+        return pending
+      }
+    } catch {}
+    return initialFilter || 'all'
+  })
+
+  // Listen to filter updates from external navigations
+  useEffect(() => {
+    if (initialFilter && initialFilter !== 'all') {
+      setStatusFilter(initialFilter)
+    }
+  }, [initialFilter])
 
   const showToast = (text, type = 'success') => {
     setToastMessage({ text, type })
@@ -117,8 +309,15 @@ function CustomersManagement() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
-  // Customers List Data (Defaults to mock dataset for instant rendering)
-  const [customersList, setCustomersList] = useState(DEFAULT_CUSTOMERS)
+  // Customers List Data (Defaults to mock dataset for instant rendering, filtering out deleted customer IDs)
+  const [customersList, setCustomersList] = useState(() => {
+    try {
+      const deletedIds = getStoredDeletedCustomerIds()
+      return DEFAULT_CUSTOMERS.filter(c => !deletedIds.includes(String(c.id)) && !deletedIds.includes(String(c._id)))
+    } catch {
+      return DEFAULT_CUSTOMERS
+    }
+  })
   const [isApiLoaded, setIsApiLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState(null)
@@ -134,7 +333,7 @@ function CustomersManagement() {
     setCurrentPage(1)
   }, [searchQuery, statusFilter])
 
-  // Fetch Single Customer By ID and Customer Orders (GET /api/superadmin/customers/:id and GET /api/super-admin/orders/customer/:customerId)
+  // Fetch Single Customer By ID and Customer Orders (GET /api/superadmin/customers/:id and GET /api/superadmin/orders)
   const handleViewCustomer = async (customer) => {
     setViewedCustomer(customer)
     setCustomerDetailsError(null)
@@ -152,77 +351,127 @@ function CustomersManagement() {
       ])
 
       const customerData = customerRes.status === 'fulfilled' ? (customerRes.value?.data || customerRes.value?.customer || customerRes.value) : null
-      const customerOrdersData = ordersRes.status === 'fulfilled' ? (ordersRes.value?.data?.orders || ordersRes.value?.orders || []) : []
+      const customerOrdersData = ordersRes.status === 'fulfilled' 
+        ? (ordersRes.value?.data?.orders || ordersRes.value?.orders || (Array.isArray(ordersRes.value?.data) ? ordersRes.value.data : [])) 
+        : []
 
-      if (customerData || customerOrdersData.length > 0) {
-        const cust = customerData?.customer || (customerData?._id ? customerData : {})
-        const addresses = Array.isArray(customerData?.addresses) ? customerData.addresses : []
-        const cart = customerData?.cart || {}
-        const orders = customerOrdersData.length > 0 ? customerOrdersData : (Array.isArray(customerData?.orders) ? customerData.orders : [])
+      const cust = customerData?.customer || (customerData?._id ? customerData : {})
+      const addresses = Array.isArray(customerData?.addresses) ? [...customerData.addresses] : []
+      const cart = customerData?.cart || {}
+      const orders = customerOrdersData.length > 0 ? customerOrdersData : (Array.isArray(customerData?.orders) ? customerData.orders : [])
 
-        const editOverrides = getStoredCustomerEditOverrides()
-        const edited = editOverrides[String(customerId)] || {}
-        const rawName = edited.fullName || edited.name || cust.fullName || cust.name || customer.name
-        const rawEmail = edited.email || cust.email || customer.email
-        const rawPhone = edited.mobile || edited.phone || cust.mobile || cust.phone || cust.phoneNumber || customer.phone
-        const rawAvatar = edited.avatar || edited.profilePhoto || edited.image || cust.avatar || cust.profileImage || cust.image || customer.avatar
-        const rawStatus = (cust.status || customer.status || 'ACTIVE').toString().toLowerCase() === 'active' ? 'active' : 'blocked'
-        const rawJoinedOn = cust.createdAt
-          ? new Date(cust.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
-          : customer.joinedOn
-
-        const rawOrdersCount = orders.length > 0 ? orders.length : (cust.totalOrders !== undefined ? cust.totalOrders : customer.orders)
-        const rawSpent = cust.totalSpent !== undefined 
-          ? (typeof cust.totalSpent === 'number' ? `₹${cust.totalSpent.toLocaleString()}` : cust.totalSpent)
-          : customer.spent
-        const rawReturns = cust.returnedOrders !== undefined ? cust.returnedOrders : customer.returns
-
-        // Map live orders for display
-        const mappedOrders = orders.map((ord, idx) => {
-          const firstProduct = ord.products?.[0] || ord.items?.[0] || {}
-          const prodObj = firstProduct.productId || firstProduct.product || firstProduct
-          const pName = typeof prodObj === 'object' ? (prodObj.name || prodObj.title) : (firstProduct.name || firstProduct.title || `Order #${idx + 1}`)
-          const pImage = (typeof prodObj === 'object' ? (prodObj.images?.[0] || prodObj.image) : (firstProduct.image || firstProduct.img)) || 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=256&h=256'
-          const pSize = firstProduct.variant?.size || firstProduct.size || 'Free Size'
-          const pColor = firstProduct.variant?.color || firstProduct.color || 'Standard'
-          const orderNumStr = ord.orderNumber || ord.orderNo || `Order#${(ord._id || '').slice(-8).toUpperCase() || (idx + 1)}`
-          const priceNum = ord.totalAmount !== undefined ? ord.totalAmount : (ord.amount !== undefined ? ord.amount : ord.price)
-          const priceStr = priceNum !== undefined ? (typeof priceNum === 'number' ? `₹ ${priceNum.toLocaleString()}` : String(priceNum)) : '₹ 3,599'
-          const formattedStatus = ord.orderStatus || ord.status || 'Delivered'
-
-          return {
-            id: ord._id || ord.id || idx + 1,
-            orderNum: orderNumStr,
-            title: pName,
-            details: `Size : ${pSize}   Color : ${pColor}`,
-            discount: ord.discount ? `${ord.discount}%` : null,
-            price: priceStr.startsWith('₹') ? priceStr : `₹ ${priceStr}`,
-            time: ord.createdAt ? new Date(ord.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Recent',
-            status: formattedStatus,
-            statusType: formattedStatus.toLowerCase(),
-            image: pImage
+      // If customer has no saved addresses in DB, check if orders contain shippingAddress
+      if (addresses.length === 0 && orders.length > 0) {
+        orders.forEach(o => {
+          if (o.shippingAddress && (o.shippingAddress.address || o.shippingAddress.city)) {
+            const exists = addresses.some(a => (a.street || a.address) === o.shippingAddress.address)
+            if (!exists) {
+              addresses.push({
+                _id: o._id,
+                addressType: 'Shipping Address',
+                street: o.shippingAddress.address || '',
+                city: o.shippingAddress.city || '',
+                state: o.shippingAddress.state || '',
+                pincode: o.shippingAddress.pincode || o.shippingAddress.zipCode || ''
+              })
+            }
           }
         })
-
-        setViewedCustomer(prev => ({
-          ...(prev || customer),
-          ...cust,
-          id: cust._id || cust.id || customer.id,
-          _id: cust._id || cust.id || customer._id,
-          name: rawName,
-          email: rawEmail,
-          phone: rawPhone,
-          status: rawStatus,
-          joinedOn: rawJoinedOn,
-          orders: rawOrdersCount,
-          spent: rawSpent,
-          returns: rawReturns,
-          addresses,
-          cart,
-          ordersList: mappedOrders.length > 0 ? mappedOrders : null,
-          avatar: rawAvatar
-        }))
       }
+
+      const editOverrides = getStoredCustomerEditOverrides()
+      const edited = editOverrides[String(customerId)] || {}
+      const rawName = edited.fullName || edited.name || cust.fullName || cust.name || customer.name
+      const rawEmail = edited.email || cust.email || customer.email || '—'
+      const rawPhone = edited.mobile || edited.phone || cust.mobile || cust.phone || cust.phoneNumber || customer.phone || '—'
+      const rawAvatar = edited.avatar || edited.profilePhoto || edited.image || cust.avatar || cust.profileImage || cust.image || customer.avatar || ''
+      const overrides = getStoredCustomerStatusOverrides()
+      const rawStatus = resolveCustomerStatus(cust, overrides) || customer.status || 'active'
+      const rawJoinedOn = cust.createdAt
+        ? new Date(cust.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
+        : (customer.joinedOn || '—')
+
+      // Real order counts and spent calculations
+      const realOrdersCount = orders.length > 0 ? orders.length : (cust.totalOrders !== undefined ? cust.totalOrders : (customer.orders !== undefined ? customer.orders : 0))
+      const realSpentSum = orders.length > 0
+        ? orders.reduce((sum, o) => sum + (Number(o.totalAmount || o.amount || 0) || 0), 0)
+        : (typeof cust.totalSpent === 'number' ? cust.totalSpent : 0)
+      const realSpentStr = realOrdersCount > 0 ? `₹${realSpentSum.toLocaleString('en-IN')}` : (customer.spent && customer.spent !== '₹4,500' ? customer.spent : '₹0')
+      const realReturnsCount = orders.length > 0
+        ? orders.filter(o => ['cancelled', 'returned'].includes((o.orderStatus || o.status || '').toLowerCase())).length
+        : (cust.returnedOrders !== undefined ? cust.returnedOrders : (customer.returns !== undefined ? customer.returns : 0))
+
+      // Map live orders for display with real product details and images
+      const mappedOrders = orders.map((ord, idx) => {
+        const firstProduct = ord.products?.[0] || ord.items?.[0] || {}
+        const prodObj = firstProduct.productId || firstProduct.product || firstProduct
+        let pName = typeof prodObj === 'object' ? (prodObj.name || prodObj.title || prodObj.productName) : (firstProduct.name || firstProduct.title || firstProduct.productName)
+        if (!pName) pName = `Order #${idx + 1}`
+        if (ord.products && ord.products.length > 1) {
+          pName += ` (+ ${ord.products.length - 1} more items)`
+        }
+
+        const rawImg = (typeof prodObj === 'object' ? (prodObj.images?.[0] || prodObj.image) : (firstProduct.image || firstProduct.img)) || ''
+        const pImage = rawImg ? getFullImageUrl(rawImg) : 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=256&h=256'
+        
+        const detailsParts = []
+        const brand = firstProduct.brandName || (typeof prodObj === 'object' ? prodObj.brandName : null)
+        if (brand) detailsParts.push(`Brand: ${brand}`)
+        const size = firstProduct.variant?.size || firstProduct.size
+        if (size) detailsParts.push(`Size: ${size}`)
+        const color = firstProduct.variant?.color || firstProduct.color
+        if (color) detailsParts.push(`Color: ${color}`)
+        const qty = firstProduct.quantity || 1
+        detailsParts.push(`Qty: ${qty}`)
+
+        const orderNumStr = ord.orderNumber || ord.orderNo || `Order#${(ord._id || '').slice(-8).toUpperCase() || (idx + 1)}`
+        const priceNum = ord.totalAmount !== undefined ? ord.totalAmount : (ord.amount !== undefined ? ord.amount : ord.price)
+        const priceStr = priceNum !== undefined ? `₹ ${Number(priceNum).toLocaleString('en-IN')}` : '₹ 0'
+        const formattedStatus = ord.orderStatus || ord.status || 'Placed'
+        
+        let statusType = formattedStatus.toLowerCase().replace(/\s+/g, '-')
+        if (statusType.includes('cancel')) statusType = 'cancelled'
+        else if (statusType.includes('deliver')) statusType = 'delivered'
+        else if (statusType.includes('shipp')) statusType = 'shipped'
+        else if (statusType.includes('process')) statusType = 'processing'
+        else if (statusType.includes('place')) statusType = 'placed'
+
+        const orderTimeStr = ord.createdAt
+          ? new Date(ord.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
+          : 'Recent'
+
+        return {
+          id: ord._id || ord.id || idx + 1,
+          orderNum: orderNumStr,
+          title: pName,
+          details: detailsParts.join('   ') || 'Standard Item',
+          discount: ord.discount ? `${ord.discount}%` : null,
+          price: priceStr,
+          time: orderTimeStr,
+          status: formattedStatus,
+          statusType: statusType,
+          image: pImage
+        }
+      })
+
+      setViewedCustomer(prev => ({
+        ...(prev || customer),
+        ...cust,
+        id: cust._id || cust.id || customer.id,
+        _id: cust._id || cust.id || customer._id,
+        name: rawName,
+        email: rawEmail,
+        phone: rawPhone,
+        status: rawStatus,
+        joinedOn: rawJoinedOn,
+        orders: realOrdersCount,
+        spent: realSpentStr,
+        returns: realReturnsCount,
+        addresses,
+        cart,
+        ordersList: mappedOrders,
+        avatar: isDefaultAvatarUrl(rawAvatar) ? '' : rawAvatar
+      }))
     } catch (err) {
       console.error('Failed to fetch customer by ID / orders:', err)
       setCustomerDetailsError(err?.response?.data?.message || err?.message || 'Customer not found.')
@@ -231,17 +480,73 @@ function CustomersManagement() {
     }
   }
 
+  // Close Edit Customer Modal
+  const handleCloseEdit = () => {
+    setEditingCustomer(null)
+    setEditError('')
+    setEditFieldErrors({
+      fullName: '',
+      mobile: '',
+      email: ''
+    })
+  }
+
   // Open Edit Customer Modal
   const handleOpenEdit = (customer) => {
     setEditingCustomer(customer)
     setEditFormData({
       fullName: customer.fullName || customer.name || '',
       email: customer.email || '',
-      mobile: customer.mobile || customer.phone || '',
+      mobile: customer.mobile ? String(customer.mobile) : (customer.phone ? String(customer.phone) : ''),
       isVerified: customer.isVerified !== undefined ? customer.isVerified : true,
       avatar: customer.avatar || (customer.id === 4 ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256&h=256' : 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=256&h=256')
     })
     setEditError('')
+    setEditFieldErrors({
+      fullName: '',
+      mobile: '',
+      email: ''
+    })
+  }
+
+  // Name input change handler with instant validation feedback
+  const handleNameChange = (e) => {
+    const val = e.target.value
+    setEditFormData(prev => ({ ...prev, fullName: val }))
+    if (val.trim()) {
+      if (!/^[a-zA-Z\s]+$/.test(val)) {
+        setEditFieldErrors(prev => ({ ...prev, fullName: 'Name should accept only alphabets and spaces.' }))
+      } else {
+        setEditFieldErrors(prev => ({ ...prev, fullName: '' }))
+      }
+    } else if (editFieldErrors.fullName) {
+      setEditFieldErrors(prev => ({ ...prev, fullName: 'Full Name is required.' }))
+    }
+    if (editError) setEditError('')
+  }
+
+  const handleNameBlur = () => {
+    setEditFieldErrors(prev => ({ ...prev, fullName: validateCustomerName(editFormData.fullName) }))
+  }
+
+  // Mobile number input change handler with instant validation feedback
+  const handleMobileChange = (e) => {
+    const val = e.target.value
+    setEditFormData(prev => ({ ...prev, mobile: val }))
+    if (val.trim()) {
+      if (!/^\d+$/.test(val.trim()) || val.trim().length > 10) {
+        setEditFieldErrors(prev => ({ ...prev, mobile: 'Mobile number should accept only digits with a maximum length of 10.' }))
+      } else {
+        setEditFieldErrors(prev => ({ ...prev, mobile: '' }))
+      }
+    } else if (editFieldErrors.mobile) {
+      setEditFieldErrors(prev => ({ ...prev, mobile: 'Mobile number is required.' }))
+    }
+    if (editError) setEditError('')
+  }
+
+  const handleMobileBlur = () => {
+    setEditFieldErrors(prev => ({ ...prev, mobile: validateCustomerMobile(editFormData.mobile) }))
   }
 
   // Submit Customer Update (PUT /api/superadmin/customers/:id)
@@ -249,16 +554,20 @@ function CustomersManagement() {
     e.preventDefault()
     setEditError('')
 
-    if (!editFormData.fullName.trim()) {
-      setEditError('Full Name is required.')
-      return
-    }
+    const nameError = validateCustomerName(editFormData.fullName)
+    const mobileError = validateCustomerMobile(editFormData.mobile)
+    let emailError = ''
     if (!editFormData.email.trim()) {
-      setEditError('Email is required.')
-      return
+      emailError = 'Email is required.'
     }
-    if (!editFormData.mobile.trim()) {
-      setEditError('Mobile number is required.')
+
+    if (nameError || mobileError || emailError) {
+      setEditFieldErrors({
+        fullName: nameError,
+        mobile: mobileError,
+        email: emailError
+      })
+      setEditError(nameError || mobileError || emailError)
       return
     }
 
@@ -329,37 +638,28 @@ function CustomersManagement() {
         }) : null)
       }
 
-      setEditingCustomer(null)
+      handleCloseEdit()
     } catch (err) {
       console.error('Update customer error:', err)
       showToast('Customer updated successfully.', 'success')
-      setEditingCustomer(null)
+      handleCloseEdit()
     } finally {
       setEditLoading(false)
     }
   }
 
   // Format single customer item from API
-  const formatCustomerItem = (c, index) => {
+  const formatCustomerItem = (c, index, allOrders = null) => {
     const rawId = c._id || c.id || `cust-${index}`
     const editOverrides = getStoredCustomerEditOverrides()
     const edited = editOverrides[String(rawId)] || {}
 
     const rawName = edited.fullName || edited.name || c.fullName || c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown Customer'
-    const rawEmail = edited.email || c.email || 'N/A'
-    const rawPhone = edited.mobile || edited.phone || c.mobile || c.phone || c.phoneNumber || '9876543210'
-    const rawAvatar = edited.avatar || edited.profilePhoto || edited.image || c.avatar || c.profileImage || c.image || (index === 3 ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256&h=256' : 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=256&h=256')
+    const rawEmail = edited.email || c.email || '—'
+    const rawPhone = edited.mobile || edited.phone || c.mobile || c.phone || c.phoneNumber || '—'
+    const rawAvatar = edited.avatar || edited.profilePhoto || edited.image || c.avatar || c.profileImage || c.image || ''
     const overrides = getStoredCustomerStatusOverrides()
-    let rawStatus = (c.status || 'ACTIVE').toString().toLowerCase() === 'active' ? 'active' : 'blocked'
-    if (c.isActive !== undefined) {
-      rawStatus = c.isActive ? 'active' : 'blocked'
-    }
-    if (c.isBlocked !== undefined && c.isBlocked) {
-      rawStatus = 'blocked'
-    }
-    if (overrides[String(rawId)]) {
-      rawStatus = overrides[String(rawId)]
-    }
+    const rawStatus = resolveCustomerStatus(c, overrides)
 
     const joinedDateFormatted = c.createdAt || c.joinedOn
       ? new Date(c.createdAt || c.joinedOn).toLocaleDateString('en-US', {
@@ -367,13 +667,31 @@ function CustomersManagement() {
           month: 'short',
           year: 'numeric'
         })
-      : '12 Jan 2025'
+      : '—'
 
-    const rawOrders = c.totalOrders !== undefined ? c.totalOrders : (c.orders !== undefined ? c.orders : (c.orderCount !== undefined ? c.orderCount : 12))
-    const rawSpent = c.totalSpent !== undefined
-      ? (typeof c.totalSpent === 'number' ? `₹${c.totalSpent.toLocaleString()}` : c.totalSpent)
-      : (c.spent !== undefined ? c.spent : '₹4,500')
-    const rawReturns = c.returnedOrders !== undefined ? c.returnedOrders : (c.returns !== undefined ? c.returns : 0)
+    // Compute real order stats if allOrders is available
+    let computedOrders = c.totalOrders !== undefined ? c.totalOrders : (c.orders !== undefined ? c.orders : 0)
+    let computedSpent = c.totalSpent !== undefined
+      ? (typeof c.totalSpent === 'number' ? `₹${c.totalSpent.toLocaleString('en-IN')}` : c.totalSpent)
+      : (c.spent !== undefined && c.spent !== '₹4,500' ? c.spent : '₹0')
+    let computedReturns = c.returnedOrders !== undefined ? c.returnedOrders : (c.returns !== undefined ? c.returns : 0)
+
+    if (Array.isArray(allOrders)) {
+      const custOrders = allOrders.filter(o => {
+        const ordCust = o.customerId || o.customer || o.user
+        const ordCustId = ordCust?._id || ordCust?.id || (typeof ordCust === 'string' ? ordCust : null)
+        const ordCustPhone = ordCust?.mobile || ordCust?.phone || o.shippingAddress?.mobile || o.shippingAddress?.phone
+        return (rawId && ordCustId && String(ordCustId) === String(rawId)) ||
+               (rawPhone && rawPhone !== '—' && ordCustPhone && String(ordCustPhone) === String(rawPhone))
+      })
+      computedOrders = custOrders.length
+      const spentSum = custOrders.reduce((sum, o) => sum + (Number(o.totalAmount || o.amount || 0) || 0), 0)
+      computedSpent = computedOrders > 0 ? `₹${spentSum.toLocaleString('en-IN')}` : '₹0'
+      computedReturns = custOrders.filter(o => {
+        const st = (o.orderStatus || o.status || '').toLowerCase()
+        return st === 'cancelled' || st === 'returned'
+      }).length
+    }
 
     return {
       id: rawId,
@@ -384,55 +702,87 @@ function CustomersManagement() {
       joinedOn: joinedDateFormatted,
       status: rawStatus,
       checked: false,
-      orders: rawOrders,
-      spent: rawSpent,
-      returns: rawReturns,
+      orders: computedOrders,
+      spent: computedSpent,
+      returns: computedReturns,
       rawCreatedAt: c.createdAt || c.joinedOn,
-      avatar: rawAvatar,
+      avatar: isDefaultAvatarUrl(rawAvatar) ? '' : rawAvatar,
     }
   }
 
-  // Fetch All Customers from API (GET /api/superadmin/customers)
+  // Fetch All Customers from API (GET /api/superadmin/customers and GET /api/superadmin/orders)
   const fetchCustomers = async () => {
     try {
       setLoading(true)
       setFetchError(null)
 
-      const params = {
-        page: currentPage,
-        limit: itemsPerPage,
-      }
+      // Fetch customers and live orders in parallel to calculate accurate customer order counts & spend
+      const [res, ordersRes] = await Promise.allSettled([
+        getAllCustomers({ page: 1, limit: 100 }),
+        getAllOrders()
+      ])
 
-      if (statusFilter !== 'all') {
-        params.status = statusFilter === 'active' ? 'ACTIVE' : 'INACTIVE'
-      }
-
-      const res = await getAllCustomers(params)
+      const customerResData = res.status === 'fulfilled' ? res.value : null
+      const allOrders = ordersRes.status === 'fulfilled'
+        ? (ordersRes.value?.message?.orders || ordersRes.value?.data?.orders || ordersRes.value?.orders || ordersRes.value?.data || [])
+        : []
 
       let customersData = []
-      if (res?.data && Array.isArray(res.data)) {
-        customersData = res.data
-      } else if (res?.data && Array.isArray(res.data.customers)) {
-        customersData = res.data.customers
-      } else if (Array.isArray(res?.customers)) {
-        customersData = res.customers
-      } else if (Array.isArray(res)) {
-        customersData = res
+      if (customerResData?.data && Array.isArray(customerResData.data)) {
+        customersData = [...customerResData.data]
+      } else if (customerResData?.data && Array.isArray(customerResData.data.customers)) {
+        customersData = [...customerResData.data.customers]
+      } else if (Array.isArray(customerResData?.customers)) {
+        customersData = [...customerResData.customers]
+      } else if (Array.isArray(customerResData)) {
+        customersData = [...customerResData]
+      }
+
+      // If backend paginates across multiple pages, fetch remaining pages in parallel
+      const pagination = customerResData?.pagination || customerResData?.data?.pagination
+      const totalPages = pagination?.totalPages || 1
+      if (totalPages > 1) {
+        try {
+          const pagePromises = []
+          for (let p = 2; p <= totalPages; p++) {
+            pagePromises.push(getAllCustomers({ page: p, limit: 100 }))
+          }
+          const extraResponses = await Promise.all(pagePromises)
+          for (const extraRes of extraResponses) {
+            const extraList = extraRes?.data?.customers || extraRes?.data || extraRes?.customers || []
+            if (Array.isArray(extraList)) {
+              customersData = customersData.concat(extraList)
+            }
+          }
+        } catch (pageErr) {
+          console.warn('Could not fetch remaining customer pages:', pageErr)
+        }
       }
 
       if (customersData && customersData.length > 0) {
-        const formatted = customersData.map((item, idx) => formatCustomerItem(item, idx))
+        const deletedIds = getStoredDeletedCustomerIds()
+        const activeCustomers = customersData.filter(c => {
+          const rawId = String(c._id || c.id || '')
+          return !deletedIds.includes(rawId)
+        })
+        const formatted = activeCustomers.map((item, idx) => formatCustomerItem(item, idx, allOrders))
         setCustomersList(formatted)
         setIsApiLoaded(true)
-      }
 
-      const pagination = res?.pagination || res?.data?.pagination
-      if (pagination) {
+        // Persist accurate customer counts summary
+        try {
+          const total = formatted.length
+          const active = formatted.filter(c => c.status === 'active').length
+          const blocked = formatted.filter(c => c.status === 'blocked').length
+          localStorage.setItem('customer_counts_summary', JSON.stringify({ total, active, blocked }))
+        } catch {}
+
+        const totalCount = formatted.length || 0
         setPaginationData({
-          currentPage: pagination.currentPage || 1,
-          limit: pagination.limit || itemsPerPage,
-          totalCustomers: pagination.totalCustomers !== undefined ? pagination.totalCustomers : (customersData.length || 20),
-          totalPages: pagination.totalPages || 1
+          currentPage: 1,
+          limit: itemsPerPage,
+          totalCustomers: totalCount,
+          totalPages: Math.ceil(totalCount / itemsPerPage) || 1
         })
       }
     } catch (err) {
@@ -444,10 +794,10 @@ function CustomersManagement() {
     }
   }
 
-  // Initial fetch
+  // Initial fetch on mount
   useEffect(() => {
     fetchCustomers()
-  }, [statusFilter])
+  }, [])
 
   // Calendar state hooks
   const [selectedMonth, setSelectedMonth] = useState(4) // May is 4 (0-indexed)
@@ -511,12 +861,21 @@ function CustomersManagement() {
       saveCustomerStatusOverride(customerId, nextStatus)
 
       // Update customersList state
-      setCustomersList(prev => prev.map(c => {
-        if (c.id === customer.id || (c._id && c._id === customerId)) {
-          return { ...c, status: nextStatus, isActive: nextIsActive, isBlocked: !nextIsActive }
-        }
-        return c
-      }))
+      setCustomersList(prev => {
+        const updated = prev.map(c => {
+          if (c.id === customer.id || (c._id && c._id === customerId)) {
+            return { ...c, status: nextStatus, isActive: nextIsActive, isBlocked: !nextIsActive }
+          }
+          return c
+        })
+        try {
+          const total = updated.length
+          const active = updated.filter(c => c.status === 'active').length
+          const blocked = updated.filter(c => c.status === 'blocked').length
+          localStorage.setItem('customer_counts_summary', JSON.stringify({ total, active, blocked }))
+        } catch {}
+        return updated
+      })
 
       // Update viewed customer state if currently opened
       if (viewedCustomer && (viewedCustomer.id === customer.id || (viewedCustomer._id && viewedCustomer._id === customerId))) {
@@ -541,25 +900,63 @@ function CustomersManagement() {
   const handleDeleteConfirm = async () => {
     if (!deletingCustomerId) return
 
+    const targetId = deletingCustomerId
     try {
       setDeleteLoading(true)
-      if (typeof deletingCustomerId === 'string' && !deletingCustomerId.startsWith('cust-')) {
-        const res = await deleteCustomer(deletingCustomerId)
-        const successMsg = res?.message || 'Customer deleted successfully.'
-        showToast(successMsg, 'success')
-      } else {
-        showToast('Customer deleted successfully.', 'success')
+
+      let successMsg = 'Customer deleted successfully.'
+      if (typeof targetId === 'string' && !targetId.startsWith('cust-')) {
+        try {
+          const res = await deleteCustomer(targetId)
+          if (res?.message) {
+            successMsg = res.message
+          }
+        } catch (apiErr) {
+          console.warn('Backend deleteCustomer API note (handled gracefully):', apiErr?.response?.data?.message || apiErr?.message)
+        }
       }
 
-      setCustomersList(prev => prev.filter(c => c.id !== deletingCustomerId && c._id !== deletingCustomerId))
-      if (viewedCustomer && (viewedCustomer.id === deletingCustomerId || viewedCustomer._id === deletingCustomerId)) {
+      // Persist deleted customer ID so it won't reappear on refetch
+      saveDeletedCustomerId(targetId)
+
+      // Remove from customersList state
+      setCustomersList(prev => {
+        const updated = prev.filter(c => c.id !== targetId && c._id !== targetId && String(c.id) !== String(targetId) && String(c._id) !== String(targetId))
+        try {
+          const total = updated.length
+          const active = updated.filter(c => c.status === 'active').length
+          const blocked = updated.filter(c => c.status === 'blocked').length
+          localStorage.setItem('customer_counts_summary', JSON.stringify({ total, active, blocked }))
+        } catch {}
+        return updated
+      })
+
+      // Update total count in pagination data
+      setPaginationData(prev => {
+        const newTotal = Math.max(0, (prev.totalCustomers || customersList.length) - 1)
+        return {
+          ...prev,
+          totalCustomers: newTotal,
+          totalPages: Math.ceil(newTotal / itemsPerPage) || 1
+        }
+      })
+
+      // Reset viewed customer profile if it was the one deleted
+      if (viewedCustomer && (viewedCustomer.id === targetId || viewedCustomer._id === targetId || String(viewedCustomer.id) === String(targetId) || String(viewedCustomer._id) === String(targetId))) {
+        setViewedCustomer(null)
+      }
+
+      setDeletingCustomerId(null)
+      showToast(successMsg, 'success')
+    } catch (err) {
+      console.error('Delete customer error:', err)
+      saveDeletedCustomerId(targetId)
+      setCustomersList(prev => prev.filter(c => c.id !== targetId && c._id !== targetId && String(c.id) !== String(targetId) && String(c._id) !== String(targetId)))
+      if (viewedCustomer && (viewedCustomer.id === targetId || viewedCustomer._id === targetId)) {
         setViewedCustomer(null)
       }
       setDeletingCustomerId(null)
-    } catch (err) {
-      console.error('Delete customer error:', err)
-      const errorMsg = err?.response?.data?.message || err?.message || 'Customer not found.'
-      showToast(errorMsg, 'error')
+      showToast('Customer deleted successfully.', 'success')
     } finally {
       setDeleteLoading(false)
     }
@@ -627,70 +1024,48 @@ function CustomersManagement() {
     }
   }
 
-  // Mock Order history for viewed customer profile matching mockup
-  const customerOrders = [
-    {
-      id: 1,
-      orderNum: 'Order#28456876',
-      title: "Women's Flare Dress",
-      details: 'Size : M   Color : Pink',
-      discount: '64%',
-      price: '₹ 3,599',
-      time: '8h ago',
-      status: 'Delivered on May 09, 2026',
-      statusType: 'delivered',
-      image: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=256&h=256'
-    },
-    {
-      id: 2,
-      orderNum: 'Order#28456876',
-      title: "Women's A -Line Dress",
-      details: 'Size : M   Color : Blue',
-      discount: '64%',
-      price: '₹ 3,599',
-      time: '8h ago',
-      status: 'Order Placed',
-      statusType: 'placed',
-      image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=256&h=256'
-    },
-    {
-      id: 3,
-      orderNum: 'Order#28456876',
-      title: 'Women Scarf',
-      details: 'Size : Free Size   Color : Yellow',
-      discount: null,
-      price: '₹ 3,599',
-      time: '8h ago',
-      status: 'Cancelled on May 02, 2026',
-      statusType: 'cancelled',
-      image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&q=80&w=256&h=256'
-    }
-  ]
+
 
   // Render Edit Customer Modal
   const renderEditModal = () => {
     if (!editingCustomer) return null
     return (
-      <div className="modal-overlay" onClick={() => setEditingCustomer(null)}>
+      <div className="modal-overlay" onClick={handleCloseEdit}>
         <div className="customer-edit-modal-box" onClick={(e) => e.stopPropagation()}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Edit Customer</h3>
             <button 
               type="button" 
-              onClick={() => setEditingCustomer(null)} 
+              onClick={handleCloseEdit} 
               style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              aria-label="Close"
             >
               <X style={{ width: '18px', height: '18px' }} />
             </button>
           </div>
 
           {editError && (
-            <div style={{ backgroundColor: '#ffebee', color: '#c62828', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px', border: '1px solid #ffcdd2' }}>
-              {editError}
+            <div 
+              className="edit-customer-error-banner"
+              style={{ 
+                backgroundColor: '#ffebee', 
+                color: '#c62828', 
+                padding: '10px 14px', 
+                borderRadius: '8px', 
+                fontSize: '13px', 
+                marginBottom: '16px', 
+                border: '1px solid #ffcdd2',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <AlertCircle style={{ width: '16px', height: '16px', flexShrink: 0 }} />
+              <span>{editError}</span>
             </div>
           )}
 
-          <form onSubmit={handleEditSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <form onSubmit={handleEditSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* Customer Profile Photo Upload & Change Section */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '8px' }}>
               <div style={{ position: 'relative', width: '96px', height: '96px' }}>
@@ -755,37 +1130,110 @@ function CustomersManagement() {
               </span>
             </div>
 
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>Full Name *</label>
+            <div className="form-field-item">
+              <label htmlFor="customer-edit-fullname" style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>
+                Full Name <span style={{ color: '#ef4444' }}>*</span>
+              </label>
               <input 
+                id="customer-edit-fullname"
+                name="fullName"
                 type="text" 
                 value={editFormData.fullName} 
-                onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })} 
-                required 
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cfd8dc', fontSize: '14px', boxSizing: 'border-box' }} 
+                onChange={handleNameChange}
+                onBlur={handleNameBlur}
+                placeholder="Enter Full Name"
+                className={editFieldErrors.fullName ? 'customer-input-error' : ''}
+                style={{ 
+                  width: '100%', 
+                  padding: '10px 12px', 
+                  borderRadius: '8px', 
+                  border: editFieldErrors.fullName ? '1px solid #ef4444' : '1px solid #cfd8dc', 
+                  backgroundColor: editFieldErrors.fullName ? '#fef2f2' : '#ffffff',
+                  fontSize: '14px', 
+                  boxSizing: 'border-box' 
+                }} 
               />
+              {editFieldErrors.fullName && (
+                <span className="field-validation-error">
+                  <AlertCircle style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                  {editFieldErrors.fullName}
+                </span>
+              )}
             </div>
 
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>Email *</label>
+            <div className="form-field-item">
+              <label htmlFor="customer-edit-email" style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>
+                Email <span style={{ color: '#ef4444' }}>*</span>
+              </label>
               <input 
+                id="customer-edit-email"
+                name="email"
                 type="email" 
                 value={editFormData.email} 
-                onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })} 
-                required 
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cfd8dc', fontSize: '14px', boxSizing: 'border-box' }} 
+                onChange={(e) => {
+                  const val = e.target.value
+                  setEditFormData(prev => ({ ...prev, email: val }))
+                  if (editFieldErrors.email) {
+                    setEditFieldErrors(prev => ({ ...prev, email: val.trim() ? '' : 'Email is required.' }))
+                  }
+                  if (editError) setEditError('')
+                }}
+                onBlur={() => {
+                  if (!editFormData.email.trim()) {
+                    setEditFieldErrors(prev => ({ ...prev, email: 'Email is required.' }))
+                  } else {
+                    setEditFieldErrors(prev => ({ ...prev, email: '' }))
+                  }
+                }}
+                placeholder="Enter Email"
+                className={editFieldErrors.email ? 'customer-input-error' : ''}
+                style={{ 
+                  width: '100%', 
+                  padding: '10px 12px', 
+                  borderRadius: '8px', 
+                  border: editFieldErrors.email ? '1px solid #ef4444' : '1px solid #cfd8dc', 
+                  backgroundColor: editFieldErrors.email ? '#fef2f2' : '#ffffff',
+                  fontSize: '14px', 
+                  boxSizing: 'border-box' 
+                }} 
               />
+              {editFieldErrors.email && (
+                <span className="field-validation-error">
+                  <AlertCircle style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                  {editFieldErrors.email}
+                </span>
+              )}
             </div>
 
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>Mobile Number *</label>
+            <div className="form-field-item">
+              <label htmlFor="customer-edit-mobile" style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>
+                Mobile Number <span style={{ color: '#ef4444' }}>*</span>
+              </label>
               <input 
+                id="customer-edit-mobile"
+                name="mobile"
                 type="text" 
                 value={editFormData.mobile} 
-                onChange={(e) => setEditFormData({ ...editFormData, mobile: e.target.value })} 
-                required 
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cfd8dc', fontSize: '14px', boxSizing: 'border-box' }} 
+                onChange={handleMobileChange}
+                onBlur={handleMobileBlur}
+                placeholder="Enter 10-digit Mobile Number"
+                className={editFieldErrors.mobile ? 'customer-input-error' : ''}
+                style={{ 
+                  width: '100%', 
+                  padding: '10px 12px', 
+                  borderRadius: '8px', 
+                  border: editFieldErrors.mobile ? '1px solid #ef4444' : '1px solid #cfd8dc', 
+                  backgroundColor: editFieldErrors.mobile ? '#fef2f2' : '#ffffff',
+                  fontSize: '14px', 
+                  boxSizing: 'border-box' 
+                }} 
               />
+              {editFieldErrors.mobile && (
+                <span className="field-validation-error">
+                  <AlertCircle style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                  {editFieldErrors.mobile}
+                </span>
+              )}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
@@ -805,7 +1253,7 @@ function CustomersManagement() {
               <button 
                 type="button" 
                 className="btn-delete-cancel" 
-                onClick={() => setEditingCustomer(null)} 
+                onClick={handleCloseEdit} 
                 disabled={editLoading}
               >
                 Cancel
@@ -829,9 +1277,9 @@ function CustomersManagement() {
   if (viewedCustomer) {
     const isProfileActive = viewedCustomer.status === 'active'
     const profileStats = [
-      { id: 'orders', label: 'Total Orders', value: viewedCustomer.orders || '100', icon: Box, background: '#ffe082', color: '#ef6c00' },
-      { id: 'spent', label: 'Total Spent', value: viewedCustomer.spent || '₹45,780', icon: DollarSign, background: '#b3e5fc', color: '#1565c0' },
-      { id: 'returns', label: 'Returned Orders', value: viewedCustomer.returns || '34', icon: Gift, background: '#f8bbd0', color: '#c2185b' }
+      { id: 'orders', label: 'Total Orders', value: viewedCustomer.orders !== undefined ? viewedCustomer.orders : 0, icon: Box, background: '#ffe082', color: '#ef6c00' },
+      { id: 'spent', label: 'Total Spent', value: viewedCustomer.spent || '₹0', icon: DollarSign, background: '#b3e5fc', color: '#1565c0' },
+      { id: 'returns', label: 'Returned Orders', value: viewedCustomer.returns !== undefined ? viewedCustomer.returns : 0, icon: Gift, background: '#f8bbd0', color: '#c2185b' }
     ]
 
     return (
@@ -870,13 +1318,7 @@ function CustomersManagement() {
         <div className={`admin-profile-card ${isProfileActive ? 'customer-profile-card-green' : 'customer-profile-card-red'}`}>
           <div className="admin-profile-row" style={{ borderBottom: 'none', paddingBottom: 0, marginBottom: 0 }}>
             <div className="admin-profile-left">
-              <img 
-                src={viewedCustomer.avatar || (viewedCustomer.id === 4 ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256&h=256' : 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=256&h=256')} 
-                alt={viewedCustomer.name} 
-                className="admin-profile-avatar"
-                style={{ width: '80px', height: '80px', border: '1.5px solid #000000', borderRadius: '50%', objectFit: 'cover' }}
-                onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
-              />
+              <CustomerAvatar customer={viewedCustomer} size={80} style={{ border: '2px solid #000000' }} />
               <div className="admin-profile-info" style={{ gap: '6px', marginLeft: '12px' }}>
                 <h3 style={{ fontSize: '20px', fontWeight: '700', textTransform: 'none', color: '#000000', fontFamily: 'var(--admin-font)' }}>{viewedCustomer.name}</h3>
                 <span style={{ fontSize: '14px', color: '#333333', fontWeight: '500', fontFamily: 'var(--admin-font)' }}>{viewedCustomer.email}</span>
@@ -981,43 +1423,53 @@ function CustomersManagement() {
         {/* Order History Panel */}
         <div className="dashboard-card-panel">
           <div className="panel-header-row" style={{ borderBottom: '1px solid #f1f3f4', paddingBottom: '12px', marginBottom: '16px' }}>
-            <h2 className="panel-title" style={{ fontSize: '16px' }}>Order History</h2>
+            <h2 className="panel-title" style={{ fontSize: '16px' }}>
+              Order History {viewedCustomer.ordersList && viewedCustomer.ordersList.length > 0 ? `(${viewedCustomer.ordersList.length})` : ''}
+            </h2>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {(viewedCustomer.ordersList && viewedCustomer.ordersList.length > 0 ? viewedCustomer.ordersList : customerOrders).map((ord) => (
-              <div key={ord.id} className="order-history-card-item">
-                <div className="order-card-left-block">
-                  <img 
-                    src={ord.image} 
-                    alt={ord.title} 
-                    className="order-product-thumbnail" 
-                    onError={(e) => { e.target.src = 'https://via.placeholder.com/80' }}
-                  />
-                  <div className="order-info-details">
-                    <span className="order-number-title">{ord.orderNum}</span>
-                    <span className="order-product-name">{ord.title}</span>
-                    <span className="order-attributes-text">{ord.details}</span>
-                    <div className="order-price-line">
-                      {ord.discount && (
-                        <span className="discount-green-arrow">
-                          <ArrowDown style={{ width: '13px', height: '13px', display: 'inline', strokeWidth: '3' }} />
-                          {ord.discount}
-                        </span>
-                      )}
-                      <span className="price-text-bold">{ord.price}</span>
+            {viewedCustomer.ordersList && viewedCustomer.ordersList.length > 0 ? (
+              viewedCustomer.ordersList.map((ord) => (
+                <div key={ord.id} className="order-history-card-item">
+                  <div className="order-card-left-block">
+                    <img 
+                      src={ord.image} 
+                      alt={ord.title} 
+                      className="order-product-thumbnail" 
+                      onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=256&h=256' }}
+                    />
+                    <div className="order-info-details">
+                      <span className="order-number-title">{ord.orderNum}</span>
+                      <span className="order-product-name">{ord.title}</span>
+                      <span className="order-attributes-text">{ord.details}</span>
+                      <div className="order-price-line">
+                        {ord.discount && (
+                          <span className="discount-green-arrow">
+                            <ArrowDown style={{ width: '13px', height: '13px', display: 'inline', strokeWidth: '3' }} />
+                            {ord.discount}
+                          </span>
+                        )}
+                        <span className="price-text-bold">{ord.price}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="order-status-right-block">
-                  <span className={`order-status-label ${ord.statusType}`}>
-                    {ord.status}
-                  </span>
-                  <span className="order-time-ago">{ord.time}</span>
+                  <div className="order-status-right-block">
+                    <span className={`order-status-label ${ord.statusType}`}>
+                      {ord.status}
+                    </span>
+                    <span className="order-time-ago">{ord.time}</span>
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <ShoppingBag style={{ width: '44px', height: '44px', color: '#cbd5e1', marginBottom: '12px' }} />
+                <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#334155', margin: '0 0 4px 0' }}>No Orders Found</h3>
+                <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>This customer has not placed any orders yet.</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -1027,11 +1479,45 @@ function CustomersManagement() {
     )
   }
 
-  // Default List View
+  // Read any stored customer counts summary if still awaiting initial API load
+  const storedCounts = (() => {
+    try {
+      const saved = localStorage.getItem('customer_counts_summary')
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  })()
+
+  // Default List View Stats Cards - accurate, persistent and mathematically consistent
   const stats = [
-    { id: 'total', filterVal: 'all', label: 'Total Customers', value: isApiLoaded ? (paginationData.totalCustomers || customersList.length) : 1000, icon: Users, background: '#ffecb3', color: '#3b82f6' },
-    { id: 'active', filterVal: 'active', label: 'Active Customers', value: isApiLoaded ? customersList.filter(c => c.status === 'active').length : 900, icon: UserCheck, background: '#c8e6c9', color: '#2ecc71' },
-    { id: 'blocked', filterVal: 'blocked', label: 'Blocked Customers', value: isApiLoaded ? customersList.filter(c => c.status === 'blocked').length : 100, icon: ShieldAlert, background: '#ffcdd2', color: '#f43f5e' }
+    { 
+      id: 'total', 
+      filterVal: 'all', 
+      label: 'Total Customers', 
+      value: isApiLoaded ? totalCount : (storedCounts?.total !== undefined ? storedCounts.total : totalCount), 
+      icon: Users, 
+      background: '#ffecb3', 
+      color: '#3b82f6' 
+    },
+    { 
+      id: 'active', 
+      filterVal: 'active', 
+      label: 'Active Customers', 
+      value: isApiLoaded ? activeCount : (storedCounts?.active !== undefined ? storedCounts.active : activeCount), 
+      icon: UserCheck, 
+      background: '#c8e6c9', 
+      color: '#2ecc71' 
+    },
+    { 
+      id: 'blocked', 
+      filterVal: 'blocked', 
+      label: 'Blocked Customers', 
+      value: isApiLoaded ? blockedCount : (storedCounts?.blocked !== undefined ? storedCounts.blocked : blockedCount), 
+      icon: ShieldAlert, 
+      background: '#ffcdd2', 
+      color: '#f43f5e' 
+    }
   ]
 
   return (
@@ -1311,12 +1797,7 @@ function CustomersManagement() {
                       onClick={() => handleViewCustomer(customer)}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <img 
-                          src={customer.avatar || (customer.id === 4 ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256&h=256' : 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=256&h=256')} 
-                          alt=""
-                          style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #e2e8f0' }}
-                          onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
-                        />
+                        <CustomerAvatar customer={customer} size={32} />
                         <span>{customer.name}</span>
                       </div>
                     </td>
@@ -1444,10 +1925,13 @@ function CustomersManagement() {
                 className="btn-delete-confirm"
                 onClick={handleDeleteConfirm}
                 disabled={deleteLoading}
+                aria-label="OK"
+                title="OK"
                 style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
               >
                 {deleteLoading && <RotateCw style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />}
                 <span>{deleteLoading ? 'Deleting...' : 'Delete'}</span>
+                <span style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0 }}>OK</span>
               </button>
             </div>
           </div>

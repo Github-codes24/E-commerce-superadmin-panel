@@ -15,14 +15,7 @@ import {
   Search,
   Bell,
   LogOut,
-  User,
-  Settings,
-  Eye,
-  EyeOff,
-  Palette,
   Menu,
-  ChevronLeft,
-  ChevronRight,
   UserRound,
   LockKeyhole
 } from 'lucide-react'
@@ -30,6 +23,7 @@ import './admin.css'
 import Dashboard from './Dashboard'
 import Notifications from './Notifications'
 import Profile from './Profile'
+import ChangePassword from './ChangePassword'
 import Reports from './Reports'
 import AdminsManagement from './AdminsManagement'
 import VendorsManagement from './VendorsManagement'
@@ -42,7 +36,6 @@ import OffersCoupons from './OffersCoupons'
 import CommissionManagement from './CommissionManagement'
 import PaymentMonitoring from './PaymentMonitoring'
 import logoImg from '../assets/new logo.jpeg'
-import { getSuperAdminProfile } from '../services/superAdminService'
 
 function AdminLayout({ onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard')
@@ -51,12 +44,6 @@ function AdminLayout({ onLogout }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false)
   const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false)
-  const [showOldPassword, setShowOldPassword] = useState(false)
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [oldPassword, setOldPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
 
   const [profileData, setProfileData] = useState(() => {
     try {
@@ -146,7 +133,7 @@ function AdminLayout({ onLogout }) {
   const renderContent = () => {
     switch (activeTab) {
       case 'Dashboard':
-        return <Dashboard onViewAllOrders={() => handleTabClick('Orders Management')} />
+        return <Dashboard onViewAllOrders={() => handleTabClick('Orders Management')} onNavigate={handleTabClick} />
       case 'Reports':
         return <Reports />
       case 'Admins Management':
@@ -176,7 +163,18 @@ function AdminLayout({ onLogout }) {
           <Profile
             profileData={profileData}
             setProfileData={setProfileData}
+            onChangePassword={() => setShowChangePasswordModal(true)}
             onBack={() => handleTabClick(prevTab && prevTab !== 'Profile' ? prevTab : 'Dashboard')}
+          />
+        )
+      case 'Change Password':
+        return (
+          <ChangePassword
+            isModal={false}
+            profileData={profileData}
+            setProfileData={setProfileData}
+            onLogout={onLogout}
+            onBack={() => handleTabClick(prevTab && prevTab !== 'Change Password' ? prevTab : 'Dashboard')}
           />
         )
       default:
@@ -345,97 +343,13 @@ function AdminLayout({ onLogout }) {
 
       {/* Change Password Overlay */}
       {showChangePasswordModal && (
-        <div className="modal-overlay">
-          <div className="modal-card password-modal">
-            <h3 className="modal-title">Change Password</h3>
-
-            <div className="modal-field">
-              <label className="modal-label">Old Password</label>
-              <div className="input-wrapper">
-                <input
-                  type={showOldPassword ? "text" : "password"}
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  placeholder="••••••"
-                  className="modal-input"
-                />
-                <button
-                  type="button"
-                  className="password-toggle-btn"
-                  onClick={() => setShowOldPassword(!showOldPassword)}
-                >
-                  {showOldPassword ? <Eye style={{ width: '20px', height: '20px' }} /> : <EyeOff style={{ width: '20px', height: '20px' }} />}
-                </button>
-              </div>
-            </div>
-
-            <div className="modal-field">
-              <label className="modal-label">Create New Password</label>
-              <div className="input-wrapper">
-                <input
-                  type={showNewPassword ? "text" : "password"}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="••••••"
-                  className="modal-input"
-                />
-                <button
-                  type="button"
-                  className="password-toggle-btn"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
-                >
-                  {showNewPassword ? <Eye style={{ width: '20px', height: '20px' }} /> : <EyeOff style={{ width: '20px', height: '20px' }} />}
-                </button>
-              </div>
-            </div>
-
-            <div className="modal-field">
-              <label className="modal-label">Confirm New Password</label>
-              <div className="input-wrapper">
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••"
-                  className="modal-input"
-                />
-                <button
-                  type="button"
-                  className="password-toggle-btn"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
-                  {showConfirmPassword ? <Eye style={{ width: '20px', height: '20px' }} /> : <EyeOff style={{ width: '20px', height: '20px' }} />}
-                </button>
-              </div>
-            </div>
-
-            <div className="modal-actions">
-              <button
-                className="modal-btn cancel-btn"
-                onClick={() => {
-                  setShowChangePasswordModal(false);
-                  setOldPassword('');
-                  setNewPassword('');
-                  setConfirmPassword('');
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="modal-btn submit-btn"
-                onClick={() => {
-                  alert("Password changed successfully!");
-                  setShowChangePasswordModal(false);
-                  setOldPassword('');
-                  setNewPassword('');
-                  setConfirmPassword('');
-                }}
-              >
-                Change
-              </button>
-            </div>
-          </div>
-        </div>
+        <ChangePassword
+          isModal={true}
+          onClose={() => setShowChangePasswordModal(false)}
+          profileData={profileData}
+          setProfileData={setProfileData}
+          onLogout={onLogout}
+        />
       )}
 
       {/* Logout Overlay */}

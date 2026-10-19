@@ -3,11 +3,215 @@ import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upl
 import { getAllVendors, getVendorById, createVendor, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor } from '../services/superAdminService'
 import './VendorsManagement.css'
 
-// Helper for local storage persistence of custom vendors
+// Helper to check if URL is an automatic default Unsplash or placeholder URL
+const isDefaultAvatarUrl = (url) => {
+  if (!url || typeof url !== 'string') return true
+  const trimmed = url.trim()
+  if (!trimmed) return true
+  if (
+    trimmed.includes('photo-1494790108377-be9c29b29330') ||
+    trimmed.includes('photo-1507003211169-0a1dd7228f2d') ||
+    trimmed.includes('via.placeholder.com')
+  ) {
+    return true
+  }
+  return false
+}
+
+// Deterministic modern color palettes for vendor initials placeholder
+const AVATAR_PALETTES = [
+  { bg: '#e0f2fe', color: '#0284c7', border: '#bae6fd' }, // Sky
+  { bg: '#f3e8ff', color: '#9333ea', border: '#e9d5ff' }, // Purple
+  { bg: '#dcfce7', color: '#16a34a', border: '#bbf7d0' }, // Green
+  { bg: '#fef3c7', color: '#d97706', border: '#fde68a' }, // Amber
+  { bg: '#ffe4e6', color: '#e11d48', border: '#fecdd3' }, // Rose
+  { bg: '#e0e7ff', color: '#4f46e5', border: '#c7d2fe' }, // Indigo
+  { bg: '#ccfbf1', color: '#0d9488', border: '#99f6e4' }, // Teal
+  { bg: '#ffedd5', color: '#ea580c', border: '#fed7aa' }  // Orange
+]
+
+const getVendorInitial = (vendor) => {
+  if (!vendor) return 'V'
+  const name = typeof vendor === 'string'
+    ? vendor
+    : (vendor.fullName || vendor.name || vendor.shopName || vendor.storeName || '')
+  const trimmed = name.trim()
+  return trimmed ? trimmed.charAt(0).toUpperCase() : 'V'
+}
+
+const getVendorAvatarPalette = (vendor) => {
+  const name = typeof vendor === 'string'
+    ? vendor
+    : (vendor?.fullName || vendor?.name || vendor?.shopName || vendor?.storeName || '')
+  if (!name) return AVATAR_PALETTES[0]
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const index = Math.abs(hash) % AVATAR_PALETTES.length
+  return AVATAR_PALETTES[index]
+}
+
+// Validation helper for Full Name:
+// Validates Full Name field, rejects invalid characters, alphanumeric, and numeric-only values, and enforces max length (50)
+export const validateFullName = (name) => {
+  if (!name || !name.trim()) {
+    return 'Full Name is required.'
+  }
+  const trimmed = name.trim()
+  if (trimmed.length > 50) {
+    return 'Full Name cannot exceed 50 characters.'
+  }
+  if (trimmed.length < 2) {
+    return 'Full Name must be at least 2 characters long.'
+  }
+  if (/^\d+$/.test(trimmed)) {
+    return 'Full Name cannot be numeric. Please enter letters and spaces only.'
+  }
+  if (/\d/.test(trimmed)) {
+    return 'Full Name cannot contain numbers. Please enter letters and spaces only.'
+  }
+  if (!/^[a-zA-Z\s]+$/.test(trimmed)) {
+    return 'Full Name cannot contain special characters. Please enter letters and spaces only.'
+  }
+  return ''
+}
+
+// Validation helper for Mobile Number:
+// Accepts only a 10-digit numeric mobile number starting with 6, 7, 8, or 9
+export const validateMobileNumber = (phone) => {
+  if (!phone || !phone.toString().trim()) {
+    return 'Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.'
+  }
+  const cleanPhone = phone.toString().trim()
+  if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+    return 'Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.'
+  }
+  return ''
+}
+
+// Validation helper for Store / Shop Name:
+// Rejects invalid inputs (only special characters like @@##$$, numeric-only like 12345, only spaces, or invalid characters)
+export const validateStoreName = (storeName) => {
+  if (!storeName || !storeName.toString().trim()) {
+    return 'Please enter a valid store name.'
+  }
+  const trimmed = storeName.toString().trim()
+  if (trimmed.length < 2) {
+    return 'Please enter a valid store name.'
+  }
+  if (trimmed.length > 50) {
+    return 'Store name cannot exceed 50 characters.'
+  }
+  // Rejects numeric-only values (e.g. 12345)
+  if (/^\d+$/.test(trimmed)) {
+    return 'Please enter a valid store name.'
+  }
+  // Must contain at least one letter representing a business/store
+  if (!/[a-zA-Z]/.test(trimmed)) {
+    return 'Please enter a valid store name.'
+  }
+  // Allowed characters: letters, numbers, spaces, and standard store punctuation (&, ', -, ., ,)
+  if (!/^[a-zA-Z0-9\s&'.,-]+$/.test(trimmed)) {
+    return 'Please enter a valid store name.'
+  }
+  return ''
+}
+
+// Reusable Vendor Avatar component supporting uploaded images with initial letter placeholder fallback
+const VendorAvatar = ({ vendor, size = 'table', className = '', style = {} }) => {
+  const [imgError, setImgError] = useState(false)
+  const avatarUrl = typeof vendor === 'string'
+    ? vendor
+    : (vendor?.avatar || vendor?.image || vendor?.profileImage || vendor?.logo || '')
+
+  const initial = getVendorInitial(vendor)
+  const palette = getVendorAvatarPalette(vendor)
+  const isDefault = isDefaultAvatarUrl(avatarUrl)
+
+  // Reset imgError if avatarUrl changes
+  useEffect(() => {
+    setImgError(false)
+  }, [avatarUrl])
+
+  let sizePx = 32
+  let fontSize = '13px'
+  if (size === 'profile') {
+    sizePx = 64
+    fontSize = '24px'
+  } else if (size === 'topVendor') {
+    sizePx = 36
+    fontSize = '14px'
+  } else if (size === 'large') {
+    sizePx = 72
+    fontSize = '28px'
+  }
+
+  // Display placeholder containing the first letter of vendor's name if no uploaded image or image fails to load
+  if (!avatarUrl || isDefault || imgError) {
+    return (
+      <div
+        className={`vendor-avatar-placeholder ${size}-size ${className}`}
+        style={{
+          width: `${sizePx}px`,
+          height: `${sizePx}px`,
+          minWidth: `${sizePx}px`,
+          minHeight: `${sizePx}px`,
+          borderRadius: '50%',
+          backgroundColor: palette.bg,
+          color: palette.color,
+          border: `1px solid ${palette.border}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: '700',
+          fontSize,
+          userSelect: 'none',
+          textTransform: 'uppercase',
+          flexShrink: 0,
+          boxSizing: 'border-box',
+          ...style
+        }}
+        title={typeof vendor === 'object' ? (vendor?.name || vendor?.shopName || 'Vendor') : 'Vendor'}
+      >
+        {initial}
+      </div>
+    )
+  }
+
+  return (
+    <img
+      src={avatarUrl}
+      alt={typeof vendor === 'object' ? (vendor?.name || 'Vendor') : 'Vendor'}
+      className={`${size === 'profile' ? 'admin-profile-avatar' : 'vendor-avatar'} ${className}`}
+      style={{
+        width: `${sizePx}px`,
+        height: `${sizePx}px`,
+        minWidth: `${sizePx}px`,
+        minHeight: `${sizePx}px`,
+        borderRadius: '50%',
+        objectFit: 'cover',
+        flexShrink: 0,
+        ...style
+      }}
+      onError={() => setImgError(true)}
+    />
+  )
+}
+
+// Helper for local storage persistence of custom vendors (sanitizes legacy default Unsplash avatars)
 const getStoredCustomVendors = () => {
   try {
     const saved = localStorage.getItem('zyvora_custom_vendors')
-    return saved ? JSON.parse(saved) : []
+    if (!saved) return []
+    const parsed = JSON.parse(saved)
+    if (Array.isArray(parsed)) {
+      return parsed.map(v => ({
+        ...v,
+        avatar: isDefaultAvatarUrl(v.avatar) ? '' : (v.avatar || '').trim()
+      }))
+    }
+    return []
   } catch {
     return []
   }
@@ -85,6 +289,11 @@ function VendorsManagement() {
   const [editingVendor, setEditingVendor] = useState(null)
   const [deletingVendorId, setDeletingVendorId] = useState(null)
   const [activeActionMenuId, setActiveActionMenuId] = useState(null)
+  const [fieldErrors, setFieldErrors] = useState({
+    name: '',
+    phone: '',
+    shopName: ''
+  })
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('')
@@ -173,9 +382,8 @@ function VendorsManagement() {
         })
       : (v.joinedOn || 'N/A')
 
-    const defaultAvatar = (v.gender === 'Female' || userObj.gender === 'Female')
-      ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256'
-      : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256&h=256'
+    const rawAvatar = (v.avatar || v.image || v.profileImage || v.logo || userObj.avatar || userObj.image || userObj.profileImage || '').trim()
+    const cleanedAvatar = isDefaultAvatarUrl(rawAvatar) ? '' : rawAvatar
 
     return {
       id: rawId,
@@ -205,7 +413,7 @@ function VendorsManagement() {
       address: v.businessAddress || v.address || (typeof v.address === 'object' ? `${v.address.street || ''} ${v.address.city || ''} ${v.address.state || ''}`.trim() : (v.address || 'N/A')),
       businessAddress: v.businessAddress || v.address || (typeof v.address === 'object' ? `${v.address.street || ''} ${v.address.city || ''} ${v.address.state || ''}`.trim() : (v.address || 'N/A')),
       revenue: rawRevenue,
-      avatar: v.avatar || v.image || v.profileImage || v.logo || defaultAvatar
+      avatar: cleanedAvatar
     }
   }
 
@@ -601,11 +809,82 @@ function VendorsManagement() {
     }
   }
 
+  // Field input handlers with validation feedback
+  const handleNameChange = (e) => {
+    const val = e.target.value.slice(0, 50)
+    setFormData(prev => ({ ...prev, name: val }))
+    if (val.trim() && (/\d/.test(val) || !/^[a-zA-Z\s]*$/.test(val))) {
+      setFieldErrors(prev => ({ ...prev, name: validateFullName(val) }))
+    } else if (fieldErrors.name) {
+      setFieldErrors(prev => ({ ...prev, name: validateFullName(val) }))
+    }
+    if (submitError) setSubmitError('')
+  }
+
+  const handleNameBlur = () => {
+    setFieldErrors(prev => ({ ...prev, name: validateFullName(formData.name) }))
+  }
+
+  const handlePhoneChange = (e) => {
+    const val = e.target.value.slice(0, 10)
+    setFormData(prev => ({ ...prev, phone: val }))
+    if (val && (/\D/.test(val) || !/^[6-9]/.test(val))) {
+      setFieldErrors(prev => ({ ...prev, phone: 'Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.' }))
+    } else if (fieldErrors.phone) {
+      setFieldErrors(prev => ({ ...prev, phone: validateMobileNumber(val) }))
+    }
+    if (submitError) setSubmitError('')
+  }
+
+  const handlePhoneBlur = () => {
+    setFieldErrors(prev => ({ ...prev, phone: validateMobileNumber(formData.phone) }))
+  }
+
+  const handleShopNameChange = (e) => {
+    const val = e.target.value.slice(0, 50)
+    setFormData(prev => ({ ...prev, shopName: val }))
+    if (val.trim()) {
+      const err = validateStoreName(val)
+      if (err && (/[@#$%^*~_+=<>?|{}[\]\\/]/.test(val) || /^\d+$/.test(val.trim()))) {
+        setFieldErrors(prev => ({ ...prev, shopName: err }))
+      } else if (fieldErrors.shopName) {
+        setFieldErrors(prev => ({ ...prev, shopName: err }))
+      }
+    } else if (fieldErrors.shopName) {
+      setFieldErrors(prev => ({ ...prev, shopName: 'Please enter a valid store name.' }))
+    }
+    if (submitError) setSubmitError('')
+  }
+
+  const handleShopNameBlur = () => {
+    setFieldErrors(prev => ({ ...prev, shopName: validateStoreName(formData.shopName) }))
+  }
+
   // Handle Form Submit (Add or Edit with PUT /api/superadmin/vendors/:id)
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!formData.name.trim() || !formData.shopName.trim()) return
+    setSubmitError('')
 
+    // 1. Validate Full Name
+    const nameError = validateFullName(formData.name)
+    // 2. Validate Mobile Number
+    const phoneError = validateMobileNumber(formData.phone)
+    // 3. Validate Store / Shop Name
+    const shopError = validateStoreName(formData.shopName)
+
+    if (nameError || phoneError || shopError) {
+      setFieldErrors({
+        name: nameError,
+        phone: phoneError,
+        shopName: shopError
+      })
+      const primaryError = nameError || phoneError || shopError
+      setSubmitError(primaryError)
+      showToast(primaryError, 'error')
+      return
+    }
+
+    setFieldErrors({ name: '', phone: '', shopName: '' })
     const updatedStatus = formData.isActive ? 'active' : 'inactive'
 
     if (editingVendor) {
@@ -630,6 +909,9 @@ function VendorsManagement() {
         pan: formData.pan.trim(),
         businessAddress: formData.address.trim(),
         address: formData.address.trim(),
+        avatar: (formData.imagePreview || '').trim(),
+        image: (formData.imagePreview || '').trim(),
+        logo: (formData.imagePreview || '').trim()
       }
 
       try {
@@ -640,6 +922,10 @@ function VendorsManagement() {
         } else {
           showToast('Vendor updated successfully.', 'success')
         }
+
+        const updatedAvatar = (formData.imagePreview !== undefined && formData.imagePreview !== null)
+          ? formData.imagePreview.trim()
+          : (editingVendor.avatar || '').trim()
 
         // Update vendorsList in local state
         setVendorsList(prev => prev.map((v) => {
@@ -663,7 +949,8 @@ function VendorsManagement() {
               panNumber: formData.pan.trim(),
               address: formData.address.trim(),
               businessAddress: formData.address.trim(),
-              status: updatedStatus
+              status: updatedStatus,
+              avatar: updatedAvatar
             }
           }
           return v
@@ -692,7 +979,8 @@ function VendorsManagement() {
               panNumber: formData.pan.trim(),
               address: formData.address.trim(),
               businessAddress: formData.address.trim(),
-              status: updatedStatus
+              status: updatedStatus,
+              avatar: updatedAvatar
             }
           }
           return v
@@ -720,7 +1008,8 @@ function VendorsManagement() {
             panNumber: formData.pan.trim(),
             address: formData.address.trim(),
             businessAddress: formData.address.trim(),
-            status: updatedStatus
+            status: updatedStatus,
+            avatar: updatedAvatar
           }) : null)
         }
 
@@ -773,7 +1062,11 @@ function VendorsManagement() {
         businessAddress: formData.address.trim(),
         address: formData.address.trim(),
         status: updatedStatus === 'active' ? 'ACTIVE' : 'INACTIVE',
-        isActive: formData.isActive
+        isActive: formData.isActive,
+        avatar: (formData.imagePreview || '').trim(),
+        image: (formData.imagePreview || '').trim(),
+        logo: (formData.imagePreview || '').trim(),
+        profileImage: (formData.imagePreview || '').trim()
       }
 
       let createdApiVendor = null
@@ -817,7 +1110,7 @@ function VendorsManagement() {
         status: updatedStatus,
         checked: false,
         revenue: '₹0',
-        avatar: formData.imagePreview || (formData.gender === 'Female' ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256' : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256&h=256')
+        avatar: (formData.imagePreview || '').trim()
       }
 
       // Persist to custom vendors store
@@ -856,10 +1149,12 @@ function VendorsManagement() {
   // Open Edit Mode
   const handleOpenEdit = (vendor) => {
     setEditingVendor(vendor)
+    const rawPhone = vendor.mobile || vendor.phone || ''
+    const cleanPhone = rawPhone.replace(/\D/g, '').slice(-10)
     setFormData({
       name: vendor.fullName || vendor.name || '',
       email: vendor.email || '',
-      phone: vendor.mobile || vendor.phone || '',
+      phone: cleanPhone.length === 10 ? cleanPhone : rawPhone,
       dob: vendor.dob && vendor.dob !== 'N/A' ? vendor.dob : '',
       gender: vendor.gender || 'Male',
       shopName: vendor.storeName || vendor.shopName || '',
@@ -868,8 +1163,9 @@ function VendorsManagement() {
       pan: vendor.panNumber || vendor.pan || '',
       address: vendor.businessAddress || vendor.address || '',
       isActive: vendor.status === 'active',
-      imagePreview: ''
+      imagePreview: isDefaultAvatarUrl(vendor.avatar) ? '' : (vendor.avatar || '')
     })
+    setFieldErrors({ name: '', phone: '', shopName: '' })
     setSubmitError('')
     setIsAdding(true)
   }
@@ -964,6 +1260,7 @@ function VendorsManagement() {
             onClick={() => {
               setIsAdding(false)
               setEditingVendor(null)
+              setFieldErrors({ name: '', phone: '', shopName: '' })
               setSubmitError('')
             }}
           >
@@ -990,7 +1287,7 @@ function VendorsManagement() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           {/* Upload Image Group */}
           <div className="form-section-card" style={{ padding: '20px 24px', marginBottom: '24px' }}>
             <span className="image-upload-label" style={{ marginBottom: '12px' }}>Upload Images</span>
@@ -1033,28 +1330,44 @@ function VendorsManagement() {
             <div className="form-fields-grid">
               {/* Full Name */}
               <div className="form-field-item">
-                <label htmlFor="vendor-fullname">Full Name</label>
+                <label htmlFor="vendor-fullname">Full Name <span style={{ color: '#ef4444' }}>*</span></label>
                 <input 
                   id="vendor-fullname"
                   type="text" 
                   placeholder="Enter Full Name"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
+                  onChange={handleNameChange}
+                  onBlur={handleNameBlur}
+                  maxLength={50}
+                  className={fieldErrors.name ? 'input-error' : ''}
                 />
+                {fieldErrors.name && (
+                  <span className="field-validation-error">
+                    <AlertCircle style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                    {fieldErrors.name}
+                  </span>
+                )}
               </div>
 
               {/* Mobile Number */}
               <div className="form-field-item">
-                <label htmlFor="vendor-phone">Mobile Number</label>
+                <label htmlFor="vendor-phone">Mobile Number <span style={{ color: '#ef4444' }}>*</span></label>
                 <input 
                   id="vendor-phone"
                   type="tel" 
-                  placeholder="Enter Mobile Number"
+                  placeholder="Enter 10-digit Mobile Number"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  required
+                  onChange={handlePhoneChange}
+                  onBlur={handlePhoneBlur}
+                  maxLength={10}
+                  className={fieldErrors.phone ? 'input-error' : ''}
                 />
+                {fieldErrors.phone && (
+                  <span className="field-validation-error">
+                    <AlertCircle style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                    {fieldErrors.phone}
+                  </span>
+                )}
               </div>
 
               {/* Email ID */}
@@ -1109,15 +1422,23 @@ function VendorsManagement() {
             <div className="form-fields-grid">
               {/* Store Name / Shop Name */}
               <div className="form-field-item">
-                <label htmlFor="vendor-shopname">Store Name</label>
+                <label htmlFor="vendor-shopname">Store Name <span style={{ color: '#ef4444' }}>*</span></label>
                 <input 
                   id="vendor-shopname"
                   type="text" 
                   placeholder="Enter Store Name"
                   value={formData.shopName}
-                  onChange={(e) => setFormData({ ...formData, shopName: e.target.value })}
-                  required
+                  onChange={handleShopNameChange}
+                  onBlur={handleShopNameBlur}
+                  maxLength={50}
+                  className={fieldErrors.shopName ? 'input-error' : ''}
                 />
+                {fieldErrors.shopName && (
+                  <span className="field-validation-error">
+                    <AlertCircle style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                    {fieldErrors.shopName}
+                  </span>
+                )}
               </div>
 
               {/* Business Type */}
@@ -1391,12 +1712,9 @@ function VendorsManagement() {
         <div className="admin-profile-card">
           <div className="admin-profile-row" style={{ borderBottom: 'none', paddingBottom: 0, marginBottom: 0 }}>
             <div className="admin-profile-left">
-              <img 
-                src={viewedVendor.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256&h=256"} 
-                alt={viewedVendor.name} 
-                className="admin-profile-avatar"
-                style={{ width: '64px', height: '64px' }}
-                onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
+              <VendorAvatar 
+                vendor={viewedVendor} 
+                size="profile" 
               />
               <div className="admin-profile-info" style={{ gap: '6px' }}>
                 <h3 style={{ fontSize: '18px', fontWeight: '700', textTransform: 'capitalize' }}>
@@ -1619,6 +1937,8 @@ function VendorsManagement() {
                 name: '', email: '', phone: '', dob: '', gender: '',
                 shopName: '', bizType: '', gst: '', pan: '', address: '', isActive: true, imagePreview: ''
               })
+              setFieldErrors({ name: '', phone: '', shopName: '' })
+              setSubmitError('')
               setIsAdding(true)
             }}
           >
@@ -1702,7 +2022,7 @@ function VendorsManagement() {
             {topVendors.map((vendor, index) => (
               <div key={index} className="activity-item" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid #fafafa' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <img src={vendor.avatar} alt={vendor.name} style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
+                  <VendorAvatar vendor={vendor} size="topVendor" />
                   <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>{vendor.name}</span>
                 </div>
                 <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>{vendor.amount}</span>
@@ -1807,12 +2127,7 @@ function VendorsManagement() {
                       </td>
                       <td>
                         <div className="vendor-name-row">
-                          <img 
-                            src={vendor.avatar} 
-                            alt={vendor.name} 
-                            className="vendor-avatar"
-                            onError={(e) => { e.target.src = 'https://via.placeholder.com/50' }}
-                          />
+                          <VendorAvatar vendor={vendor} size="table" />
                           <span 
                             className="table-link-name" 
                             onClick={() => handleViewVendor(vendor)}

@@ -443,6 +443,30 @@ function Login({ onLogin, showToast }) {
       if (valid) {
         setLoading(true)
         setGeneralError('')
+
+        // Reject if user attempts to log in with their superseded old password
+        try {
+          const rawSync = localStorage.getItem('admin_credential_sync')
+          if (rawSync) {
+            const syncData = JSON.parse(rawSync)
+            const enteredEmail = email.trim().toLowerCase()
+            const syncEmail = (syncData.email || '').trim().toLowerCase()
+            if (
+              (!syncEmail || syncEmail === enteredEmail) &&
+              syncData.isPendingBackend &&
+              syncData.backendPassword &&
+              password === syncData.backendPassword &&
+              password !== syncData.currentPassword
+            ) {
+              setLoading(false)
+              setGeneralError('This password has been changed. Please log in with your new password.')
+              return
+            }
+          }
+        } catch (e) {
+          console.warn('Sync check error:', e)
+        }
+
         try {
           const res = await loginSuperAdmin({
             email: email.trim(),
@@ -476,10 +500,22 @@ function Login({ onLogin, showToast }) {
             email: adminObj.email || email.trim() || existingProfile.email || 'admin@ecommerce.com',
             role: adminObj.role || existingProfile.role || 'Super Admin',
             phone: adminObj.phone || adminObj.mobile || existingProfile.phone || '9876543210',
+            password: password,
             avatar: adminObj.avatar || adminObj.profileImage || existingProfile.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256&h=256'
           }
-          localStorage.setItem('adminUser', JSON.stringify({ ...existingProfile, ...adminObj }))
+          localStorage.setItem('adminUser', JSON.stringify({ ...existingProfile, ...adminObj, password }))
           localStorage.setItem('profileData', JSON.stringify(merged))
+
+          try {
+            const rawSync = localStorage.getItem('admin_credential_sync')
+            if (rawSync) {
+              const syncData = JSON.parse(rawSync)
+              if (syncData.currentPassword === password) {
+                syncData.email = email.trim().toLowerCase()
+                localStorage.setItem('admin_credential_sync', JSON.stringify(syncData))
+              }
+            }
+          } catch {}
 
           setGeneralSuccess('Login Successfully')
           if (showToast) {

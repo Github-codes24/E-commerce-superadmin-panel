@@ -218,7 +218,13 @@ function Reports() {
     {
       id: 'customers',
       label: 'Active Customers',
-      value: '1000',
+      value: (() => {
+        try {
+          const c = JSON.parse(localStorage.getItem('customer_counts_summary') || '{}')
+          if (c.active !== undefined) return String(c.active)
+        } catch {}
+        return '16'
+      })(),
       icon: UserCheck,
       className: 'stat-users span-2',
     },

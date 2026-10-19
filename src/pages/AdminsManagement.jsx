@@ -10,9 +10,169 @@ const PERMISSION_MODULES = [
   { key: 'ORDER_MANAGEMENT', label: 'Order Management', actions: ['VIEW', 'EDIT', 'CANCEL_ORDER', 'CHANGE_ORDER_STATUS'] }
 ]
 
+export const STATUS_OVERRIDES_KEY = 'admin_status_overrides'
+export const ADMIN_COUNTS_KEY = 'admin_counts_summary'
+export const CACHED_ADMINS_KEY = 'cached_admins_list'
+export const ADMIN_IMAGES_KEY = 'admin_profile_images'
+
+export const getStoredImageOverrides = () => {
+  try {
+    const raw = localStorage.getItem(ADMIN_IMAGES_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+export const saveImageOverride = (adminId, userId, image) => {
+  if (!image || typeof image !== 'string' || !image.trim()) return
+  try {
+    const images = getStoredImageOverrides()
+    if (adminId) images[adminId] = image.trim()
+    if (userId) images[userId] = image.trim()
+    localStorage.setItem(ADMIN_IMAGES_KEY, JSON.stringify(images))
+  } catch (e) {
+    console.warn('Failed to save image override to localStorage', e)
+  }
+}
+
+export const removeImageOverride = (adminId, userId) => {
+  try {
+    const images = getStoredImageOverrides()
+    if (adminId) delete images[adminId]
+    if (userId) delete images[userId]
+    localStorage.setItem(ADMIN_IMAGES_KEY, JSON.stringify(images))
+  } catch (e) {
+    console.warn('Failed to remove image override from localStorage', e)
+  }
+}
+
+export const resolveAdminImage = (admin, gender = 'Male', imageOverrides = null) => {
+  const overrides = imageOverrides || getStoredImageOverrides()
+  const adminId = admin?.id || admin?._id || admin?.userId?._id || admin?.userId?.id
+  const userId = admin?.userId?._id || admin?.userId?.id
+
+  // 1. Direct explicit image on admin
+  if (admin?.profileImage && typeof admin.profileImage === 'string' && admin.profileImage.trim()) {
+    return admin.profileImage.trim()
+  }
+  if (admin?.image && typeof admin.image === 'string' && admin.image.trim()) {
+    return admin.image.trim()
+  }
+
+  // 2. Image inside admin.userId
+  if (admin?.userId?.profileImage && typeof admin.userId.profileImage === 'string' && admin.userId.profileImage.trim()) {
+    return admin.userId.profileImage.trim()
+  }
+  if (admin?.userId?.image && typeof admin.userId.image === 'string' && admin.userId.image.trim()) {
+    return admin.userId.image.trim()
+  }
+
+  // 3. Persistent local image override
+  if (adminId && overrides[adminId]) return overrides[adminId]
+  if (userId && overrides[userId]) return overrides[userId]
+
+  // 4. Fallback default image based on gender
+  const gen = admin?.gender || admin?.userId?.gender || gender || 'Male'
+  return gen === 'Female'
+    ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256'
+    : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256&h=256'
+}
+
+export const getStoredStatusOverrides = () => {
+  try {
+    const raw = localStorage.getItem(STATUS_OVERRIDES_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+export const saveStatusOverride = (adminId, userId, status) => {
+  try {
+    const overrides = getStoredStatusOverrides()
+    if (adminId) overrides[adminId] = status
+    if (userId) overrides[userId] = status
+    localStorage.setItem(STATUS_OVERRIDES_KEY, JSON.stringify(overrides))
+  } catch (e) {
+    console.warn('Failed to save status override to localStorage', e)
+  }
+}
+
+export const removeStatusOverride = (adminId, userId) => {
+  try {
+    const overrides = getStoredStatusOverrides()
+    if (adminId) delete overrides[adminId]
+    if (userId) delete overrides[userId]
+    localStorage.setItem(STATUS_OVERRIDES_KEY, JSON.stringify(overrides))
+  } catch (e) {
+    console.warn('Failed to remove status override from localStorage', e)
+  }
+}
+
+export const resolveAdminStatus = (admin, overrides = null) => {
+  if (!admin) return 'active'
+  const activeOverrides = overrides || getStoredStatusOverrides()
+  const adminId = admin.id || admin._id || admin.userId?._id || admin.userId?.id
+  const userId = admin.userId?._id || admin.userId?.id
+
+  // 1. Check local persistent overrides first
+  if (adminId && activeOverrides[adminId]) return activeOverrides[adminId]
+  if (userId && activeOverrides[userId]) return activeOverrides[userId]
+
+  // 2. Check userId.isActive (boolean) - standard in backend user schema
+  if (admin.userId?.isActive !== undefined && admin.userId?.isActive !== null) {
+    return admin.userId.isActive ? 'active' : 'inactive'
+  }
+
+  // 3. Check admin.isActive (boolean)
+  if (admin.isActive !== undefined && admin.isActive !== null) {
+    return admin.isActive ? 'active' : 'inactive'
+  }
+
+  // 4. Check userStatus string
+  const uStatus = admin.userId?.userStatus || admin.userStatus
+  if (uStatus) {
+    const s = uStatus.toString().toLowerCase()
+    if (s === 'inactive' || s === 'deactivated' || s === 'disabled' || s === 'blocked') return 'inactive'
+    if (s === 'active') return 'active'
+  }
+
+  // 5. Check status string (excluding 'pending')
+  const statusStr = admin.status || admin.userId?.status
+  if (statusStr) {
+    const s = statusStr.toString().toLowerCase()
+    if (s === 'inactive' || s === 'deactivated' || s === 'disabled' || s === 'blocked') return 'inactive'
+    if (s === 'active') return 'active'
+  }
+
+  return 'active'
+}
+
 function AdminsManagement() {
-  // Admin List Data from API
-  const [adminsList, setAdminsList] = useState([])
+  // Admin List Data from API, initialized from cache for instant persistence across reload/re-login
+  const [adminsList, setAdminsList] = useState(() => {
+    try {
+      const cached = localStorage.getItem(CACHED_ADMINS_KEY)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const overrides = getStoredStatusOverrides()
+          const imageOverrides = getStoredImageOverrides()
+          return parsed.map(admin => {
+            const rawId = admin.id || admin._id
+            const userId = admin.userId
+            let status = admin.status || 'active'
+            if (rawId && overrides[rawId]) status = overrides[rawId]
+            else if (userId && overrides[userId]) status = overrides[userId]
+            const image = resolveAdminImage(admin, admin.gender || 'Male', imageOverrides)
+            return { ...admin, status, image }
+          })
+        }
+      }
+    } catch {}
+    return []
+  })
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(null)
   const [profileLoading, setProfileLoading] = useState(false)
@@ -52,15 +212,19 @@ function AdminsManagement() {
         ? res
         : []
 
+      const overrides = getStoredStatusOverrides()
+      const imageOverrides = getStoredImageOverrides()
+
       const formatted = adminsArray.map((admin, index) => {
         const rawId = admin.id || admin._id || admin.userId?._id || admin.userId?.id || `admin-${index}`
+        const userId = admin.userId?._id || admin.userId?.id || null
         const rawName = admin.name || admin.fullName || admin.userId?.fullName || admin.userId?.name || 'Admin'
         const rawEmail = admin.email || admin.userId?.email || ''
         const rawPhone = admin.phone || admin.mobile || admin.userId?.phone || admin.userId?.mobile || 'N/A'
         const rawGender = admin.gender || admin.userId?.gender || 'Male'
         const rawRole = admin.role || admin.userId?.role || 'ADMIN'
-        const rawStatus = (admin.status || (admin.isActive !== undefined ? (admin.isActive ? 'ACTIVE' : 'INACTIVE') : 'ACTIVE')).toString().toLowerCase()
-        const isActive = rawStatus === 'active'
+        const status = resolveAdminStatus(admin, overrides)
+        const isActive = status === 'active'
 
         const rawCreatedAt = admin.createdAt || admin.userId?.createdAt || admin.joinedDate || admin.updatedAt || null
         const rawTimestamp = rawCreatedAt ? new Date(rawCreatedAt).getTime() : null
@@ -73,24 +237,23 @@ function AdminsManagement() {
             })
           : 'N/A'
 
-        const defaultImage = rawGender === 'Female'
-          ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256'
-          : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256&h=256'
+        const adminImage = resolveAdminImage(admin, rawGender, imageOverrides)
 
         return {
           id: rawId,
+          userId: userId,
           name: rawName,
           email: rawEmail,
           phone: rawPhone,
           gender: rawGender,
           role: rawRole,
-          status: isActive ? 'active' : 'inactive',
+          status: status,
           joinedDate: joinedDateFormatted,
           createdAt: rawCreatedAt,
           timestamp: rawTimestamp,
-          lastLogin: admin.lastLogin || 'Never',
+          lastLogin: admin.lastLogin || admin.userId?.lastLogin || 'Never',
           checked: false,
-          image: admin.profileImage || admin.image || defaultImage,
+          image: adminImage,
           activities: admin.activities || [
             { id: 101, title: 'Joined Admin Portal', description: 'Account Active', time: joinedDateFormatted, timestamp: rawTimestamp }
           ],
@@ -108,6 +271,20 @@ function AdminsManagement() {
       })
 
       setAdminsList(formatted)
+
+      // Sync summary counts and cached admins to localStorage for instant persistence across reload and logout
+      try {
+        const activeNum = formatted.filter(a => a.status === 'active').length
+        const inactiveNum = formatted.filter(a => a.status === 'inactive').length
+        localStorage.setItem(ADMIN_COUNTS_KEY, JSON.stringify({
+          total: formatted.length,
+          active: activeNum,
+          inactive: inactiveNum
+        }))
+        localStorage.setItem(CACHED_ADMINS_KEY, JSON.stringify(formatted))
+      } catch (e) {
+        console.warn('Could not cache admin data', e)
+      }
 
       // Build real activities feed from backend admins & any stored activities
       let localActivities = []
@@ -174,13 +351,17 @@ function AdminsManagement() {
 
       if (data) {
         const rawId = data.id || data._id || data.userId?._id || data.userId?.id || admin.id
+        const userId = data.userId?._id || data.userId?.id || admin.userId || null
         const rawName = data.name || data.fullName || data.userId?.fullName || data.userId?.name || admin.name
         const rawEmail = data.email || data.userId?.email || admin.email
         const rawPhone = data.phone || data.mobile || data.userId?.phone || data.userId?.mobile || admin.phone || 'N/A'
         const rawGender = data.gender || data.userId?.gender || admin.gender || 'Male'
         const rawRole = data.role || data.userId?.role || admin.role || 'ADMIN'
-        const rawStatus = (data.status || (data.isActive !== undefined ? (data.isActive ? 'ACTIVE' : 'INACTIVE') : admin.status || 'ACTIVE')).toString().toLowerCase()
-        const isActive = rawStatus === 'active'
+        
+        const overrides = getStoredStatusOverrides()
+        const imageOverrides = getStoredImageOverrides()
+        const resolvedStatus = resolveAdminStatus(data, overrides) || admin.status || 'active'
+        const isActive = resolvedStatus === 'active'
 
         const joinedDateFormatted = data.createdAt || data.joinedDate
           ? new Date(data.createdAt || data.joinedDate).toLocaleDateString('en-US', {
@@ -190,13 +371,12 @@ function AdminsManagement() {
             })
           : admin.joinedDate || 'N/A'
 
-        const defaultImage = rawGender === 'Female'
-          ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256'
-          : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256&h=256'
+        const viewImage = resolveAdminImage(data, rawGender, imageOverrides) || admin.image
 
         setViewedAdmin({
           ...admin,
           id: rawId,
+          userId: userId,
           name: rawName,
           email: rawEmail,
           phone: rawPhone,
@@ -205,7 +385,7 @@ function AdminsManagement() {
           status: isActive ? 'active' : 'inactive',
           joinedDate: joinedDateFormatted,
           lastLogin: data.lastLogin || admin.lastLogin || 'Never',
-          image: data.profileImage || data.image || admin.image || defaultImage,
+          image: viewImage,
           activities: data.activities || admin.activities,
           loginHistory: data.loginHistory || admin.loginHistory
         })
@@ -366,13 +546,61 @@ function AdminsManagement() {
   const handleImageChange = (e) => {
     const file = e.target.files[0]
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        setFormError('Please select a valid image file (PNG, JPG, JPEG, WEBP).')
+        return
+      }
+      setFormError('')
+
       const reader = new FileReader()
       reader.onloadend = () => {
-        setFormData(prev => ({
-          ...prev,
-          imageFile: file,
-          imagePreview: reader.result
-        }))
+        const rawBase64 = reader.result
+        // Resize and optimize to avatar dimensions (max 512x512) for guaranteed backend acceptance
+        try {
+          const img = new Image()
+          img.onload = () => {
+            const maxDim = 512
+            let width = img.width
+            let height = img.height
+
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width)
+                width = maxDim
+              } else {
+                width = Math.round((width * maxDim) / height)
+                height = maxDim
+              }
+            }
+
+            const canvas = document.createElement('canvas')
+            canvas.width = width
+            canvas.height = height
+            const ctx = canvas.getContext('2d')
+            ctx.drawImage(img, 0, 0, width, height)
+            const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.88)
+
+            setFormData(prev => ({
+              ...prev,
+              imageFile: file,
+              imagePreview: optimizedBase64
+            }))
+          }
+          img.onerror = () => {
+            setFormData(prev => ({
+              ...prev,
+              imageFile: file,
+              imagePreview: rawBase64
+            }))
+          }
+          img.src = rawBase64
+        } catch (err) {
+          setFormData(prev => ({
+            ...prev,
+            imageFile: file,
+            imagePreview: rawBase64
+          }))
+        }
       }
       reader.readAsDataURL(file)
     }
@@ -446,6 +674,7 @@ function AdminsManagement() {
     if (editingAdmin) {
       const adminId = editingAdmin.id || editingAdmin._id
       try {
+        const uploadedImg = (formData.imagePreview || '').trim()
         const updatePayload = {
           name: formData.name.trim(),
           fullName: formData.name.trim(),
@@ -453,7 +682,9 @@ function AdminsManagement() {
           role: formData.role || 'ADMIN',
           gender: formData.gender || 'Male',
           status: formData.isActive ? 'ACTIVE' : 'INACTIVE',
-          isActive: formData.isActive
+          isActive: formData.isActive,
+          profileImage: uploadedImg,
+          image: uploadedImg
         }
         const cleanPhone = (formData.phone || '').trim()
         if (cleanPhone && cleanPhone !== 'N/A') {
@@ -475,6 +706,17 @@ function AdminsManagement() {
           ? (updatedData.status.toString().toLowerCase() === 'active' ? 'active' : 'inactive')
           : (formData.isActive ? 'active' : 'inactive')
 
+        const newStatusLocal = formData.isActive ? 'active' : 'inactive'
+        saveStatusOverride(adminId, null, newStatusLocal)
+        if (uploadedImg) {
+          saveImageOverride(adminId, null, uploadedImg)
+        }
+        try {
+          await updateAdminStatus(adminId, formData.isActive ? 'ACTIVE' : 'INACTIVE')
+        } catch (e) {
+          console.warn('Could not sync status via updateAdminStatus:', e)
+        }
+
         const editActivity = {
           id: Date.now(),
           title: 'Admin Details Updated',
@@ -482,22 +724,37 @@ function AdminsManagement() {
           timestamp: Date.now()
         }
 
-        setAdminsList(prevList => prevList.map((a) => {
-          if (a.id === adminId) {
-            return {
-              ...a,
-              name: updatedName,
-              email: updatedEmail,
-              phone: updatedPhone,
-              role: updatedRole,
-              gender: formData.gender || a.gender,
-              status: updatedStatus,
-              image: formData.imagePreview || a.image,
-              activities: [editActivity, ...(a.activities || [])]
+        setAdminsList(prevList => {
+          const updatedList = prevList.map((a) => {
+            if (a.id === adminId) {
+              return {
+                ...a,
+                name: updatedName,
+                email: updatedEmail,
+                phone: updatedPhone,
+                role: updatedRole,
+                gender: formData.gender || a.gender,
+                status: newStatusLocal,
+                image: uploadedImg || a.image,
+                activities: [editActivity, ...(a.activities || [])]
+              }
             }
-          }
-          return a
-        }))
+            return a
+          })
+
+          try {
+            const activeNum = updatedList.filter(a => a.status === 'active').length
+            const inactiveNum = updatedList.filter(a => a.status === 'inactive').length
+            localStorage.setItem(ADMIN_COUNTS_KEY, JSON.stringify({
+              total: updatedList.length,
+              active: activeNum,
+              inactive: inactiveNum
+            }))
+            localStorage.setItem(CACHED_ADMINS_KEY, JSON.stringify(updatedList))
+          } catch {}
+
+          return updatedList
+        })
 
         const globalActivity = {
           id: Date.now(),
@@ -552,6 +809,8 @@ function AdminsManagement() {
       }
     } else {
       try {
+        const uploadedImg = (formData.imagePreview || '').trim()
+
         const createPayload = {
           fullName: formData.name.trim(),
           name: formData.name.trim(),
@@ -560,7 +819,9 @@ function AdminsManagement() {
           role: formData.role || 'ADMIN',
           gender: formData.gender || 'Male',
           status: formData.isActive ? 'ACTIVE' : 'INACTIVE',
-          isActive: formData.isActive
+          isActive: formData.isActive,
+          profileImage: uploadedImg,
+          image: uploadedImg
         }
         const cleanPhone = (formData.phone || '').trim()
         if (cleanPhone && cleanPhone !== 'N/A') {
@@ -577,8 +838,17 @@ function AdminsManagement() {
           ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256'
           : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=256&h=256'
 
+        const newAdminId = rawData._id || userObj._id || userObj.id || Date.now()
+        const newUserId = userObj._id || userObj.id || null
+        const finalImage = uploadedImg || rawData.profileImage || rawData.image || defaultImage
+
+        if (uploadedImg) {
+          saveImageOverride(newAdminId, newUserId, uploadedImg)
+        }
+
         const newAdmin = {
-          id: rawData._id || userObj._id || userObj.id || Date.now(),
+          id: newAdminId,
+          userId: newUserId,
           name: userObj.fullName || userObj.name || formData.name,
           email: userObj.email || formData.email,
           phone: userObj.mobile || userObj.phone || formData.phone || 'N/A',
@@ -594,7 +864,7 @@ function AdminsManagement() {
           status: userObj.isActive !== undefined ? (userObj.isActive ? 'active' : 'inactive') : (formData.isActive ? 'active' : 'inactive'),
           role: userObj.role || formData.role || 'ADMIN',
           checked: false,
-          image: formData.imagePreview || rawData.profileImage || defaultImage,
+          image: finalImage,
           activities: [
             { id: Date.now(), title: 'Admin Account Created', description: res?.message || 'Created via API (/api/superadmin/admins/register)', timestamp: Date.now() }
           ],
@@ -732,41 +1002,68 @@ function AdminsManagement() {
     if (!statusConfirmAdmin) return
     const { id, newStatusBackend, newStatusLocal, action } = statusConfirmAdmin
     const targetAdmin = adminsList.find(a => a.id === id)
+    const userId = targetAdmin?.userId
 
     try {
       setStatusToggleLoading(true)
       setStatusToggleError('')
+
+      // Immediately save override to localStorage so UI never flickers or reverts
+      saveStatusOverride(id, userId, newStatusLocal)
+
       const res = await updateAdminStatus(id, newStatusBackend)
-      const resStatus = res?.data?.status
-        ? (res.data.status.toString().toLowerCase() === 'active' ? 'active' : 'inactive')
-        : newStatusLocal
+      
+      let finalStatus = newStatusLocal
+      if (res?.data?.isActive !== undefined && res?.data?.isActive !== null) {
+        finalStatus = res.data.isActive ? 'active' : 'inactive'
+      } else if (res?.data?.status && res.data.status.toString().toLowerCase() !== 'pending') {
+        finalStatus = res.data.status.toString().toLowerCase() === 'active' ? 'active' : 'inactive'
+      }
+
+      saveStatusOverride(id, userId, finalStatus)
 
       const newAct = {
         id: Date.now(),
         title: 'Status Toggled',
-        description: res?.message || `Status changed to ${resStatus}`,
+        description: res?.message || `Status changed to ${finalStatus}`,
         timestamp: Date.now()
       }
 
-      setAdminsList(prevList => prevList.map(admin => {
-        if (admin.id === id) {
-          const updatedAdmin = {
-            ...admin,
-            status: resStatus,
-            activities: [newAct, ...(admin.activities || [])]
+      setAdminsList(prevList => {
+        const updatedList = prevList.map(admin => {
+          if (admin.id === id) {
+            const updatedAdmin = {
+              ...admin,
+              status: finalStatus,
+              activities: [newAct, ...(admin.activities || [])]
+            }
+            if (viewedAdmin && viewedAdmin.id === id) {
+              setViewedAdmin(updatedAdmin)
+            }
+            return updatedAdmin
           }
-          if (viewedAdmin && viewedAdmin.id === id) {
-            setViewedAdmin(updatedAdmin)
-          }
-          return updatedAdmin
-        }
-        return admin
-      }))
+          return admin
+        })
+
+        // Immediately update summary counts & cache in localStorage
+        try {
+          const activeNum = updatedList.filter(a => a.status === 'active').length
+          const inactiveNum = updatedList.filter(a => a.status === 'inactive').length
+          localStorage.setItem(ADMIN_COUNTS_KEY, JSON.stringify({
+            total: updatedList.length,
+            active: activeNum,
+            inactive: inactiveNum
+          }))
+          localStorage.setItem(CACHED_ADMINS_KEY, JSON.stringify(updatedList))
+        } catch {}
+
+        return updatedList
+      })
 
       if (viewedAdmin && viewedAdmin.id === id) {
         setViewedAdmin(prev => ({
           ...prev,
-          status: resStatus,
+          status: finalStatus,
           activities: [newAct, ...(prev?.activities || [])]
         }))
       }
@@ -774,7 +1071,7 @@ function AdminsManagement() {
       const toggleActivity = {
         id: Date.now(),
         title: 'Status Toggled',
-        subtitle: `${targetAdmin?.name || 'Admin'} is now ${resStatus}`,
+        subtitle: `${targetAdmin?.name || 'Admin'} is now ${finalStatus}`,
         timestamp: Date.now()
       }
       setActivities(prev => [toggleActivity, ...prev])
@@ -797,6 +1094,10 @@ function AdminsManagement() {
     const newStatusLocal = newStatus.toLowerCase()
 
     try {
+      selectedAdmins.forEach(admin => {
+        saveStatusOverride(admin.id, admin.userId, newStatusLocal)
+      })
+
       await Promise.all(
         selectedAdmins.map(admin => updateAdminStatus(admin.id, newStatusBackend))
       )
@@ -811,17 +1112,31 @@ function AdminsManagement() {
         timestamp: Date.now()
       }
 
-      setAdminsList(prevList => prevList.map(admin => {
-        if (selectedIds.includes(admin.id)) {
-          const updatedAdmin = {
-            ...admin,
-            status: newStatusLocal,
-            activities: [bulkAct, ...(admin.activities || [])]
+      setAdminsList(prevList => {
+        const updatedList = prevList.map(admin => {
+          if (selectedIds.includes(admin.id)) {
+            return {
+              ...admin,
+              status: newStatusLocal,
+              activities: [bulkAct, ...(admin.activities || [])]
+            }
           }
-          return updatedAdmin
-        }
-        return admin
-      }))
+          return admin
+        })
+
+        try {
+          const activeNum = updatedList.filter(a => a.status === 'active').length
+          const inactiveNum = updatedList.filter(a => a.status === 'inactive').length
+          localStorage.setItem(ADMIN_COUNTS_KEY, JSON.stringify({
+            total: updatedList.length,
+            active: activeNum,
+            inactive: inactiveNum
+          }))
+          localStorage.setItem(CACHED_ADMINS_KEY, JSON.stringify(updatedList))
+        } catch {}
+
+        return updatedList
+      })
 
       if (viewedAdmin && selectedIds.includes(viewedAdmin.id)) {
         setViewedAdmin(prev => ({
@@ -846,6 +1161,75 @@ function AdminsManagement() {
     }
   }
 
+  // Handle Edit Admin Modal form submission
+  const handleSaveEdit = async (e) => {
+    e?.preventDefault?.()
+    if (!editingAdmin) return
+    setEditLoading(true)
+    setEditError('')
+    try {
+      const adminId = editingAdmin.id || editingAdmin._id
+      const updatePayload = {
+        name: (editingAdmin.name || '').trim(),
+        fullName: (editingAdmin.name || '').trim(),
+        email: (editingAdmin.email || '').trim(),
+        phone: (editingAdmin.phone || '').trim(),
+        gender: editingAdmin.gender || 'Male',
+        role: editingAdmin.role || 'ADMIN',
+        isActive: Boolean(editingAdmin.isActive),
+        status: editingAdmin.isActive ? 'ACTIVE' : 'INACTIVE',
+        profileImage: (editingAdmin.image || '').trim(),
+        image: (editingAdmin.image || '').trim()
+      }
+      await updateAdmin(adminId, updatePayload)
+      try {
+        await updateAdminStatus(adminId, editingAdmin.isActive ? 'ACTIVE' : 'INACTIVE')
+      } catch {}
+
+      const newStatus = editingAdmin.isActive ? 'active' : 'inactive'
+      saveStatusOverride(adminId, editingAdmin.userId, newStatus)
+      if (editingAdmin.image) {
+        saveImageOverride(adminId, editingAdmin.userId, editingAdmin.image)
+      }
+
+      setAdminsList(prev => {
+        const updatedList = prev.map(a => {
+          if (a.id === adminId) {
+            return {
+              ...a,
+              name: updatePayload.name,
+              email: updatePayload.email,
+              phone: updatePayload.phone || a.phone,
+              gender: updatePayload.gender,
+              status: newStatus
+            }
+          }
+          return a
+        })
+
+        try {
+          const activeNum = updatedList.filter(a => a.status === 'active').length
+          const inactiveNum = updatedList.filter(a => a.status === 'inactive').length
+          localStorage.setItem(ADMIN_COUNTS_KEY, JSON.stringify({
+            total: updatedList.length,
+            active: activeNum,
+            inactive: inactiveNum
+          }))
+          localStorage.setItem(CACHED_ADMINS_KEY, JSON.stringify(updatedList))
+        } catch {}
+
+        return updatedList
+      })
+
+      setEditingAdmin(null)
+      await fetchAdmins()
+    } catch (err) {
+      setEditError(err?.response?.data?.message || err?.message || 'Failed to update admin')
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
   // Bulk delete execution (DELETE /api/superadmin/admins/delete/:id)
   const handleBulkDeleteConfirm = async () => {
     const selectedAdmins = adminsList.filter(a => a.checked)
@@ -858,11 +1242,29 @@ function AdminsManagement() {
     setBulkDeleteError('')
 
     try {
+      selectedAdmins.forEach(admin => {
+        removeStatusOverride(admin.id, admin.userId)
+        removeImageOverride(admin.id, admin.userId)
+      })
+
       await Promise.all(
         selectedAdmins.map(admin => deleteAdmin(admin.id))
       )
 
-      setAdminsList(prevList => prevList.filter(admin => !selectedIds.includes(admin.id)))
+      setAdminsList(prevList => {
+        const updatedList = prevList.filter(admin => !selectedIds.includes(admin.id))
+        try {
+          const activeNum = updatedList.filter(a => a.status === 'active').length
+          const inactiveNum = updatedList.filter(a => a.status === 'inactive').length
+          localStorage.setItem(ADMIN_COUNTS_KEY, JSON.stringify({
+            total: updatedList.length,
+            active: activeNum,
+            inactive: inactiveNum
+          }))
+          localStorage.setItem(CACHED_ADMINS_KEY, JSON.stringify(updatedList))
+        } catch {}
+        return updatedList
+      })
 
       if (viewedAdmin && selectedIds.includes(viewedAdmin.id)) {
         setViewedAdmin(null)
@@ -896,9 +1298,24 @@ function AdminsManagement() {
     setDeleteError('')
 
     try {
+      removeStatusOverride(deletingAdminId, adminToDelete?.userId)
+      removeImageOverride(deletingAdminId, adminToDelete?.userId)
       const res = await deleteAdmin(deletingAdminId)
 
-      setAdminsList(prevList => prevList.filter((a) => a.id !== deletingAdminId))
+      setAdminsList(prevList => {
+        const updatedList = prevList.filter((a) => a.id !== deletingAdminId)
+        try {
+          const activeNum = updatedList.filter(a => a.status === 'active').length
+          const inactiveNum = updatedList.filter(a => a.status === 'inactive').length
+          localStorage.setItem(ADMIN_COUNTS_KEY, JSON.stringify({
+            total: updatedList.length,
+            active: activeNum,
+            inactive: inactiveNum
+          }))
+          localStorage.setItem(CACHED_ADMINS_KEY, JSON.stringify(updatedList))
+        } catch {}
+        return updatedList
+      })
 
       const deleteActivity = {
         id: Date.now(),
@@ -1523,11 +1940,13 @@ function AdminsManagement() {
           <div className="admin-profile-row">
             <div className="admin-profile-left">
               <img
-                src={viewedAdmin.image || 'https://via.placeholder.com/150'}
+                src={viewedAdmin.image || (viewedAdmin.gender === 'Female' ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256' : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256&h=256')}
                 alt={viewedAdmin.name}
                 className="admin-profile-avatar"
                 onError={(e) => {
-                  e.target.src = 'https://via.placeholder.com/150'
+                  e.target.src = viewedAdmin.gender === 'Female'
+                    ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256'
+                    : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256&h=256'
                 }}
               />
               <div className="admin-profile-info">
@@ -1864,11 +2283,13 @@ function AdminsManagement() {
                     <td>
                       <div className="table-admin-name-cell">
                         <img
-                          src={admin.image || 'https://via.placeholder.com/150'}
+                          src={admin.image || (admin.gender === 'Female' ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256' : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256&h=256')}
                           alt={admin.name}
                           className="table-admin-avatar"
                           onError={(e) => {
-                            e.target.src = 'https://via.placeholder.com/150'
+                            e.target.src = admin.gender === 'Female'
+                              ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256'
+                              : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256&h=256'
                           }}
                         />
                         <span

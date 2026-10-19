@@ -30,15 +30,20 @@ function App() {
     const handleSessionExpired = () => {
       handleLogout()
     }
+    const handleExplicitLogout = () => {
+      handleLogout()
+    }
     const handleAppToast = (e) => {
       if (e.detail?.text) {
         showToast(e.detail.text, e.detail.type || 'success')
       }
     }
     window.addEventListener('auth:session_expired', handleSessionExpired)
+    window.addEventListener('auth:logout', handleExplicitLogout)
     window.addEventListener('app:toast', handleAppToast)
     return () => {
       window.removeEventListener('auth:session_expired', handleSessionExpired)
+      window.removeEventListener('auth:logout', handleExplicitLogout)
       window.removeEventListener('app:toast', handleAppToast)
     }
   }, [])
