@@ -25,11 +25,12 @@ export const getStoredImageOverrides = () => {
 }
 
 export const saveImageOverride = (adminId, userId, image) => {
-  if (!image || typeof image !== 'string' || !image.trim()) return
+  if (image === undefined || image === null) return
   try {
     const images = getStoredImageOverrides()
-    if (adminId) images[adminId] = image.trim()
-    if (userId) images[userId] = image.trim()
+    const cleanImg = typeof image === 'string' ? image.trim() : image
+    if (adminId) images[adminId] = cleanImg
+    if (userId) images[userId] = cleanImg
     localStorage.setItem(ADMIN_IMAGES_KEY, JSON.stringify(images))
   } catch (e) {
     console.warn('Failed to save image override to localStorage', e)
@@ -39,8 +40,8 @@ export const saveImageOverride = (adminId, userId, image) => {
 export const removeImageOverride = (adminId, userId) => {
   try {
     const images = getStoredImageOverrides()
-    if (adminId) delete images[adminId]
-    if (userId) delete images[userId]
+    if (adminId) images[adminId] = '__REMOVED__'
+    if (userId) images[userId] = '__REMOVED__'
     localStorage.setItem(ADMIN_IMAGES_KEY, JSON.stringify(images))
   } catch (e) {
     console.warn('Failed to remove image override from localStorage', e)
@@ -52,7 +53,16 @@ export const resolveAdminImage = (admin, gender = 'Male', imageOverrides = null)
   const adminId = admin?.id || admin?._id || admin?.userId?._id || admin?.userId?.id
   const userId = admin?.userId?._id || admin?.userId?.id
 
-  // 1. Direct explicit image on admin
+  // 1. Explicitly removed by user in Super Admin panel
+  if ((adminId && overrides[adminId] === '__REMOVED__') || (userId && overrides[userId] === '__REMOVED__')) {
+    return ''
+  }
+
+  // 2. Persistent local image override
+  if (adminId && overrides[adminId] && overrides[adminId] !== '__REMOVED__') return overrides[adminId]
+  if (userId && overrides[userId] && overrides[userId] !== '__REMOVED__') return overrides[userId]
+
+  // 3. Direct explicit image on admin
   if (admin?.profileImage && typeof admin.profileImage === 'string' && admin.profileImage.trim()) {
     return admin.profileImage.trim()
   }
@@ -60,7 +70,7 @@ export const resolveAdminImage = (admin, gender = 'Male', imageOverrides = null)
     return admin.image.trim()
   }
 
-  // 2. Image inside admin.userId
+  // 4. Image inside admin.userId
   if (admin?.userId?.profileImage && typeof admin.userId.profileImage === 'string' && admin.userId.profileImage.trim()) {
     return admin.userId.profileImage.trim()
   }
@@ -68,11 +78,7 @@ export const resolveAdminImage = (admin, gender = 'Male', imageOverrides = null)
     return admin.userId.image.trim()
   }
 
-  // 3. Persistent local image override
-  if (adminId && overrides[adminId]) return overrides[adminId]
-  if (userId && overrides[userId]) return overrides[userId]
-
-  // 4. Fallback default image based on gender
+  // 5. Fallback default image based on gender
   const gen = admin?.gender || admin?.userId?.gender || gender || 'Male'
   return gen === 'Female'
     ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256'
@@ -673,6 +679,7 @@ function AdminsManagement() {
 
     if (editingAdmin) {
       const adminId = editingAdmin.id || editingAdmin._id
+      const adminUserId = editingAdmin.userId?._id || editingAdmin.userId?.id || editingAdmin.userId
       try {
         const uploadedImg = (formData.imagePreview || '').trim()
         const updatePayload = {
@@ -702,14 +709,13 @@ function AdminsManagement() {
         const updatedEmail = updatedData.email || formData.email.trim()
         const updatedPhone = updatedData.phone || updatedData.mobile || formData.phone
         const updatedRole = updatedData.role || formData.role || 'ADMIN'
-        const updatedStatus = updatedData.status
-          ? (updatedData.status.toString().toLowerCase() === 'active' ? 'active' : 'inactive')
-          : (formData.isActive ? 'active' : 'inactive')
 
         const newStatusLocal = formData.isActive ? 'active' : 'inactive'
-        saveStatusOverride(adminId, null, newStatusLocal)
+        saveStatusOverride(adminId, adminUserId, newStatusLocal)
         if (uploadedImg) {
-          saveImageOverride(adminId, null, uploadedImg)
+          saveImageOverride(adminId, adminUserId, uploadedImg)
+        } else {
+          removeImageOverride(adminId, adminUserId)
         }
         try {
           await updateAdminStatus(adminId, formData.isActive ? 'ACTIVE' : 'INACTIVE')
@@ -735,7 +741,11 @@ function AdminsManagement() {
                 role: updatedRole,
                 gender: formData.gender || a.gender,
                 status: newStatusLocal,
-                image: uploadedImg || a.image,
+                image: uploadedImg,
+                profileImage: uploadedImg,
+                userId: a.userId && typeof a.userId === 'object'
+                  ? { ...a.userId, profileImage: uploadedImg, image: uploadedImg }
+                  : a.userId,
                 activities: [editActivity, ...(a.activities || [])]
               }
             }
@@ -756,6 +766,20 @@ function AdminsManagement() {
           return updatedList
         })
 
+        if (viewedAdmin && (viewedAdmin.id === adminId || viewedAdmin._id === adminId)) {
+          setViewedAdmin(prev => prev ? ({
+            ...prev,
+            name: updatedName,
+            email: updatedEmail,
+            phone: updatedPhone,
+            role: updatedRole,
+            gender: formData.gender || prev.gender,
+            status: newStatusLocal,
+            image: uploadedImg,
+            profileImage: uploadedImg
+          }) : null)
+        }
+
         const globalActivity = {
           id: Date.now(),
           title: 'Admin Details Updated',
@@ -763,6 +787,12 @@ function AdminsManagement() {
           timestamp: Date.now()
         }
         setActivities(prev => [globalActivity, ...prev])
+
+        window.dispatchEvent(
+          new CustomEvent('app:toast', {
+            detail: { text: 'Saved successfully.', type: 'success' }
+          })
+        )
 
         setEditingAdmin(null)
         setIsAdding(false)
@@ -894,6 +924,11 @@ function AdminsManagement() {
           imageFile: null,
           imagePreview: ''
         })
+        window.dispatchEvent(
+          new CustomEvent('app:toast', {
+            detail: { text: 'Admin created successfully.', type: 'success' }
+          })
+        )
         setIsAdding(false)
         await fetchAdmins()
       } catch (error) {
@@ -959,6 +994,34 @@ function AdminsManagement() {
     setPhoneError('')
     setEditError('')
     setEditingAdmin(admin)
+
+    const adminId = admin.id || admin._id
+    const userId = admin.userId?._id || admin.userId?.id || admin.userId
+    const overrides = getStoredImageOverrides()
+
+    const isExplicitlyRemoved = (adminId && overrides[adminId] === '__REMOVED__') || (userId && overrides[userId] === '__REMOVED__')
+
+    const isDefaultUnsplash = admin.image && (
+      admin.image.includes('photo-1494790108377-be9c29b29330') ||
+      admin.image.includes('photo-1507003211169-0a1dd7228f2d') ||
+      admin.image.includes('photo-1535713875002-d1d0cf377fde')
+    )
+
+    let currentImg = ''
+    if (!isExplicitlyRemoved) {
+      if (adminId && overrides[adminId] && overrides[adminId] !== '__REMOVED__') {
+        currentImg = overrides[adminId]
+      } else if (userId && overrides[userId] && overrides[userId] !== '__REMOVED__') {
+        currentImg = overrides[userId]
+      } else if (admin.profileImage && typeof admin.profileImage === 'string' && admin.profileImage.trim() && !isDefaultUnsplash) {
+        currentImg = admin.profileImage.trim()
+      } else if (admin.image && typeof admin.image === 'string' && admin.image.trim() && !isDefaultUnsplash) {
+        currentImg = admin.image.trim()
+      } else if (admin.userId?.profileImage && typeof admin.userId.profileImage === 'string' && admin.userId.profileImage.trim() && !isDefaultUnsplash) {
+        currentImg = admin.userId.profileImage.trim()
+      }
+    }
+
     setFormData({
       name: admin.name || admin.fullName || '',
       email: admin.email || '',
@@ -968,7 +1031,7 @@ function AdminsManagement() {
       gender: admin.gender || 'Male',
       isActive: admin.status === 'active',
       imageFile: null,
-      imagePreview: admin.image || ''
+      imagePreview: currentImg
     })
     if (viewedAdmin) {
       setViewedAdmin(null)
@@ -1190,6 +1253,8 @@ function AdminsManagement() {
       saveStatusOverride(adminId, editingAdmin.userId, newStatus)
       if (editingAdmin.image) {
         saveImageOverride(adminId, editingAdmin.userId, editingAdmin.image)
+      } else {
+        removeImageOverride(adminId, editingAdmin.userId)
       }
 
       setAdminsList(prev => {
@@ -1201,7 +1266,9 @@ function AdminsManagement() {
               email: updatePayload.email,
               phone: updatePayload.phone || a.phone,
               gender: updatePayload.gender,
-              status: newStatus
+              status: newStatus,
+              image: editingAdmin.image || '',
+              profileImage: editingAdmin.image || ''
             }
           }
           return a
@@ -1220,6 +1287,12 @@ function AdminsManagement() {
 
         return updatedList
       })
+
+      window.dispatchEvent(
+        new CustomEvent('app:toast', {
+          detail: { text: 'Saved successfully.', type: 'success' }
+        })
+      )
 
       setEditingAdmin(null)
       await fetchAdmins()
@@ -1673,8 +1746,10 @@ function AdminsManagement() {
                   <button
                     type="button"
                     className="btn-cancel-red"
-                    style={{ padding: '8px 16px', fontSize: '12px' }}
-                    onClick={() => setFormData(prev => ({ ...prev, imageFile: null, imagePreview: '' }))}
+                    onClick={() => {
+                      if (fileInputRef.current) fileInputRef.current.value = ''
+                      setFormData(prev => ({ ...prev, imageFile: null, imagePreview: '' }))
+                    }}
                   >
                     Remove Image
                   </button>

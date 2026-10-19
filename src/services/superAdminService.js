@@ -247,8 +247,8 @@ export const updateAdmin = async (id, { name, fullName, email, phone, mobile, ro
     role,
   };
   if (gender) payload.gender = gender;
-  const img = profileImage || image;
-  if (img) {
+  const img = profileImage !== undefined ? profileImage : image;
+  if (img !== undefined) {
     payload.profileImage = img;
     payload.image = img;
   }
