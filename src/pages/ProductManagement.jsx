@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { LayoutGrid, Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, X, ChevronLeft, ChevronRight, ChevronDown, Palette, Calendar, Layers, Tag, Package, CheckCircle2, RotateCw, Mail, Phone, AlertCircle, ToggleLeft, ToggleRight, Check, Maximize2, ZoomIn, ZoomOut, Star, ThumbsUp, MessageSquare, Filter, Sparkles, PackageX } from 'lucide-react'
+import { LayoutGrid, Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, X, ChevronLeft, ChevronRight, ChevronDown, Palette, Calendar, Layers, Tag, Package, CheckCircle2, RotateCw, Mail, Phone, AlertCircle, ToggleLeft, ToggleRight, Check, Maximize2, ZoomIn, ZoomOut, Star, ThumbsUp, MessageSquare, Filter, Sparkles, PackageX, Truck, Clock } from 'lucide-react'
 import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, updateProductStatus, getAllCategories, getAllVendors } from '../services/superAdminService'
 import './ProductManagement.css'
 
@@ -34,89 +34,448 @@ const getStoredCustomCategories = () => {
 // ============================================================================
 // Customer Reviews & Ratings Helpers & Persistence
 // ============================================================================
+// Helper to accurately classify products into categories for contextual reviews
+export const detectProductCategoryType = (product) => {
+  const cat = (product?.category || product?.categoryId?.name || '').toLowerCase()
+  const name = (product?.productName || product?.name || '').toLowerCase()
+  const desc = (product?.description || product?.desc || '').toLowerCase()
+  const tags = (typeof product?.tag === 'string' ? product.tag : Array.isArray(product?.tags) ? product.tags.join(' ') : '').toLowerCase()
+  const combined = `${cat} ${name} ${desc} ${tags}`
+
+  // 1. Furniture & Wooden Home Fixtures
+  if (
+    cat.includes('furniture') ||
+    combined.includes('chair') ||
+    combined.includes('table') ||
+    combined.includes('sofa') ||
+    combined.includes('couch') ||
+    combined.includes('bed') ||
+    combined.includes('desk') ||
+    combined.includes('dining') ||
+    combined.includes('wardrobe') ||
+    combined.includes('bookshelf') ||
+    combined.includes('cabinet') ||
+    combined.includes('bench') ||
+    combined.includes('stool') ||
+    combined.includes('mattress') ||
+    combined.includes('wood')
+  ) {
+    return 'furniture'
+  }
+
+  // 2. Electronics - Smart TV / Television / Display screens
+  if (
+    combined.includes('smart tv') ||
+    combined.includes('television') ||
+    combined.includes('oled') ||
+    combined.includes('qled') ||
+    combined.includes('monitor') ||
+    combined.includes('display') ||
+    combined.includes('projector') ||
+    (combined.includes('tv') && !combined.includes('towel'))
+  ) {
+    return 'electronics_tv'
+  }
+
+  // 3. Electronics - Mobile / Smartphone / Tablet
+  if (
+    cat.includes('mobile') ||
+    combined.includes('smartphone') ||
+    combined.includes('iphone') ||
+    combined.includes('android') ||
+    combined.includes('tablet') ||
+    combined.includes('ipad') ||
+    combined.includes('galaxy s') ||
+    (combined.includes('phone') && !combined.includes('headphone') && !combined.includes('earphone'))
+  ) {
+    return 'electronics_mobile'
+  }
+
+  // 4. Electronics - Laptop / Computer / PC
+  if (
+    combined.includes('laptop') ||
+    combined.includes('macbook') ||
+    combined.includes('computer') ||
+    combined.includes('desktop') ||
+    combined.includes('notebook')
+  ) {
+    return 'electronics_laptop'
+  }
+
+  // 5. Electronics - Audio / Headphone / Earphone / Speaker
+  if (
+    combined.includes('headphone') ||
+    combined.includes('earphone') ||
+    combined.includes('earbud') ||
+    combined.includes('airpod') ||
+    combined.includes('speaker') ||
+    combined.includes('soundbar') ||
+    combined.includes('audio') ||
+    combined.includes('sound')
+  ) {
+    return 'electronics_audio'
+  }
+
+  // 6. Electronics - Smartwatch / Wearable
+  if (
+    combined.includes('smartwatch') ||
+    (combined.includes('watch') && (cat.includes('electron') || combined.includes('smart') || combined.includes('digital') || combined.includes('fitness')))
+  ) {
+    return 'electronics_wearable'
+  }
+
+  // 7. General Electronics
+  if (
+    cat.includes('electron') ||
+    cat.includes('gadget') ||
+    combined.includes('camera') ||
+    combined.includes('drone') ||
+    combined.includes('charger') ||
+    combined.includes('appliance')
+  ) {
+    return 'electronics_general'
+  }
+
+  // 8. Footwear / Shoes
+  if (
+    cat.includes('shoe') ||
+    cat.includes('footwear') ||
+    combined.includes('shoe') ||
+    combined.includes('sneaker') ||
+    combined.includes('boot') ||
+    combined.includes('sandal') ||
+    combined.includes('heel') ||
+    combined.includes('loafer') ||
+    combined.includes('slipper')
+  ) {
+    return 'footwear'
+  }
+
+  // 9. Bags & Luggage
+  if (
+    cat.includes('bag') ||
+    combined.includes('handbag') ||
+    combined.includes('backpack') ||
+    combined.includes('tote') ||
+    combined.includes('purse') ||
+    combined.includes('wallet') ||
+    combined.includes('luggage') ||
+    combined.includes('suitcase') ||
+    combined.includes('duffle')
+  ) {
+    return 'bags'
+  }
+
+  // 10. Jewellery & Accessories
+  if (
+    cat.includes('jewel') ||
+    combined.includes('neckless') ||
+    combined.includes('necklace') ||
+    combined.includes('ring') ||
+    combined.includes('earring') ||
+    combined.includes('pendant') ||
+    combined.includes('bracelet') ||
+    combined.includes('bangle') ||
+    combined.includes('gold') ||
+    combined.includes('diamond') ||
+    combined.includes('silver') ||
+    (combined.includes('watch') && !cat.includes('electron'))
+  ) {
+    return 'jewellery'
+  }
+
+  // 11. Home & Lighting Decor
+  if (
+    cat.includes('home') ||
+    combined.includes('lamp') ||
+    combined.includes('light') ||
+    combined.includes('chandelier') ||
+    combined.includes('vase') ||
+    combined.includes('curtain') ||
+    combined.includes('decor') ||
+    combined.includes('clock')
+  ) {
+    return 'home_decor'
+  }
+
+  // 12. Beauty & Cosmetics
+  if (
+    cat.includes('beauty') ||
+    cat.includes('cosmetic') ||
+    combined.includes('serum') ||
+    combined.includes('cream') ||
+    combined.includes('lotion') ||
+    combined.includes('perfume') ||
+    combined.includes('fragrance') ||
+    combined.includes('lipstick') ||
+    combined.includes('makeup') ||
+    combined.includes('shampoo') ||
+    combined.includes('skincare')
+  ) {
+    return 'beauty'
+  }
+
+  // 13. Fashion / Clothing / Apparel
+  if (
+    cat.includes('fashion') ||
+    cat.includes('cloth') ||
+    cat.includes('apparel') ||
+    combined.includes('shirt') ||
+    combined.includes('t-shirt') ||
+    combined.includes('tshirt') ||
+    combined.includes('dress') ||
+    combined.includes('jeans') ||
+    combined.includes('trouser') ||
+    combined.includes('pant') ||
+    combined.includes('kurta') ||
+    combined.includes('saree') ||
+    combined.includes('jacket') ||
+    combined.includes('hoodie') ||
+    combined.includes('cotton') ||
+    combined.includes('wear')
+  ) {
+    return 'fashion'
+  }
+
+  return 'general'
+}
+
+// Generate rich, category-specific reviews for any product
 export const getDefaultReviewsForProduct = (product) => {
   const prodName = product?.name || product?.productName || 'Product'
-  const categoryName = (product?.category || product?.categoryId?.name || '').toLowerCase()
   const brandName = product?.brand || product?.brandName || 'Brand'
   const colorName = product?.color || 'Standard'
+  const catType = detectProductCategoryType(product)
 
-  if (categoryName.includes('shoe') || categoryName.includes('footwear') || prodName.toLowerCase().includes('shoe') || prodName.toLowerCase().includes('sneaker')) {
+  // 1. FURNITURE
+  if (catType === 'furniture') {
     return [
       {
         id: 'rev_1',
-        userName: 'Aarav Sharma',
+        userName: 'Vikramaditya Singhania',
         userAvatarColor: '#8e24aa',
         rating: 5,
-        title: 'Extremely comfortable and premium sole cushioning!',
-        comment: `Purchased these ${brandName} shoes two weeks ago. The foam cushioning feels like walking on clouds, and the stitching around the toe box is super resilient. True to size!`,
-        date: '18 Apr 2026',
-        variant: `Color: ${colorName} • Verified Purchase`,
-        helpfulVotes: 14,
+        title: 'Solid wood build, zero wobbling and outstanding comfort!',
+        comment: `Purchased this ${prodName} by ${brandName} for our living room setup. The wood finish is silky smooth, joints are tightly fitted, and it took under 15 minutes to assemble. Extremely sturdy and supports weight effortlessly!`,
+        date: '19 Apr 2026',
+        variant: `Finish: ${colorName} • Verified Purchase`,
+        helpfulVotes: 19,
         verified: true,
       },
       {
         id: 'rev_2',
-        userName: 'Priya Patel',
+        userName: 'Ananya Deshmukh',
         userAvatarColor: '#0284c7',
         rating: 5,
-        title: 'Exceeded all expectations – looks gorgeous',
-        comment: `The finish and silhouette are even sleeker in person than in the catalog photos. Wore them for a 10k walk without any heel blisters. Highly recommend this!`,
-        date: '14 Apr 2026',
-        variant: `Color: ${colorName} • Verified Purchase`,
-        helpfulVotes: 9,
+        title: 'Elegant modern aesthetic, cushions are supportive yet plush',
+        comment: `The silhouette looks even richer than in the catalog pictures. Excellent lumbar support and high-density foam that doesn't sink over time. Perfect statement piece for modern home decor.`,
+        date: '15 Apr 2026',
+        variant: `Finish: ${colorName} • Verified Purchase`,
+        helpfulVotes: 14,
         verified: true,
       },
       {
         id: 'rev_3',
-        userName: 'Rohan Verma',
+        userName: 'Rajesh K. Nambiar',
         userAvatarColor: '#059669',
         rating: 4,
-        title: 'Great daily sneaker, slightly snug on wide feet',
-        comment: `Top notch material quality and great grip on wet pavements. Only minor tip is if you have broader feet, order half a size up. Overall 4.5/5 value.`,
-        date: '09 Apr 2026',
-        variant: `Color: ${colorName} • Verified Purchase`,
-        helpfulVotes: 5,
+        title: 'Heavy-duty construction, clear step-by-step manual',
+        comment: `Arrived securely strapped with thick corner edge-protectors. Hardware screws and Allen key were included. Feels like heirloom furniture that will last for decades. Giving 4 stars only because courier delivery took 4 days.`,
+        date: '11 Apr 2026',
+        variant: `Finish: ${colorName} • Verified Purchase`,
+        helpfulVotes: 8,
         verified: true,
       },
       {
         id: 'rev_4',
-        userName: 'Sneha Kulkarni',
+        userName: 'Meera Chawla',
         userAvatarColor: '#d97706',
         rating: 5,
-        title: 'Worth every rupee – fast delivery too',
-        comment: `Received in authentic packaging with spare laces. The breathability is great for hot summer days. Zero creasing after a week of active wear!`,
-        date: '02 Apr 2026',
-        variant: `Color: ${colorName} • Verified Purchase`,
-        helpfulVotes: 3,
+        title: 'Flawless polish and smooth edges – great craftsmanship',
+        comment: `Child-safe rounded corners and zero rough splinters. The wood stain is uniform and repels light water droplets easily. Exceptional value compared to offline luxury showrooms!`,
+        date: '06 Apr 2026',
+        variant: `Finish: ${colorName} • Verified Purchase`,
+        helpfulVotes: 5,
         verified: true,
       },
       {
         id: 'rev_5',
-        userName: 'Vikram Mehta',
+        userName: 'Sandeep Bansal',
         userAvatarColor: '#dc2626',
-        rating: 3,
-        title: 'Decent shoes, color slightly darker than pictured',
-        comment: `Comfort is acceptable and sole is durable. However the shade is slightly deeper than the studio images. Good purchase nonetheless for everyday office wear.`,
-        date: '28 Mar 2026',
-        variant: `Color: ${colorName} • Verified Purchase`,
-        helpfulVotes: 2,
+        rating: 4,
+        title: 'Solid and sturdy frame, slightly heavier than anticipated',
+        comment: `Build quality and balance are top-notch. You might need two people to move it around during room rearrangement, but that speaks to how robust the solid timber really is. Highly satisfied!`,
+        date: '29 Mar 2026',
+        variant: `Finish: ${colorName} • Verified Purchase`,
+        helpfulVotes: 3,
         verified: true,
       },
     ]
   }
 
-  if (categoryName.includes('electron') || categoryName.includes('gadget') || categoryName.includes('mobile') || categoryName.includes('audio') || prodName.toLowerCase().includes('headphone') || prodName.toLowerCase().includes('phone') || prodName.toLowerCase().includes('watch')) {
+  // 2. ELECTRONICS - SMART TV / DISPLAY
+  if (catType === 'electronics_tv') {
     return [
       {
         id: 'rev_1',
         userName: 'Devansh Reddy',
         userAvatarColor: '#8e24aa',
         rating: 5,
-        title: 'Crisp audio quality and exceptional battery life!',
-        comment: `The build quality of this ${prodName} by ${brandName} is phenomenal. Active noise cancellation blocks out all ambient hum and battery easily lasts 30+ hours on one charge.`,
+        title: 'Breathtaking 4K HDR clarity and vibrant deep blacks!',
+        comment: `Upgraded to this ${prodName} by ${brandName} and the visual difference is night and day. Dolby Vision content looks cinematic, viewing angles are ultra-wide, and the panel renders fast action with zero motion blur.`,
+        date: '20 Apr 2026',
+        variant: `Model: ${colorName} • Verified Purchase`,
+        helpfulVotes: 23,
+        verified: true,
+      },
+      {
+        id: 'rev_2',
+        userName: 'Pooja Kashyap',
+        userAvatarColor: '#0284c7',
+        rating: 5,
+        title: 'Snappy Smart TV interface, great inbuilt Dolby Atmos audio',
+        comment: `Apps like Netflix, Prime Video, and YouTube launch instantaneously without any lag. Inbuilt stereo speakers deliver surprisingly punchy bass and clear dialogues. Wall mounting was a breeze!`,
+        date: '16 Apr 2026',
+        variant: `Model: ${colorName} • Verified Purchase`,
+        helpfulVotes: 16,
+        verified: true,
+      },
+      {
+        id: 'rev_3',
+        userName: 'Naveen Swaminathan',
+        userAvatarColor: '#059669',
+        rating: 4,
+        title: 'Great console gaming performance, sleek ultra-thin bezels',
+        comment: `HDMI 2.1 eARC and ALLM low latency mode work flawlessly. The remote is ergonomic with voice search buttons. Picture presets out-of-the-box needed slight calibration for movie mode.`,
+        date: '10 Apr 2026',
+        variant: `Model: ${colorName} • Verified Purchase`,
+        helpfulVotes: 9,
+        verified: true,
+      },
+      {
+        id: 'rev_4',
+        userName: 'Kavita Pillai',
+        userAvatarColor: '#d97706',
+        rating: 5,
+        title: 'Zero backlight bleeding and safe tamper-proof delivery',
+        comment: `Shipped with heavy-duty thermocol padding and fragile labeling. Tested thoroughly for dead pixels and panel uniformity – 100% spotless screen. Well worth the price tag!`,
+        date: '04 Apr 2026',
+        variant: `Model: ${colorName} • Verified Purchase`,
+        helpfulVotes: 4,
+        verified: true,
+      },
+    ]
+  }
+
+  // 3. ELECTRONICS - MOBILE / SMARTPHONE / TABLET
+  if (catType === 'electronics_mobile') {
+    return [
+      {
+        id: 'rev_1',
+        userName: 'Arjun Mathur',
+        userAvatarColor: '#8e24aa',
+        rating: 5,
+        title: 'Blazing fast performance, all-day battery and pro-grade cameras!',
+        comment: `Switched to this ${prodName} by ${brandName}. The 120Hz AMOLED panel is buttery smooth under direct sunlight. Camera captures stunning detail in low light portraits and the battery easily lasts 1.5 days on heavy 5G usage.`,
         date: '19 Apr 2026',
         variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 27,
+        verified: true,
+      },
+      {
+        id: 'rev_2',
+        userName: 'Simran Walia',
+        userAvatarColor: '#0284c7',
+        rating: 5,
+        title: 'Premium metal-glass hand feel and super rapid charging',
+        comment: `0 to 80% charge in barely 25 minutes! Haptics are crisp and stereo speakers are loud enough for music in a room without an external speaker. Software UI is clean without bloatware.`,
+        date: '15 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
         helpfulVotes: 18,
+        verified: true,
+      },
+      {
+        id: 'rev_3',
+        userName: 'Gaurav Bhatia',
+        userAvatarColor: '#059669',
+        rating: 4,
+        title: 'Top-tier multitasking and gaming, thermal cooling holds up',
+        comment: `Played intensive 3D games for 2 hours straight; barely felt warm to the touch. Call reception and 5G band support are rock solid. Camera bump is noticeable so definitely use a protective case.`,
+        date: '11 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 10,
+        verified: true,
+      },
+      {
+        id: 'rev_4',
+        userName: 'Tanvi Saxena',
+        userAvatarColor: '#d97706',
+        rating: 5,
+        title: 'Crisp selfie camera and secure biometric facial unlock',
+        comment: `Unlocks instantly even in low light. Display colors are punchy and video stabilization is gimbal-like. Received genuine sealed retail unit with manufacturer warranty card.`,
+        date: '03 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 6,
+        verified: true,
+      },
+    ]
+  }
+
+  // 4. ELECTRONICS - LAPTOP / COMPUTER
+  if (catType === 'electronics_laptop') {
+    return [
+      {
+        id: 'rev_1',
+        userName: 'Siddharth Roy',
+        userAvatarColor: '#8e24aa',
+        rating: 5,
+        title: 'Fast boot time, whisper-quiet fans, and crisp retina-class display',
+        comment: `Using this ${prodName} for software programming and multitasking. Boots into OS in under 6 seconds, keyboard tactile feedback is sublime, and battery easily gives 9+ hours of screen-on work.`,
+        date: '18 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 21,
+        verified: true,
+      },
+      {
+        id: 'rev_2',
+        userName: 'Isha Gujral',
+        userAvatarColor: '#0284c7',
+        rating: 5,
+        title: 'Ultra portable, premium aluminum chassis and huge trackpad',
+        comment: `Super lightweight for daily office and cafe commutes. Display has matte anti-glare coating which prevents eye strain during long working hours. Highly recommended!`,
+        date: '14 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 12,
+        verified: true,
+      },
+      {
+        id: 'rev_3',
+        userName: 'Alok Trivedi',
+        userAvatarColor: '#059669',
+        rating: 4,
+        title: 'Excellent value for productivity, crisp 1080p web camera',
+        comment: `Great microphone clarity for client video calls. Multi-tasking with 30+ browser tabs and background spreadsheet tasks never stuttered. Solid hardware build.`,
+        date: '08 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 7,
+        verified: true,
+      },
+    ]
+  }
+
+  // 5. ELECTRONICS - AUDIO / HEADPHONES / EARBUDS
+  if (catType === 'electronics_audio') {
+    return [
+      {
+        id: 'rev_1',
+        userName: 'Devansh Reddy',
+        userAvatarColor: '#8e24aa',
+        rating: 5,
+        title: 'Crisp audio balance, punchy bass, and exceptional battery life!',
+        comment: `The soundstage on this ${prodName} by ${brandName} is phenomenal. Active noise cancellation blocks out ambient office hum and commuter noise completely. Battery easily lasts 35+ hours!`,
+        date: '19 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 22,
         verified: true,
       },
       {
@@ -124,11 +483,11 @@ export const getDefaultReviewsForProduct = (product) => {
         userName: 'Ananya Iyer',
         userAvatarColor: '#0284c7',
         rating: 5,
-        title: 'Seamless Bluetooth connectivity and ergonomic fit',
-        comment: `Instant pairing with both my laptop and phone simultaneously. Latency is negligible for gaming and watching movies. Best gadget purchase this year!`,
+        title: 'Seamless dual-device Bluetooth pairing and featherweight comfort',
+        comment: `Instant switching between my laptop during Zoom meetings and my smartphone for incoming calls. Cushioned ear cups cause zero ear fatigue even after 6 hours continuous wear.`,
         date: '15 Apr 2026',
         variant: `Color: ${colorName} • Verified Purchase`,
-        helpfulVotes: 11,
+        helpfulVotes: 15,
         verified: true,
       },
       {
@@ -136,11 +495,11 @@ export const getDefaultReviewsForProduct = (product) => {
         userName: 'Kunal Joshi',
         userAvatarColor: '#059669',
         rating: 4,
-        title: 'Sturdy hardware, companion app could be cleaner',
-        comment: `The hardware performance is stellar. Fast charging works as advertised. The smartphone app is okay, but gets the job done for EQ presets.`,
-        date: '11 Apr 2026',
+        title: 'Clean acoustic highs, companion EQ app is handy',
+        comment: `Punchy bass profile and warm mids. Fast charging gives 4 hours playback in just 10 minutes of plug-in. Great daily audio gear for commutes and gym workouts.`,
+        date: '10 Apr 2026',
         variant: `Color: ${colorName} • Verified Purchase`,
-        helpfulVotes: 6,
+        helpfulVotes: 8,
         verified: true,
       },
       {
@@ -158,76 +517,516 @@ export const getDefaultReviewsForProduct = (product) => {
     ]
   }
 
-  // Default general products / apparel / home / accessories
+  // 6. ELECTRONICS - SMARTWATCH / WEARABLE
+  if (catType === 'electronics_wearable') {
+    return [
+      {
+        id: 'rev_1',
+        userName: 'Rohan Mehra',
+        userAvatarColor: '#8e24aa',
+        rating: 5,
+        title: 'Accurate health tracking, bright AMOLED display in direct sunlight',
+        comment: `Heart rate monitoring and SpO2 sensors match medical pulse oximeter readings accurately. Step counter has zero false counts while driving. Battery lasts a full 7 days on single charge.`,
+        date: '17 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 17,
+        verified: true,
+      },
+      {
+        id: 'rev_2',
+        userName: 'Neha Sehgal',
+        userAvatarColor: '#0284c7',
+        rating: 5,
+        title: 'Sleek premium dial design and water-resistant for swimming',
+        comment: `Wore it for regular pool sessions and daily jogs. Bluetooth notification syncing is instantaneous and watch faces are crisp with high pixel density. Beautiful wearable gadget!`,
+        date: '12 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 11,
+        verified: true,
+      },
+    ]
+  }
+
+  // 7. ELECTRONICS - GENERAL
+  if (catType === 'electronics_general') {
+    return [
+      {
+        id: 'rev_1',
+        userName: 'Akash Sengupta',
+        userAvatarColor: '#8e24aa',
+        rating: 5,
+        title: 'Robust electronic engineering, instant plug & play setup',
+        comment: `Build quality of this ${prodName} by ${brandName} is top-tier. Power efficiency is excellent, zero heat buildup during long operation, and comes with full manufacturer warranty documentation.`,
+        date: '18 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 14,
+        verified: true,
+      },
+      {
+        id: 'rev_2',
+        userName: 'Ritika Sen',
+        userAvatarColor: '#0284c7',
+        rating: 5,
+        title: 'High performance gadget – exceeded catalog specifications',
+        comment: `Very responsive device with reliable circuitry and sleek industrial casing. Packed securely with anti-static bubble wrap and fast dispatch. Totally worth it!`,
+        date: '13 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 9,
+        verified: true,
+      },
+    ]
+  }
+
+  // 8. FOOTWEAR / SHOES
+  if (catType === 'footwear') {
+    return [
+      {
+        id: 'rev_1',
+        userName: 'Aarav Sharma',
+        userAvatarColor: '#8e24aa',
+        rating: 5,
+        title: 'Extremely comfortable memory foam cushioning and arch support!',
+        comment: `Purchased these ${brandName} shoes two weeks ago. The sole cushioning feels like walking on clouds, absorbs heel impact during runs, and the stitching around the toe box is super resilient.`,
+        date: '19 Apr 2026',
+        variant: `Color: ${colorName} • Size: Standard • Verified Purchase`,
+        helpfulVotes: 20,
+        verified: true,
+      },
+      {
+        id: 'rev_2',
+        userName: 'Priya Patel',
+        userAvatarColor: '#0284c7',
+        rating: 5,
+        title: 'Sleek silhouette, zero heel blisters right out of the box',
+        comment: `Wore them for an entire weekend walking tour in the city without any break-in pain. Breathable mesh prevents sweaty feet and the rubber outsole provides solid wet grip.`,
+        date: '15 Apr 2026',
+        variant: `Color: ${colorName} • Size: Standard • Verified Purchase`,
+        helpfulVotes: 13,
+        verified: true,
+      },
+      {
+        id: 'rev_3',
+        userName: 'Rohan Verma',
+        userAvatarColor: '#059669',
+        rating: 4,
+        title: 'Durable construction, great traction on smooth & wet floors',
+        comment: `Top notch material quality and great grip on tiled surfaces. If you have broader feet, ordering half a size up gives a relaxed toe-box fit. Very durable sole.`,
+        date: '10 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 7,
+        verified: true,
+      },
+      {
+        id: 'rev_4',
+        userName: 'Sneha Kulkarni',
+        userAvatarColor: '#d97706',
+        rating: 5,
+        title: 'Worth every rupee – fast delivery too',
+        comment: `Received in authentic packaging with spare laces. The breathability is great for hot summer days. Zero creasing after a week of active wear!`,
+        date: '02 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 4,
+        verified: true,
+      },
+    ]
+  }
+
+  // 9. BAGS & LUGGAGE
+  if (catType === 'bags') {
+    return [
+      {
+        id: 'rev_1',
+        userName: 'Sonalika Aggarwal',
+        userAvatarColor: '#8e24aa',
+        rating: 5,
+        title: 'Supple leather finish, heavy-duty metal zippers and roomy interior!',
+        comment: `This ${prodName} from ${brandName} is a masterpiece. The leather grain feels luxurious, shoulder strap doesn't dig in, and it comfortably holds my 14" laptop, planner, and daily essentials with room to spare.`,
+        date: '19 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 18,
+        verified: true,
+      },
+      {
+        id: 'rev_2',
+        userName: 'Radhika Menghani',
+        userAvatarColor: '#0284c7',
+        rating: 5,
+        title: 'Neat edge paint, reinforced handles and elegant golden hardware',
+        comment: `Looks like a designer luxury bag costing thrice the amount. The magnetic closure snaps shut firmly and interior fabric lining is tear-resistant and easy to wipe clean.`,
+        date: '14 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 12,
+        verified: true,
+      },
+      {
+        id: 'rev_3',
+        userName: 'Abhishek Saxena',
+        userAvatarColor: '#059669',
+        rating: 4,
+        title: 'Great everyday executive bag, multiple smart organizer pockets',
+        comment: `Dedicated slots for pens, cards, and charger cables prevent clutter. Stood up well during travel and sudden rains. Solid stitching around stress points.`,
+        date: '08 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 6,
+        verified: true,
+      },
+    ]
+  }
+
+  // 10. JEWELLERY & ACCESSORIES
+  if (catType === 'jewellery') {
+    return [
+      {
+        id: 'rev_1',
+        userName: 'Pooja Chhabra',
+        userAvatarColor: '#8e24aa',
+        rating: 5,
+        title: 'Dazzling luster, intricate filigree carving and hypoallergenic on skin!',
+        comment: `Wore this ${prodName} by ${brandName} to a family celebration. The polish catches the light brilliantly, clasp mechanism is safe and secure, and it caused zero skin redness or itching.`,
+        date: '20 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 22,
+        verified: true,
+      },
+      {
+        id: 'rev_2',
+        userName: 'Bhavna Kothari',
+        userAvatarColor: '#0284c7',
+        rating: 5,
+        title: 'Comes in a lavish velvet gift box with hallmark authenticity tag',
+        comment: `Packaging alone feels worth a million bucks! The stone settings are tight with no loose prongs, and weight feels substantial yet comfortable around the neck all evening.`,
+        date: '15 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 14,
+        verified: true,
+      },
+      {
+        id: 'rev_3',
+        userName: 'Smriti Jha',
+        userAvatarColor: '#059669',
+        rating: 4,
+        title: 'Stunning craftsmanship, matched photos down to the finest detail',
+        comment: `Very delicate finishing and exquisite royal look. The adjustable extension chain makes it easy to style with both deep and high neckline ethnic outfits.`,
+        date: '09 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 7,
+        verified: true,
+      },
+    ]
+  }
+
+  // 11. HOME DECOR & LIGHTING
+  if (catType === 'home_decor') {
+    return [
+      {
+        id: 'rev_1',
+        userName: 'Harshita Bajaj',
+        userAvatarColor: '#8e24aa',
+        rating: 5,
+        title: 'Creates the coziest warm ambient glow – instant room transformation!',
+        comment: `Placed this ${prodName} by ${brandName} on our bedside table. The diffused light creates a relaxing, warm aesthetic without any harsh glare. Sturdy weighted base prevents accidental tipping.`,
+        date: '18 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 17,
+        verified: true,
+      },
+      {
+        id: 'rev_2',
+        userName: 'Manish Khanna',
+        userAvatarColor: '#0284c7',
+        rating: 5,
+        title: 'Heavy brass/metal finish, flicker-free high-grade electrical wiring',
+        comment: `Flicker-free switch mechanism and compatible with all smart LED bulbs. Arrived securely packed in double-wall cardboard with custom thermocol casing to prevent transit damage.`,
+        date: '13 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 10,
+        verified: true,
+      },
+      {
+        id: 'rev_3',
+        userName: 'Divya Sundaram',
+        userAvatarColor: '#059669',
+        rating: 4,
+        title: 'Minimalist and chic, cord length is generously long',
+        comment: `Generous 1.8-meter braided power cord made reaching the wall socket effortless. Elegant modern design that draws compliments from every visitor.`,
+        date: '07 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 5,
+        verified: true,
+      },
+    ]
+  }
+
+  // 12. BEAUTY & SKINCARE
+  if (catType === 'beauty') {
+    return [
+      {
+        id: 'rev_1',
+        userName: 'Kritika Singhal',
+        userAvatarColor: '#8e24aa',
+        rating: 5,
+        title: 'Gentle on sensitive skin, absorbs quickly with a radiant natural glow!',
+        comment: `Using this ${prodName} by ${brandName} for 3 weeks now. Non-sticky texture that penetrates deep into skin without clogging pores or causing acne breakouts. Fragrance is subtle and soothing.`,
+        date: '18 Apr 2026',
+        variant: `Variant: Standard • Verified Purchase`,
+        helpfulVotes: 16,
+        verified: true,
+      },
+      {
+        id: 'rev_2',
+        userName: 'Aarti Oberoi',
+        userAvatarColor: '#0284c7',
+        rating: 5,
+        title: 'Visible skin improvements within days, tamper-evident sealed pump',
+        comment: `Airless pump dispenser ensures hygienic application with zero wastage. Skin texture feels noticeably softer and well-hydrated throughout the day.`,
+        date: '13 Apr 2026',
+        variant: `Variant: Standard • Verified Purchase`,
+        helpfulVotes: 9,
+        verified: true,
+      },
+    ]
+  }
+
+  // 13. FASHION & CLOTHING
+  if (catType === 'fashion') {
+    return [
+      {
+        id: 'rev_1',
+        userName: 'Rahul Malhotra',
+        userAvatarColor: '#8e24aa',
+        rating: 5,
+        title: '100% breathable premium fabric and tailored silhouette!',
+        comment: `Purchased this ${prodName} by ${brandName}. The cotton/linen fabric is super soft against the skin, collars hold their crisp shape, and stitching along the shoulder seams is flawless.`,
+        date: '18 Apr 2026',
+        variant: `Color: ${colorName} • Size: Standard • Verified Purchase`,
+        helpfulVotes: 16,
+        verified: true,
+      },
+      {
+        id: 'rev_2',
+        userName: 'Tanvi Kapoor',
+        userAvatarColor: '#0284c7',
+        rating: 5,
+        title: 'Colors matched photos 100%, zero color bleeding after machine wash',
+        comment: `Often garments look vibrant only in studio lighting, but this piece looks stunning in real life. Fabric did not shrink or bleed color during the first cold wash. Elegant drape!`,
+        date: '14 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 11,
+        verified: true,
+      },
+      {
+        id: 'rev_3',
+        userName: 'Arjun Sen',
+        userAvatarColor: '#059669',
+        rating: 4,
+        title: 'Comfortable everyday wear, accurate sizing as per size chart',
+        comment: `Fits true to chest and sleeve measurements. Fabric is breathable for warm weather and transitions easily into semi-formal office wear. 4.5/5 value for money.`,
+        date: '09 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 6,
+        verified: true,
+      },
+      {
+        id: 'rev_4',
+        userName: 'Deepa Chandran',
+        userAvatarColor: '#d97706',
+        rating: 5,
+        title: 'Neat interlocked stitching and premium reinforced buttons',
+        comment: `Button stitching is reinforced with zero loose threads. Arrived wrinkle-free on a hanger in a sealed garment bag. Will definitely order in other colors!`,
+        date: '03 Apr 2026',
+        variant: `Color: ${colorName} • Verified Purchase`,
+        helpfulVotes: 4,
+        verified: true,
+      },
+    ]
+  }
+
+  // 14. GENERAL DYNAMIC FALLBACK
   return [
     {
       id: 'rev_1',
-      userName: 'Rahul Malhotra',
+      userName: 'Amitabh Sen',
       userAvatarColor: '#8e24aa',
       rating: 5,
-      title: 'Top notch quality and genuine craftsmanship!',
-      comment: `Delivered very quickly in secure protective packaging. The fabric and finish on this ${prodName} feel luxurious and durable. Completely satisfied with the value!`,
+      title: `Authentic quality and outstanding value for ${prodName}`,
+      comment: `Received this ${prodName} by ${brandName} in sealed original packaging. Build materials feel sturdy, finish is immaculate, and it delivers 100% on the advertised specifications.`,
       date: '18 Apr 2026',
-      variant: `Color: ${colorName} • Verified Purchase`,
-      helpfulVotes: 12,
+      variant: `Variant: ${colorName} • Verified Purchase`,
+      helpfulVotes: 14,
       verified: true,
     },
     {
       id: 'rev_2',
-      userName: 'Tanvi Kapoor',
+      userName: 'Shweta Goswami',
       userAvatarColor: '#0284c7',
       rating: 5,
-      title: '100% matched product photos and specifications',
-      comment: `Often online products look different than photos, but this ${brandName} product was 100% accurate. Colors are vibrant and stitching is super neat.`,
-      date: '16 Apr 2026',
-      variant: `Color: ${colorName} • Verified Purchase`,
-      helpfulVotes: 8,
+      title: 'Exceeded expectations – accurate to catalog photos',
+      comment: `Very impressed with the durability and sleek finish. Prompt dispatch and hassle-free courier delivery. Highly recommended product from ${brandName}!`,
+      date: '14 Apr 2026',
+      variant: `Variant: ${colorName} • Verified Purchase`,
+      helpfulVotes: 9,
       verified: true,
     },
     {
       id: 'rev_3',
-      userName: 'Arjun Sen',
+      userName: 'Nitin Kaushik',
       userAvatarColor: '#059669',
       rating: 4,
-      title: 'Very practical and well designed',
-      comment: `Using it everyday now. Good durability and feels premium. A little bit heavier than anticipated, but that probably reflects the sturdier build materials.`,
-      date: '10 Apr 2026',
-      variant: `Color: ${colorName} • Verified Purchase`,
-      helpfulVotes: 4,
-      verified: true,
-    },
-    {
-      id: 'rev_4',
-      userName: 'Deepa Chandran',
-      userAvatarColor: '#d97706',
-      rating: 5,
-      title: 'Great return policy reassurance and awesome support',
-      comment: `Had a small query about the warranty and the vendor team responded within 20 minutes. Product itself is flawless. Will definitely order again!`,
-      date: '05 Apr 2026',
-      variant: `Color: ${colorName} • Verified Purchase`,
-      helpfulVotes: 3,
-      verified: true,
-    },
-    {
-      id: 'rev_5',
-      userName: 'Siddharth Rao',
-      userAvatarColor: '#dc2626',
-      rating: 3,
-      title: 'Satisfactory overall, average packaging box',
-      comment: `The product inside was in good condition, but the outer courier box had a small dent. Product works fine, so no complaints on usability.`,
-      date: '29 Mar 2026',
-      variant: `Color: ${colorName} • Verified Purchase`,
-      helpfulVotes: 1,
+      title: 'Practical, reliable build quality and easy to use',
+      comment: `Been using it daily for over two weeks now. Functions exactly as intended without any hiccups. Great customer support when checking on tracking status.`,
+      date: '09 Apr 2026',
+      variant: `Variant: ${colorName} • Verified Purchase`,
+      helpfulVotes: 5,
       verified: true,
     },
   ]
 }
 
+// Dynamic feedback highlights tailored per category
+export const getCategoryFeedbackHighlights = (product) => {
+  const catType = detectProductCategoryType(product)
+
+  if (catType === 'furniture') {
+    return [
+      { name: 'Solid Construction', desc: 'Sturdy solid timber, zero wobbling or squeaking', percent: 98 },
+      { name: 'Finish & Polish', desc: 'Smooth stain, child-safe rounded edges', percent: 95 },
+      { name: 'Packaging & Transit', desc: 'Thick edge corner protectors & clear manual', percent: 93 },
+    ]
+  }
+
+  if (catType === 'electronics_tv') {
+    return [
+      { name: 'Display & 4K Clarity', desc: 'Vibrant HDR colors, rich contrast and deep blacks', percent: 98 },
+      { name: 'Sound & Audio', desc: 'Crisp dialogues and punchy stereo output', percent: 95 },
+      { name: 'Smart OS Speed', desc: 'Instant streaming app launches with zero lag', percent: 92 },
+    ]
+  }
+
+  if (catType === 'electronics_mobile') {
+    return [
+      { name: 'Camera & Display', desc: 'Sharp 120Hz AMOLED and stunning low-light shots', percent: 98 },
+      { name: 'Battery Backup', desc: 'All-day 5G battery with ultra-fast charging', percent: 96 },
+      { name: 'Build & Ergonomics', desc: 'Sleek metal-glass finish and crisp tactile haptics', percent: 94 },
+    ]
+  }
+
+  if (catType === 'electronics_laptop') {
+    return [
+      { name: 'Processing & Speed', desc: 'Instant OS boot, smooth multitasking & coding', percent: 98 },
+      { name: 'Keyboard & Trackpad', desc: 'Tactile key travel and large precision glass touchpad', percent: 95 },
+      { name: 'Thermal Management', desc: 'Whisper-quiet cooling fans under heavy loads', percent: 92 },
+    ]
+  }
+
+  if (catType === 'electronics_audio') {
+    return [
+      { name: 'Soundstage & Bass', desc: 'Deep bass profile and crisp distortion-free highs', percent: 98 },
+      { name: 'Noise Cancellation', desc: 'Blocks out ambient commuter & office hum', percent: 96 },
+      { name: 'Battery & Ergonomics', desc: '30+ hrs playtime and zero ear fatigue', percent: 93 },
+    ]
+  }
+
+  if (catType === 'footwear') {
+    return [
+      { name: 'Sole Cushioning', desc: 'Memory foam absorbs heel impact on long walks', percent: 98 },
+      { name: 'Accurate Sizing', desc: 'True to standard shoe charts, zero heel blisters', percent: 95 },
+      { name: 'Traction & Grip', desc: 'Slip-resistant rubber outsole on wet floors', percent: 92 },
+    ]
+  }
+
+  if (catType === 'fashion') {
+    return [
+      { name: 'Fabric Comfort', desc: '100% breathable, ultra-soft against skin', percent: 98 },
+      { name: 'Fit & Silhouette', desc: 'Flattering drape matching size chart measurements', percent: 95 },
+      { name: 'Colorfast Quality', desc: 'Zero color fading or shrinkage after washing', percent: 92 },
+    ]
+  }
+
+  if (catType === 'bags') {
+    return [
+      { name: 'Material & Texture', desc: 'Supple grain finish with reinforced stitching', percent: 98 },
+      { name: 'Hardware & Zippers', desc: 'Heavy-duty metal pullers that glide effortlessly', percent: 95 },
+      { name: 'Spacious Storage', desc: 'Roomy compartments with padded device sleeve', percent: 93 },
+    ]
+  }
+
+  if (catType === 'jewellery') {
+    return [
+      { name: 'Luster & Finish', desc: 'Dazzling royal shine with intricate filigree', percent: 99 },
+      { name: 'Skin Safe & Clasp', desc: 'Hypoallergenic on skin with secure safety clasp', percent: 96 },
+      { name: 'Gift Presentation', desc: 'Comes in luxurious velvet box with hallmark tag', percent: 94 },
+    ]
+  }
+
+  if (catType === 'home_decor') {
+    return [
+      { name: 'Ambient Glow', desc: 'Cozy, warm illumination without harsh flicker', percent: 98 },
+      { name: 'Stable Heavy Base', desc: 'Solid weighted footing prevents tipping', percent: 95 },
+      { name: 'Safe Dispatch', desc: 'Reinforced thermocol casing, zero transit damage', percent: 93 },
+    ]
+  }
+
+  if (catType === 'beauty') {
+    return [
+      { name: 'Skin Compatibility', desc: 'Gentle on sensitive skin with zero irritation', percent: 98 },
+      { name: 'Hydration & Glow', desc: 'Non-greasy rapid absorption and natural glow', percent: 95 },
+      { name: 'Hygienic Dispenser', desc: 'Airless sealed pump prevents contamination', percent: 93 },
+    ]
+  }
+
+  return [
+    { name: 'Authentic Quality', desc: '100% true to images and material specs', percent: 98 },
+    { name: 'Build Durability', desc: 'Sturdy materials engineered for long lasting use', percent: 94 },
+    { name: 'Fast Dispatch', desc: 'Shipped securely in protective courier packaging', percent: 92 },
+  ]
+}
+
+// Helper to detect if a cached review list is from the legacy generic templates
+const isLegacyGenericReviewList = (reviews, categoryType) => {
+  if (!Array.isArray(reviews) || reviews.length === 0) return true
+
+  // If review list contains any user-submitted reviews, NEVER treat as legacy
+  const hasUserCustom = reviews.some(r =>
+    r.userCreated === true || (typeof r.id === 'string' && r.id.startsWith('rev_') && Number(r.id.replace('rev_', '')) > 1000000000)
+  )
+  if (hasUserCustom) return false
+
+  // If non-apparel has fabric/stitching comment:
+  if (categoryType !== 'fashion') {
+    const hasFabricComment = reviews.some(r =>
+      (r.comment || '').toLowerCase().includes('the fabric and finish on this') ||
+      (r.comment || '').toLowerCase().includes('stitching is super neat')
+    )
+    if (hasFabricComment) return true
+  }
+
+  // If non-audio has ANC/headphone comment:
+  if (categoryType !== 'electronics_audio') {
+    const hasAudioComment = reviews.some(r =>
+      (r.comment || '').toLowerCase().includes('active noise cancellation blocks out all ambient hum') ||
+      (r.comment || '').toLowerCase().includes('crisp audio quality and exceptional battery life')
+    )
+    if (hasAudioComment) return true
+  }
+
+  // If non-footwear has walking on clouds / heel blisters comment:
+  if (categoryType !== 'footwear') {
+    const hasFootwearComment = reviews.some(r =>
+      (r.comment || '').toLowerCase().includes('walking on clouds') ||
+      (r.comment || '').toLowerCase().includes('heel blisters')
+    )
+    if (hasFootwearComment) return true
+  }
+
+  return false
+}
+
 export const getStoredProductReviews = (productId, product) => {
   if (!productId) return []
   try {
+    const catType = detectProductCategoryType(product)
+
     // 1. LIVE BACKEND DATA:
-    // If backend returns reviews array in product response:
     const liveReviews = product?.reviews || product?.customerReviews || product?.feedbacks
     if (Array.isArray(liveReviews) && liveReviews.length > 0) {
       return liveReviews.map((r, idx) => ({
@@ -244,24 +1043,43 @@ export const getStoredProductReviews = (productId, product) => {
       }))
     }
 
-    // 2. Locally persisted reviews (created/updated by admin or stored locally):
-    const key = `zyvora_product_reviews_${productId}`
-    const saved = localStorage.getItem(key)
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      if (Array.isArray(parsed) && parsed.length > 0) {
+    // 2. Locally persisted reviews (Version 4 storage key for category-accurate reviews):
+    const v4Key = `zyvora_product_reviews_v4_${productId}`
+    const savedV4 = localStorage.getItem(v4Key)
+    if (savedV4) {
+      const parsed = JSON.parse(savedV4)
+      if (Array.isArray(parsed) && parsed.length > 0 && !isLegacyGenericReviewList(parsed, catType)) {
         return parsed
       }
     }
 
-    // 3. Smart contextual fallback if live backend has not recorded reviews yet:
-    const defaults = getDefaultReviewsForProduct(product)
-    try {
-      localStorage.setItem(key, JSON.stringify(defaults))
-    } catch {
-      // ignore
+    // Check legacy key for any user-added custom reviews to preserve
+    const legacyKey = `zyvora_product_reviews_${productId}`
+    const savedLegacy = localStorage.getItem(legacyKey)
+    let userCustomReviews = []
+    if (savedLegacy) {
+      try {
+        const legacyParsed = JSON.parse(savedLegacy)
+        if (Array.isArray(legacyParsed)) {
+          // Keep only explicitly added admin reviews (timestamped IDs)
+          userCustomReviews = legacyParsed.filter(r =>
+            r.userCreated === true || (typeof r.id === 'string' && r.id.startsWith('rev_') && Number(r.id.replace('rev_', '')) > 1000000000)
+          )
+        }
+      } catch {}
     }
-    return defaults
+
+    // 3. Generate fresh category-specific default reviews
+    const defaults = getDefaultReviewsForProduct(product)
+    const combinedList = [...userCustomReviews, ...defaults]
+
+    try {
+      localStorage.setItem(v4Key, JSON.stringify(combinedList))
+      // Clean legacy key to avoid old data lingering
+      localStorage.removeItem(legacyKey)
+    } catch {}
+
+    return combinedList
   } catch (e) {
     console.warn('Error reading stored product reviews:', e)
     return getDefaultReviewsForProduct(product)
@@ -271,8 +1089,8 @@ export const getStoredProductReviews = (productId, product) => {
 export const saveStoredProductReviews = (productId, reviews) => {
   if (!productId) return
   try {
-    const key = `zyvora_product_reviews_${productId}`
-    localStorage.setItem(key, JSON.stringify(reviews))
+    const v4Key = `zyvora_product_reviews_v4_${productId}`
+    localStorage.setItem(v4Key, JSON.stringify(reviews))
   } catch (e) {
     console.warn('Error saving stored product reviews:', e)
   }
@@ -612,6 +1430,7 @@ const DEFAULT_PRODUCTS = [
     color: 'White & Blue',
     tag: 'Wireless, Headphones, Noise Cancellation, Bluetooth, Blue',
     returnPolicy: '7 Days Replacement',
+    deliveryTime: 'Delivery within 2–4 business days',
     desc: 'Premium wireless headphones with active noise cancellation.',
     image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
@@ -637,6 +1456,7 @@ const DEFAULT_PRODUCTS = [
     color: 'Brown',
     tag: 'Lather, Vegan, Easy to carry, Classic, Brown',
     returnPolicy: '7 Days Replacement',
+    deliveryTime: 'Delivery within 3–5 business days',
     desc: 'Premium Lather Bag for everyday look and meetings.',
     image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
@@ -662,6 +1482,7 @@ const DEFAULT_PRODUCTS = [
     color: 'White',
     tag: 'Clothing, Formal, Cotton',
     returnPolicy: '15 Days Return',
+    deliveryTime: 'Delivery within 2–4 business days',
     desc: '100% premium cotton formal shirt.',
     image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
@@ -687,6 +1508,7 @@ const DEFAULT_PRODUCTS = [
     color: 'Blue',
     tag: 'Light, Casual, Summer Wear, Comfortable, Blue',
     returnPolicy: '7 Days Replacement',
+    deliveryTime: 'Delivery within 3–5 business days',
     desc: 'Comfortable Summer wear Blue dress.',
     image: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
@@ -712,6 +1534,7 @@ const DEFAULT_PRODUCTS = [
     color: 'Golden',
     tag: 'Lighting, Home Decor',
     returnPolicy: '30 Days Warranty',
+    deliveryTime: 'Delivery within 3–5 business days',
     desc: 'Elegant desk study lamp light.',
     image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
@@ -737,6 +1560,7 @@ const DEFAULT_PRODUCTS = [
     color: 'Golden Black',
     tag: 'Jewellery, Premium, Neckless',
     returnPolicy: 'No Returns',
+    deliveryTime: 'Delivery within 2–3 business days (Insured Express)',
     desc: 'Beautiful custom golden necklace pendant.',
     image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
@@ -762,6 +1586,7 @@ const DEFAULT_PRODUCTS = [
     color: 'Black',
     tag: 'Electronics, Smart TV',
     returnPolicy: '1 Year Warranty',
+    deliveryTime: 'Delivery within 4–6 business days (Scheduled Delivery)',
     desc: '4K Smart TV screen.',
     image: 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&q=80&w=350&h=350',
     images: [
@@ -771,6 +1596,32 @@ const DEFAULT_PRODUCTS = [
     ],
     joinedOn: '10 January 2026',
     sales: 45,
+    checked: false
+  },
+  {
+    id: 8,
+    name: 'Solid Teak Wood Chair',
+    productName: 'Solid Teak Wood Chair',
+    vendor: 'Wooden Bliss',
+    category: 'Furniture',
+    status: 'active',
+    price: '7499',
+    stock: 26,
+    brand: 'Wooden Store',
+    brandName: 'Wooden Store',
+    color: 'Walnut Finish',
+    tag: 'Furniture, Wooden, Chair, Living Room, Ergonomic',
+    returnPolicy: '10 Days Replacement',
+    deliveryTime: 'Delivery within 5–7 business days (Flatpack Courier)',
+    desc: 'Handcrafted solid teakwood dining and accent chair with durable ergonomics.',
+    image: 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&q=80&w=350&h=350',
+    images: [
+      'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&q=80&w=350&h=350',
+      'https://images.unsplash.com/photo-1580481077195-c228a3498877?auto=format&fit=crop&q=80&w=350&h=350',
+      'https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&q=80&w=350&h=350'
+    ],
+    joinedOn: '05 March 2026',
+    sales: 38,
     checked: false
   }
 ]
@@ -1075,6 +1926,7 @@ function ProductManagement() {
       status: rawStatus,
       tag: Array.isArray(p.tags) ? p.tags.join(', ') : (p.tag || `${rawCategory}, ${rawBrand}`),
       returnPolicy: p.returnPolicy || '7 Days Replacement',
+      deliveryTime: p.deliveryTime || p.estimatedDelivery || (rawCategory.toLowerCase().includes('furniture') ? 'Delivery within 5–7 business days' : rawCategory.toLowerCase().includes('jewel') ? 'Delivery within 2–3 business days' : 'Delivery within 3–5 business days'),
       desc: p.description || p.desc || p.details || `High quality ${rawName} by ${rawBrand}.`,
       image: primaryImage,
       images: imagesList,
@@ -1347,7 +2199,7 @@ function ProductManagement() {
         const imagesList = formattedImages.length > 0 ? formattedImages : [smartFallback]
 
         // Load fresh reviews matching backend data
-        const freshReviews = getStoredProductReviews(rawId, { ...data, ...product })
+        const freshReviews = getStoredProductReviews(rawId, { ...data, ...product, category: rawCategory, productName: rawName })
         setProductReviews(freshReviews)
 
         setViewedProduct(prev => ({
@@ -1373,6 +2225,8 @@ function ProductManagement() {
           vendorPhone: rawVendorPhone,
           vendorId: data.vendorId,
           categoryId: data.categoryId,
+          deliveryTime: data.deliveryTime || data.estimatedDelivery || product.deliveryTime || (rawCategory.toLowerCase().includes('furniture') ? 'Delivery within 5–7 business days' : rawCategory.toLowerCase().includes('jewel') ? 'Delivery within 2–3 business days' : 'Delivery within 3–5 business days'),
+          returnPolicy: data.returnPolicy || product.returnPolicy || '7 Days Replacement',
           images: imagesList,
           image: imagesList[0] || product.image,
         }))
@@ -1447,6 +2301,7 @@ function ProductManagement() {
     desc: '',
     tag: '',
     returnPolicy: '',
+    deliveryTime: 'Delivery within 3–5 business days',
     isActive: true,
     imagePreviews: [],
     imageFiles: []
@@ -1590,6 +2445,7 @@ function ProductManagement() {
       desc: '',
       tag: '',
       returnPolicy: '',
+      deliveryTime: 'Delivery within 3–5 business days',
       isActive: true,
       imagePreviews: [],
       imageFiles: []
@@ -1729,6 +2585,11 @@ function ProductManagement() {
     setFieldErrors(prev => ({ ...prev, returnPolicy: validateReturnPolicy(formData.returnPolicy) }))
   }
 
+  const handleDeliveryTimeChange = (e) => {
+    const val = e.target.value
+    setFormData(prev => ({ ...prev, deliveryTime: val }))
+  }
+
   const handleDescChange = (e) => {
     const val = e.target.value
     setFormData(prev => ({ ...prev, desc: val }))
@@ -1852,6 +2713,7 @@ function ProductManagement() {
               description: formData.desc.trim(),
               tag: formData.tag.trim(),
               returnPolicy: formData.returnPolicy.trim() || '7 Days Replacement',
+              deliveryTime: formData.deliveryTime ? formData.deliveryTime.trim() : (p.deliveryTime || 'Delivery within 3–5 business days'),
               status: nextStatus,
               image: primaryImage,
               images: imagesToSave
@@ -1884,6 +2746,7 @@ function ProductManagement() {
           description: formData.desc.trim(),
           tag: formData.tag.trim(),
           returnPolicy: formData.returnPolicy.trim() || '7 Days Replacement',
+          deliveryTime: formData.deliveryTime ? formData.deliveryTime.trim() : (p.deliveryTime || 'Delivery within 3–5 business days'),
           status: nextStatus,
           image: primaryImage,
           images: imagesToSave
@@ -1908,6 +2771,9 @@ function ProductManagement() {
         }
         if (formData.returnPolicy) {
           fd.append('returnPolicy', formData.returnPolicy.trim())
+        }
+        if (formData.deliveryTime) {
+          fd.append('deliveryTime', formData.deliveryTime.trim())
         }
         if (formData.desc) {
           fd.append('description', formData.desc.trim())
@@ -1955,6 +2821,7 @@ function ProductManagement() {
             color: formData.color.trim() || 'N/A',
             tag: formData.tag.trim() || `${formData.category}, ${formData.brand}`,
             returnPolicy: formData.returnPolicy.trim() || '7 Days Replacement',
+            deliveryTime: formData.deliveryTime ? formData.deliveryTime.trim() : 'Delivery within 3–5 business days',
             desc: formData.desc.trim() || '',
             description: formData.desc.trim() || '',
             image: primaryImage,
@@ -2012,6 +2879,7 @@ function ProductManagement() {
       desc: product.description || product.desc || '',
       tag: product.tag || '',
       returnPolicy: product.returnPolicy || '',
+      deliveryTime: product.deliveryTime || product.estimatedDelivery || 'Delivery within 3–5 business days',
       isActive: product.status === 'active' || product.status === 'out-of-stock',
       imagePreviews: (Array.isArray(product.images) && product.images.length > 0 ? product.images : (product.image ? [product.image] : [])).map(img => getFullImageUrl(img) || img),
       imageFiles: []
@@ -2232,8 +3100,21 @@ function ProductManagement() {
     } else if (reviewSortBy === 'helpful') {
       list.sort((a, b) => (b.helpfulVotes || 0) - (a.helpfulVotes || 0))
     } else {
-      // 'recent'
-      list.sort((a, b) => (b.id || '').localeCompare(a.id || ''))
+      // 'recent' - Newest / user added reviews appear first at the top
+      list.sort((a, b) => {
+        const aIsUser = a.userCreated || a.date === 'Today' || (typeof a.id === 'string' && a.id.length > 8)
+        const bIsUser = b.userCreated || b.date === 'Today' || (typeof b.id === 'string' && b.id.length > 8)
+        if (aIsUser && !bIsUser) return -1
+        if (!aIsUser && bIsUser) return 1
+        if (aIsUser && bIsUser) {
+          const aTime = Number((a.id || '').replace(/\D/g, '')) || 0
+          const bTime = Number((b.id || '').replace(/\D/g, '')) || 0
+          return bTime - aTime
+        }
+        const aNum = Number((a.id || '').replace(/\D/g, '')) || 0
+        const bNum = Number((b.id || '').replace(/\D/g, '')) || 0
+        return aNum - bNum
+      })
     }
 
     return list
@@ -2306,6 +3187,7 @@ function ProductManagement() {
       variant: viewedProduct?.color ? `Color: ${viewedProduct.color} • Verified Purchase` : 'Verified Purchase',
       helpfulVotes: 0,
       verified: newReviewForm.verified,
+      userCreated: true,
     }
 
     setProductReviews(prev => {
@@ -2325,6 +3207,21 @@ function ProductManagement() {
     setIsAddingReview(false)
     setReviewFormError('')
     showToast('Customer review added successfully!', 'success')
+  }
+
+  // Memoized dynamic feedback highlights for viewed product category
+  const categoryHighlights = useMemo(() => {
+    return getCategoryFeedbackHighlights(viewedProduct)
+  }, [viewedProduct])
+
+  // Reset/sync reviews to match the product's exact category defaults
+  const handleResetToCategoryReviews = () => {
+    if (!viewedProduct) return
+    const defaults = getDefaultReviewsForProduct(viewedProduct)
+    setProductReviews(defaults)
+    const prodId = viewedProduct?._id || viewedProduct?.id
+    saveStoredProductReviews(prodId, defaults)
+    showToast(`Reviews refreshed to match ${viewedProduct.category || 'product'} specifications!`, 'success')
   }
 
   // 1. Render Product Profile View Details
@@ -2634,6 +3531,15 @@ function ProductManagement() {
                 </div>
                 <div className="product-prop-row">
                   <span className="product-prop-left">
+                    <Truck style={{ width: '15px', height: '15px', color: '#16a34a' }} />
+                    Expected Delivery
+                  </span>
+                  <span className="product-prop-value" style={{ color: '#15803d', fontWeight: '700' }}>
+                    {viewedProduct.deliveryTime || 'Delivery within 3–5 business days'}
+                  </span>
+                </div>
+                <div className="product-prop-row">
+                  <span className="product-prop-left">
                     <Calendar style={{ width: '15px', height: '15px' }} />
                     Added on
                   </span>
@@ -2730,6 +3636,61 @@ function ProductManagement() {
                 </span>
               </div>
 
+              {/* Expected Delivery Information Card / Banner */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  backgroundColor: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  marginTop: '4px'
+                }}
+              >
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '8px',
+                    backgroundColor: '#dcfce7',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#16a34a',
+                    flexShrink: 0
+                  }}
+                >
+                  <Truck style={{ width: '20px', height: '20px' }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '14px', fontWeight: '800', color: '#15803d', fontFamily: 'var(--admin-font)' }}>
+                      {viewedProduct.deliveryTime || 'Delivery within 3–5 business days'}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        color: '#16a34a',
+                        backgroundColor: '#dcfce7',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Clock style={{ width: '10px', height: '10px' }} /> Fast Delivery
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '12px', color: '#4b5563', fontFamily: 'var(--admin-font)' }}>
+                    Doorstep delivery with real-time courier tracking & live updates.
+                  </span>
+                </div>
+              </div>
+
               {/* Description */}
               <div style={{ marginTop: '8px' }}>
                 <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', display: 'block', marginBottom: '6px', fontFamily: 'var(--admin-font)' }}>Description</span>
@@ -2768,6 +3729,16 @@ function ProductManagement() {
                 <div>
                   <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontFamily: 'var(--admin-font)' }}>Return Policy</span>
                   <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', fontFamily: 'var(--admin-font)' }}>{viewedProduct.returnPolicy || '7 Days Replacement'}</span>
+                </div>
+
+                <div>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontFamily: 'var(--admin-font)' }}>Expected Delivery Time</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Truck style={{ width: '14px', height: '14px', color: '#16a34a' }} />
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#15803d', fontFamily: 'var(--admin-font)' }}>
+                      {viewedProduct.deliveryTime || 'Delivery within 3–5 business days'}
+                    </span>
+                  </div>
                 </div>
 
                 <div>
@@ -2824,17 +3795,29 @@ function ProductManagement() {
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              className="btn-add-review-trigger"
-              onClick={() => {
-                setIsAddingReview(prev => !prev)
-                setReviewFormError('')
-              }}
-            >
-              <Plus style={{ width: '16px', height: '16px' }} />
-              <span>{isAddingReview ? 'Close Form' : 'Write a Review'}</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn-add-review-trigger"
+                style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1' }}
+                onClick={handleResetToCategoryReviews}
+                title="Reset reviews to match product's exact category"
+              >
+                <RotateCw style={{ width: '15px', height: '15px' }} />
+                <span>Reset Defaults</span>
+              </button>
+              <button
+                type="button"
+                className="btn-add-review-trigger"
+                onClick={() => {
+                  setIsAddingReview(prev => !prev)
+                  setReviewFormError('')
+                }}
+              >
+                <Plus style={{ width: '16px', height: '16px' }} />
+                <span>{isAddingReview ? 'Close Form' : 'Write a Review'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Inline Add Review Form */}
@@ -3028,27 +4011,15 @@ function ProductManagement() {
             <div className="review-stat-card">
               <div className="breakdown-title">Feedback Highlights</div>
               <div className="highlights-list">
-                <div className="highlight-item">
-                  <span className="highlight-pill success">98%</span>
-                  <div>
-                    <span className="highlight-name">Authentic Quality</span>
-                    <span className="highlight-desc">True to images and material specs</span>
+                {categoryHighlights.map((hl, hIdx) => (
+                  <div key={hIdx} className="highlight-item">
+                    <span className="highlight-pill success">{hl.percent}%</span>
+                    <div>
+                      <span className="highlight-name">{hl.name}</span>
+                      <span className="highlight-desc">{hl.desc}</span>
+                    </div>
                   </div>
-                </div>
-                <div className="highlight-item">
-                  <span className="highlight-pill success">94%</span>
-                  <div>
-                    <span className="highlight-name">Accurate Sizing</span>
-                    <span className="highlight-desc">Fits perfectly according to chart</span>
-                  </div>
-                </div>
-                <div className="highlight-item">
-                  <span className="highlight-pill success">91%</span>
-                  <div>
-                    <span className="highlight-name">Fast Dispatch</span>
-                    <span className="highlight-desc">Shipped securely with tracking</span>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>
@@ -3510,6 +4481,18 @@ function ProductManagement() {
                   {fieldErrors.returnPolicy}
                 </span>
               )}
+            </div>
+
+            {/* Estimated Delivery Time */}
+            <div className="form-field-item">
+              <label htmlFor="product-delivery-time">Estimated Delivery Time</label>
+              <input
+                id="product-delivery-time"
+                type="text"
+                placeholder="e.g. Delivery within 3–5 business days"
+                value={formData.deliveryTime}
+                onChange={handleDeliveryTimeChange}
+              />
             </div>
 
           </div>

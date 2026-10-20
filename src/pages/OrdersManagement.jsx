@@ -37,7 +37,8 @@ import {
   PlusCircle,
   Clock,
   AlertTriangle,
-  Send
+  Send,
+  Truck
 } from 'lucide-react'
 import { getAllOrders, getOrderById, updateOrderStatus, cancelOrder } from '../services/superAdminService'
 import { downloadInvoicePdf } from '../utils/invoicePdfGenerator'
@@ -638,6 +639,7 @@ const getEnrichedProductDetails = (prod, defaultVendor = null) => {
   const size = prod.size || matched?.size || 'Free Size'
   const rating = prod.rating || matched?.rating || 4.8
   const returnPolicy = prod.returnPolicy || matched?.returnPolicy || '7 Days Replacement'
+  const deliveryTime = prod.deliveryTime || matched?.deliveryTime || (category.toLowerCase().includes('furniture') ? 'Delivery within 5–7 business days' : category.toLowerCase().includes('jewel') ? 'Delivery within 2–3 business days' : 'Delivery within 3–5 business days')
   const description = prod.desc || prod.description || matched?.desc || matched?.description || `High-performance ${name} crafted with premium components and industry-grade engineering for maximum reliability and user satisfaction.`
   
   let tags = []
@@ -671,6 +673,7 @@ const getEnrichedProductDetails = (prod, defaultVendor = null) => {
     saved: `₹ ${savedAmountNum.toLocaleString('en-IN')}`,
     discount: discountPercent,
     returnPolicy,
+    deliveryTime,
     description,
     tags,
     images: gallery,
@@ -1950,6 +1953,14 @@ function OrderDetailView({
                         </span>
                         <span className="orders-product-spec-val">{selectedProductModal.returnPolicy}</span>
                       </div>
+                      <div className="orders-product-spec-row">
+                        <span className="orders-product-spec-key">
+                          <Truck style={{ width: '14px', height: '14px', color: '#16a34a' }} /> Expected Delivery
+                        </span>
+                        <span className="orders-product-spec-val" style={{ color: '#15803d', fontWeight: '700' }}>
+                          {selectedProductModal.deliveryTime || 'Delivery within 3–5 business days'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1972,6 +1983,30 @@ function OrderDetailView({
                         🎉 Save {selectedProductModal.saved}
                       </div>
                     )}
+                  </div>
+
+                  {/* Expected Delivery Banner */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      backgroundColor: '#f0fdf4',
+                      border: '1px solid #bbf7d0',
+                      marginBottom: '16px'
+                    }}
+                  >
+                    <Truck style={{ width: '20px', height: '20px', color: '#16a34a', flexShrink: 0 }} />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: '#15803d' }}>
+                        {selectedProductModal.deliveryTime || 'Delivery within 3–5 business days'}
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#4b5563' }}>
+                        Standard doorstep delivery with live tracking & courier updates
+                      </span>
+                    </div>
                   </div>
 
                   {/* Rating */}
