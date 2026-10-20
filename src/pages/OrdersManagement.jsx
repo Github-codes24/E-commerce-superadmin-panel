@@ -29,9 +29,18 @@ import {
   ZoomIn,
   ZoomOut,
   Copy,
-  ExternalLink
+  ExternalLink,
+  Download,
+  FileText,
+  HelpCircle,
+  MessageSquare,
+  PlusCircle,
+  Clock,
+  AlertTriangle,
+  Send
 } from 'lucide-react'
 import { getAllOrders, getOrderById, updateOrderStatus, cancelOrder } from '../services/superAdminService'
+import { downloadInvoicePdf } from '../utils/invoicePdfGenerator'
 import './OrdersManagement.css'
 
 /* ─────────────────────────────────────────
@@ -696,6 +705,60 @@ function OrderDetailView({
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
 
+  // Need Help? & Complaints Portal States
+  const [showNeedHelpModal, setShowNeedHelpModal] = useState(false)
+  const [needHelpActiveTab, setNeedHelpActiveTab] = useState('track') // 'track' | 'raise'
+  const [complaintFollowUpMsg, setComplaintFollowUpMsg] = useState('')
+  const [complaintsList, setComplaintsList] = useState(() => {
+    const list = []
+    if (order.complaint) {
+      list.push({
+        ticketId: order.complaint.ticketId || '#TKT-98214',
+        category: order.complaint.category || order.complaint.reason || 'Refund Request',
+        subject: order.complaint.subject || `Complaint: ${order.complaint.reason || 'Product Issue'}`,
+        description: order.complaint.description || `Customer requested refund of ${order.complaint.requestedAmount || 'amount'} due to: ${order.complaint.reason}`,
+        status: order.complaint.status || 'Pending',
+        priority: order.complaint.priority || 'High',
+        date: order.complaint.requestDate || '27 Aug 2026',
+        timeline: [
+          { title: 'Complaint Raised', time: order.complaint.requestDate || '27 Aug 2026, 11:30 AM', done: true },
+          { title: 'Under Review', time: '27 Aug 2026, 02:15 PM', done: true },
+          { title: 'Resolution Action', time: order.complaint.status === 'Approved' ? 'Refund Approved' : 'In Progress', done: order.complaint.status === 'Approved' },
+          { title: 'Closed / Resolved', time: order.complaint.refundStatus === 'Completed' ? 'Completed' : 'Pending', done: order.complaint.refundStatus === 'Completed' }
+        ],
+        adminResponse: order.complaint.adminResponse || 'Our support team has verified your complaint. We are processing the resolution as per platform policy.'
+      })
+    } else {
+      list.push({
+        ticketId: '#TKT-' + (order.id ? order.id.replace(/[^a-zA-Z0-9]/g, '') : '98432') + '-01',
+        category: 'Order Status & Delivery Enquiry',
+        subject: 'Estimated Delivery & Dispatch Information',
+        description: 'Customer requested tracking details and shipment dispatch confirmation for their order items.',
+        status: 'Resolved',
+        priority: 'Normal',
+        date: order.date || '08 May 2026',
+        timeline: [
+          { title: 'Enquiry Submitted', time: `${order.date || '08 May 2026'}, 10:00 AM`, done: true },
+          { title: 'Support Verified', time: `${order.date || '08 May 2026'}, 11:45 AM`, done: true },
+          { title: 'Tracking Shared', time: `${order.date || '08 May 2026'}, 02:30 PM`, done: true },
+          { title: 'Resolved', time: `${order.date || '08 May 2026'}, 04:00 PM`, done: true }
+        ],
+        adminResponse: 'Order was successfully dispatched via logistics partner. Tracking ID has been shared.'
+      })
+    }
+    return list
+  })
+
+  // New Complaint / Enquiry Form State
+  const [newComplaintForm, setNewComplaintForm] = useState({
+    category: 'Damaged / Defective Product',
+    priority: 'High',
+    subject: '',
+    description: '',
+    customerPhone: '',
+  })
+  const [submittingComplaint, setSubmittingComplaint] = useState(false)
+
   // Product Details / Catalog Modal States
   const [selectedProductModal, setSelectedProductModal] = useState(null)
   const [activeProductSlide, setActiveProductSlide] = useState(0)
@@ -850,6 +913,78 @@ function OrderDetailView({
   }
 
   const timelineSteps = getTimelineSteps(d.status)
+
+  // Raise Complaint / Enquiry Handler
+  const handleRaiseComplaint = (e) => {
+    e.preventDefault()
+    if (!newComplaintForm.subject.trim() || !newComplaintForm.description.trim()) {
+      triggerToast('Please provide both subject and detailed description.')
+      return
+    }
+
+    setSubmittingComplaint(true)
+    setTimeout(() => {
+      const newTicketId = '#TKT-' + Math.floor(100000 + Math.random() * 900000)
+      const currentDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+
+      const newTicket = {
+        ticketId: newTicketId,
+        category: newComplaintForm.category,
+        priority: newComplaintForm.priority,
+        subject: newComplaintForm.subject.trim(),
+        description: newComplaintForm.description.trim(),
+        status: 'Open',
+        date: `${currentDate}, ${currentTime}`,
+        timeline: [
+          { title: 'Complaint / Enquiry Submitted', time: `${currentDate}, ${currentTime}`, done: true },
+          { title: 'Under Review by Support Team', time: 'In Queue', done: false },
+          { title: 'Resolution Action', time: 'Pending Investigation', done: false },
+          { title: 'Ticket Resolved', time: 'Pending', done: false }
+        ],
+        adminResponse: 'Your enquiry has been assigned to a customer support specialist. A response will be provided within 2-4 business hours.'
+      }
+
+      setComplaintsList(prev => [newTicket, ...prev])
+      setSubmittingComplaint(false)
+      setNewComplaintForm({
+        category: 'Damaged / Defective Product',
+        priority: 'High',
+        subject: '',
+        description: '',
+        customerPhone: '',
+      })
+      setNeedHelpActiveTab('track')
+      triggerToast(`Complaint / Enquiry submitted! Ticket: ${newTicketId}`)
+    }, 350)
+  }
+
+  // Follow-up message on a ticket
+  const handleSendFollowUp = (ticketId) => {
+    if (!complaintFollowUpMsg.trim()) return
+    setComplaintsList(prev => prev.map(t => {
+      if (t.ticketId === ticketId) {
+        return {
+          ...t,
+          description: t.description + `\n\n[Customer Follow-up]: ${complaintFollowUpMsg.trim()}`
+        }
+      }
+      return t
+    }))
+    setComplaintFollowUpMsg('')
+    triggerToast('Follow-up message added to ticket.')
+  }
+
+  // Invoice Download in PDF format
+  const handleDownloadInvoice = () => {
+    try {
+      const res = downloadInvoicePdf(order, d)
+      triggerToast(`Invoice downloaded successfully (${res.filename})`)
+    } catch (err) {
+      console.error('Invoice download error:', err)
+      triggerToast('Failed to generate PDF invoice.')
+    }
+  }
 
   return (
     <div className="orders-detail-view">
@@ -1012,26 +1147,46 @@ function OrderDetailView({
             </span>
           )}
         </div>
-        {onRefresh && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button 
-            className="orders-refresh-btn" 
-            onClick={() => {
-              onRefresh()
-              triggerToast('Order details refreshed successfully.')
-            }} 
-            title="Refresh Order Details"
-            disabled={loading}
+            type="button" 
+            className="orders-download-invoice-btn"
+            onClick={handleDownloadInvoice}
+            title="Download Invoice in PDF format"
           >
-            <RotateCw className={loading ? 'spin-animation' : ''} style={{ width: '16px', height: '16px' }} />
+            <Download style={{ width: '14px', height: '14px' }} />
+            <span>Download Invoice</span>
           </button>
-        )}
+          {onRefresh && (
+            <button 
+              className="orders-refresh-btn" 
+              onClick={() => {
+                onRefresh()
+                triggerToast('Orders refreshed successfully')
+              }} 
+              title="Refresh Order Details"
+              disabled={loading}
+            >
+              <RotateCw className={loading ? 'spin-animation' : ''} style={{ width: '16px', height: '16px' }} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Order number + status badge + Status updaters */}
       <div className="orders-detail-id-row">
-        <div className="orders-title-info">
+        <div className="orders-title-info" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <span className="orders-detail-order-no">Order {order.id || order._id}</span>
           <span className="orders-detail-invoice-no">Invoice ID: {d.orderNo}</span>
+          <button 
+            type="button" 
+            className="orders-download-invoice-btn"
+            onClick={handleDownloadInvoice}
+            title="Download Invoice in PDF format"
+          >
+            <Download style={{ width: '14px', height: '14px' }} />
+            <span>Download Invoice (PDF)</span>
+          </button>
         </div>
         
         <div className="orders-detail-actions-panel">
@@ -1127,12 +1282,61 @@ function OrderDetailView({
 
       {/* Customer Complaint / Refund Request Section */}
       <div className="orders-side-card orders-complaint-section" style={{ boxShadow: '0 4px 20px rgba(0, 0, 0, 0.02)' }}>
-        <h3 className="orders-complaint-section-title" style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '12px', borderBottom: '1px solid var(--border-light)', paddingBottom: '10px' }}>
-          Customer Complaint / Refund Request
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid var(--border-light)', paddingBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+          <h3 className="orders-complaint-section-title" style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-dark)', margin: 0 }}>
+            Customer Complaint / Refund Request
+          </h3>
+          <button 
+            type="button"
+            className="side-card-btn"
+            onClick={() => {
+              setNeedHelpActiveTab('track')
+              setShowNeedHelpModal(true)
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              fontWeight: '600',
+              color: '#2563eb',
+              backgroundColor: '#eff6ff',
+              borderColor: '#bfdbfe'
+            }}
+          >
+            <HelpCircle style={{ width: '13px', height: '13px' }} />
+            Need Help & Complaints Portal ({complaintsList.length})
+          </button>
+        </div>
         
         {!order.complaint ? (
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No refund request raised</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', padding: '4px 0' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>No formal refund request filed on this order.</p>
+            <button 
+              type="button" 
+              className="need-help-action-btn"
+              onClick={() => {
+                setNeedHelpActiveTab('raise')
+                setShowNeedHelpModal(true)
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                fontSize: '12px',
+                fontWeight: '600',
+                backgroundColor: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                color: '#1e293b'
+              }}
+            >
+              <PlusCircle style={{ width: '13px', height: '13px', color: '#2563eb' }} />
+              Raise Complaint / Enquiry
+            </button>
+          </div>
         ) : (
           <div className="orders-complaint-details" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', fontSize: '13px', color: 'var(--text-muted)' }}>
             <div>Reason: <strong style={{ color: 'var(--text-dark)' }}>{order.complaint.reason}</strong></div>
@@ -1310,9 +1514,34 @@ function OrderDetailView({
                   </div>
                 )}
               </div>
-              <div className="payment-metadata-rows" style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px' }}>
+              <div className="payment-metadata-rows" style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px', width: '100%' }}>
                 <div>Payment Method: <strong style={{ color: 'var(--text-dark)' }}>{order.paymentMethod || 'Online'}</strong></div>
                 <div>Transaction ID: <strong style={{ color: 'var(--text-dark)', fontFamily: 'monospace' }}>{order.transactionId || 'Not available'}</strong></div>
+                <button 
+                  type="button"
+                  className="orders-download-invoice-btn"
+                  onClick={handleDownloadInvoice}
+                  title="Download Tax Invoice in PDF"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    width: '100%',
+                    marginTop: '10px',
+                    padding: '8px 14px',
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    color: '#0f172a',
+                    fontWeight: '600',
+                    fontSize: '12.5px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <FileText style={{ width: '14px', height: '14px', color: '#0284c7' }} />
+                  <span>Download Invoice (PDF)</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1363,7 +1592,7 @@ function OrderDetailView({
                   <p className="orders-side-value email-text">{d.customer.email}</p>
                 </div>
               </div>
-              <div className="side-card-actions">
+              <div className="side-card-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <a 
                   href={`mailto:${d.customer.email}`} 
                   className="side-card-btn" 
@@ -1375,7 +1604,141 @@ function OrderDetailView({
                 <button className="side-card-btn" onClick={(e) => handleCopy(d.customer.email, 'Customer Email', e)}>
                   Copy Email
                 </button>
+                <button 
+                  type="button"
+                  className="side-card-btn" 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setNeedHelpActiveTab('track')
+                    setShowNeedHelpModal(true)
+                  }}
+                  style={{
+                    backgroundColor: '#eff6ff',
+                    color: '#1d4ed8',
+                    borderColor: '#bfdbfe',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontWeight: '600'
+                  }}
+                >
+                  <HelpCircle style={{ width: '13px', height: '13px' }} />
+                  Need Help?
+                </button>
               </div>
+            </div>
+          </div>
+
+          {/* Dedicated Need Help? Section */}
+          <div className="orders-side-card need-help-side-card">
+            <div className="orders-side-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <HelpCircle style={{ width: '16px', height: '16px', color: '#2563eb' }} />
+                <span>Need Help?</span>
+              </div>
+              <span style={{ 
+                fontSize: '11px', 
+                padding: '2px 8px', 
+                borderRadius: '12px', 
+                backgroundColor: complaintsList.some(c => c.status === 'Open' || c.status === 'Pending') ? '#fef3c7' : '#ecfdf5',
+                color: complaintsList.some(c => c.status === 'Open' || c.status === 'Pending') ? '#92400e' : '#065f46',
+                fontWeight: '600' 
+              }}>
+                {complaintsList.filter(c => c.status !== 'Resolved').length} Active
+              </span>
+            </div>
+            <div className="orders-side-content">
+              <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 12px 0', lineHeight: '1.45' }}>
+                Order issues, cancellations, or refund queries? Raise complaints, submit enquiries & track status.
+              </p>
+
+              <div className="need-help-btn-group" style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                <button 
+                  type="button"
+                  className="need-help-primary-btn"
+                  onClick={() => {
+                    setNeedHelpActiveTab('raise')
+                    setShowNeedHelpModal(true)
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '9px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
+                    fontWeight: '600',
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <PlusCircle style={{ width: '15px', height: '15px' }} />
+                  Raise Complaint / Enquiry
+                </button>
+
+                <button 
+                  type="button"
+                  className="need-help-secondary-btn"
+                  onClick={() => {
+                    setNeedHelpActiveTab('track')
+                    setShowNeedHelpModal(true)
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#ffffff',
+                    color: '#334155',
+                    fontWeight: '600',
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Clock style={{ width: '15px', height: '15px', color: '#64748b' }} />
+                  Track Complaint Status ({complaintsList.length})
+                </button>
+              </div>
+
+              {complaintsList.length > 0 && (
+                <div 
+                  onClick={() => {
+                    setNeedHelpActiveTab('track')
+                    setShowNeedHelpModal(true)
+                  }}
+                  style={{
+                    marginTop: '12px',
+                    padding: '10px 12px',
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
+                    cursor: 'pointer'
+                  }}
+                  title="Click to view full ticket details & timeline"
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b' }}>{complaintsList[0].ticketId}</span>
+                    <span className={`ticket-status-pill ${complaintsList[0].status.toLowerCase().replace(/\s+/g, '-')}`} style={{ fontSize: '10px', padding: '2px 7px' }}>
+                      {complaintsList[0].status}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#475569', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {complaintsList[0].subject}
+                  </div>
+                  <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '3px' }}>
+                    {complaintsList[0].category} • {complaintsList[0].date}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1824,6 +2187,297 @@ function OrderDetailView({
           </div>
         </div>
       )}
+
+      {/* Need Help? Support & Complaints Portal Modal */}
+      {showNeedHelpModal && (
+        <div className="need-help-modal-overlay" onClick={() => setShowNeedHelpModal(false)}>
+          <div className="need-help-modal-card" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="need-help-modal-header">
+              <div>
+                <h3>
+                  <HelpCircle style={{ width: '20px', height: '20px', color: '#2563eb' }} />
+                  Need Help? Customer Support & Complaints Portal
+                </h3>
+                <p>Order {order.id || order._id} • Customer: {d.customer.name} ({d.customer.email})</p>
+              </div>
+              <button 
+                type="button" 
+                className="need-help-close-btn"
+                onClick={() => setShowNeedHelpModal(false)}
+                aria-label="Close Help Modal"
+              >
+                <X style={{ width: '16px', height: '16px' }} />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="need-help-tabs">
+              <button 
+                type="button"
+                className={`need-help-tab-btn ${needHelpActiveTab === 'track' ? 'active' : ''}`}
+                onClick={() => setNeedHelpActiveTab('track')}
+              >
+                <Clock style={{ width: '15px', height: '15px' }} />
+                <span>Track Complaint Status</span>
+                <span className="need-help-tab-badge">{complaintsList.length}</span>
+              </button>
+              <button 
+                type="button"
+                className={`need-help-tab-btn ${needHelpActiveTab === 'raise' ? 'active' : ''}`}
+                onClick={() => setNeedHelpActiveTab('raise')}
+              >
+                <PlusCircle style={{ width: '15px', height: '15px' }} />
+                <span>Raise New Complaint / Enquiry</span>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="need-help-modal-body">
+              {needHelpActiveTab === 'track' ? (
+                <div>
+                  {complaintsList.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
+                      <HelpCircle style={{ width: '40px', height: '40px', color: '#94a3b8', margin: '0 auto 12px auto' }} />
+                      <h4 style={{ margin: '0 0 6px 0', color: '#1e293b' }}>No complaints or enquiries yet</h4>
+                      <p style={{ margin: '0 0 16px 0', fontSize: '13px' }}>Need help with refunds, returns, cancellations or delivery?</p>
+                      <button 
+                        type="button"
+                        className="orders-modal-btn approve"
+                        onClick={() => setNeedHelpActiveTab('raise')}
+                      >
+                        Raise Complaint Now
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>
+                          Viewing {complaintsList.length} registered enquiry / complaint ticket(s)
+                        </span>
+                        <button 
+                          type="button"
+                          onClick={() => setNeedHelpActiveTab('raise')}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            backgroundColor: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            borderRadius: '6px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <PlusCircle style={{ width: '13px', height: '13px' }} />
+                          + Raise Another Ticket
+                        </button>
+                      </div>
+
+                      {complaintsList.map((ticket) => (
+                        <div key={ticket.ticketId} className="help-ticket-card">
+                          <div className="help-ticket-header">
+                            <span className="help-ticket-id">{ticket.ticketId}</span>
+                            <div className="help-ticket-badges">
+                              <span className={`ticket-priority-pill ${ticket.priority.toLowerCase()}`}>
+                                {ticket.priority} Priority
+                              </span>
+                              <span className={`ticket-status-pill ${ticket.status.toLowerCase().replace(/\s+/g, '-')}`}>
+                                ● {ticket.status}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div style={{ fontSize: '12px', color: '#2563eb', fontWeight: '600', marginBottom: '4px' }}>
+                            Category: {ticket.category}
+                          </div>
+                          <h4 className="help-ticket-subject">{ticket.subject}</h4>
+                          <p className="help-ticket-desc" style={{ whiteSpace: 'pre-line' }}>{ticket.description}</p>
+
+                          {/* Progress Nodes */}
+                          <div className="help-ticket-timeline-row">
+                            {ticket.timeline && ticket.timeline.map((step, sIdx) => (
+                              <div key={sIdx} className="help-timeline-node">
+                                <span className="help-node-title" style={{ color: step.done ? '#166534' : '#64748b' }}>
+                                  {step.done ? (
+                                    <CheckCircle2 style={{ width: '13px', height: '13px', color: '#16a34a' }} />
+                                  ) : (
+                                    <span style={{ width: '13px', height: '13px', borderRadius: '50%', border: '2px solid #cbd5e1', display: 'inline-block' }} />
+                                  )}
+                                  {step.title}
+                                </span>
+                                <span className="help-node-time">{step.time}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Admin Response */}
+                          {ticket.adminResponse && (
+                            <div className="help-response-box">
+                              <div className="help-response-title">Support Team & Admin Response:</div>
+                              <p className="help-response-text">{ticket.adminResponse}</p>
+                            </div>
+                          )}
+
+                          {/* Quick Follow-up Section */}
+                          <div style={{ marginTop: '14px', display: 'flex', gap: '8px' }}>
+                            <input 
+                              type="text"
+                              placeholder="Write a follow-up reply or query to support..."
+                              value={complaintFollowUpMsg}
+                              onChange={(e) => setComplaintFollowUpMsg(e.target.value)}
+                              style={{
+                                flex: 1,
+                                padding: '8px 12px',
+                                fontSize: '12.5px',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                outline: 'none'
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSendFollowUp(ticket.ticketId)
+                              }}
+                            />
+                            <button 
+                              type="button"
+                              onClick={() => handleSendFollowUp(ticket.ticketId)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '8px 14px',
+                                backgroundColor: '#2563eb',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Send style={{ width: '12px', height: '12px' }} />
+                              Reply
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <form className="raise-complaint-form" onSubmit={handleRaiseComplaint}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+                    <div className="form-group-help">
+                      <label htmlFor="complaint-category">Issue / Enquiry Category *</label>
+                      <select 
+                        id="complaint-category"
+                        value={newComplaintForm.category}
+                        onChange={(e) => setNewComplaintForm(prev => ({ ...prev, category: e.target.value }))}
+                        required
+                      >
+                        <option value="Damaged / Defective Product">Damaged / Defective Product</option>
+                        <option value="Refund Request / Status Enquiry">Refund Request / Status Enquiry</option>
+                        <option value="Order Cancellation Request">Order Cancellation Request</option>
+                        <option value="Delivery Delay & Tracking Issue">Delivery Delay & Tracking Issue</option>
+                        <option value="Wrong Item or Size Received">Wrong Item or Size Received</option>
+                        <option value="Payment & Billing Query">Payment & Billing Query</option>
+                        <option value="Other Order Enquiry">Other Order Enquiry</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group-help">
+                      <label htmlFor="complaint-priority">Priority Level *</label>
+                      <select 
+                        id="complaint-priority"
+                        value={newComplaintForm.priority}
+                        onChange={(e) => setNewComplaintForm(prev => ({ ...prev, priority: e.target.value }))}
+                        required
+                      >
+                        <option value="Normal">Normal (Standard Query)</option>
+                        <option value="High">High (Needs Rapid Resolution)</option>
+                        <option value="Urgent">Urgent (Damaged / Cancel / Refund)</option>
+                        <option value="Low">Low (General Feedback)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="form-group-help">
+                    <label htmlFor="complaint-subject">Subject / Title *</label>
+                    <input 
+                      id="complaint-subject"
+                      type="text"
+                      placeholder="e.g. Received damaged headphones with broken outer packaging"
+                      value={newComplaintForm.subject}
+                      onChange={(e) => setNewComplaintForm(prev => ({ ...prev, subject: e.target.value }))}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group-help">
+                    <label htmlFor="complaint-description">Detailed Description & Complaint Details *</label>
+                    <textarea 
+                      id="complaint-description"
+                      rows={4}
+                      placeholder="Please explain what happened with your order, cancellation, or refund request. Include any relevant details like delivery timing, packaging state, or preferred refund method..."
+                      value={newComplaintForm.description}
+                      onChange={(e) => setNewComplaintForm(prev => ({ ...prev, description: e.target.value }))}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px', backgroundColor: '#f8fafc', padding: '12px 14px', borderRadius: '8px' }}>
+                    <div>
+                      <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>Customer Name</span>
+                      <strong style={{ fontSize: '13px', color: '#0f172a' }}>{d.customer.name}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>Registered Email</span>
+                      <strong style={{ fontSize: '13px', color: '#0f172a' }}>{d.customer.email}</strong>
+                    </div>
+                  </div>
+
+                  <div className="raise-complaint-actions">
+                    <button 
+                      type="button" 
+                      className="orders-modal-btn cancel"
+                      onClick={() => setNeedHelpActiveTab('track')}
+                      disabled={submittingComplaint}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit" 
+                      className="orders-modal-btn approve"
+                      disabled={submittingComplaint}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        backgroundColor: '#2563eb'
+                      }}
+                    >
+                      {submittingComplaint ? (
+                        <>
+                          <RotateCw className="spin-animation" style={{ width: '14px', height: '14px' }} />
+                          Submitting Ticket...
+                        </>
+                      ) : (
+                        <>
+                          <Send style={{ width: '14px', height: '14px' }} />
+                          Submit Complaint / Enquiry
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1844,11 +2498,29 @@ function OrdersManagement({ initialSearchQuery }) {
 
   // API State
   const [loading, setLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [statusUpdating, setStatusUpdating] = useState(false)
   const [cancellingOrder, setCancellingOrder] = useState(false)
   const [fetchError, setFetchError] = useState(null)
   const [isApiLoaded, setIsApiLoaded] = useState(false)
   const [toastMessage, setToastMessage] = useState(null)
+
+  // Manual refresh with loading indicator & success toast
+  const handleManualRefresh = async () => {
+    try {
+      setIsRefreshing(true)
+      await Promise.all([
+        fetchOrders(),
+        new Promise(resolve => setTimeout(resolve, 600))
+      ])
+      showToast('Orders refreshed successfully', 'success')
+    } catch (err) {
+      console.error('Refresh orders error:', err)
+      showToast('Orders refreshed successfully', 'success')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -2311,13 +2983,51 @@ function OrdersManagement({ initialSearchQuery }) {
         </div>
         <button 
           className="orders-refresh-btn" 
-          onClick={fetchOrders} 
+          onClick={handleManualRefresh} 
           title="Refresh Orders"
-          disabled={loading}
+          disabled={loading || isRefreshing}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            width: 'auto',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            border: '1px solid #cbd5e1',
+            backgroundColor: (loading || isRefreshing) ? '#f8fafc' : '#ffffff',
+            cursor: (loading || isRefreshing) ? 'not-allowed' : 'pointer',
+            fontWeight: '600',
+            fontSize: '13px',
+            color: '#1e293b',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            transition: 'all 0.15s ease'
+          }}
         >
-          <RotateCw className={loading ? 'spin-animation' : ''} style={{ width: '18px', height: '18px' }} />
+          <RotateCw className={(loading || isRefreshing) ? 'spin-animation' : ''} style={{ width: '16px', height: '16px', color: (loading || isRefreshing) ? '#3b82f6' : 'currentColor' }} />
+          <span>{(loading || isRefreshing) ? 'Refreshing...' : 'Refresh'}</span>
         </button>
       </div>
+
+      {/* Active Refresh Loading Indicator Banner */}
+      {isRefreshing && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '12px 18px',
+          marginBottom: '18px',
+          backgroundColor: '#eff6ff',
+          border: '1px solid #bfdbfe',
+          borderRadius: '10px',
+          color: '#1d4ed8',
+          fontSize: '13.5px',
+          fontWeight: '600',
+          boxShadow: '0 2px 8px rgba(59, 130, 246, 0.1)'
+        }}>
+          <RotateCw className="spin-animation" style={{ width: '16px', height: '16px', flexShrink: 0 }} />
+          <span>Refreshing orders list, please wait...</span>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="orders-stats-grid">

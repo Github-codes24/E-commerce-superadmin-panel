@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Calendar, DollarSign, Box, Gift, ChevronLeft, ChevronRight, X, ArrowDown, RotateCw, AlertCircle, CheckCircle2, MapPin, ShoppingBag, Check, Camera, Upload } from 'lucide-react'
+import { Users, UserCheck, UserX, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Calendar, DollarSign, Box, Gift, ChevronLeft, ChevronRight, X, ArrowDown, RotateCw, AlertCircle, CheckCircle2, MapPin, ShoppingBag, Check, Camera, Upload } from 'lucide-react'
 import { getAllCustomers, getCustomerById, updateCustomer, updateCustomerStatus, deleteCustomer, getOrdersByCustomer, getAllOrders } from '../services/superAdminService'
 import './CustomersManagement.css'
 
@@ -47,7 +47,7 @@ export const saveDeletedCustomerId = (id) => {
 }
 
 // Helper for resolving customer status accurately
-// In e-commerce platforms, newly registered customers are Active by default unless explicitly blocked.
+// Helper for resolving customer status accurately (Active, Inactive, Blocked)
 export const resolveCustomerStatus = (c, overrides = null) => {
   if (!c) return 'active'
   const activeOverrides = overrides || getStoredCustomerStatusOverrides()
@@ -55,7 +55,10 @@ export const resolveCustomerStatus = (c, overrides = null) => {
 
   // 1. Check local persistent overrides first (Super Admin explicit manual action)
   if (rawId && activeOverrides[String(rawId)]) {
-    return activeOverrides[String(rawId)]
+    const ov = String(activeOverrides[String(rawId)]).toLowerCase()
+    if (ov === 'inactive' || ov === 'blocked' || ov === 'active') {
+      return ov
+    }
   }
 
   // 2. Check explicit blocked / banned flags
@@ -66,8 +69,11 @@ export const resolveCustomerStatus = (c, overrides = null) => {
   // 3. Check explicit status string if provided by backend
   if (c.status) {
     const s = c.status.toString().toLowerCase()
-    if (s === 'blocked' || s === 'banned' || s === 'deactivated') {
+    if (s === 'blocked' || s === 'banned') {
       return 'blocked'
+    }
+    if (s === 'inactive' || s === 'deactivated') {
+      return 'inactive'
     }
     if (s === 'active') {
       return 'active'
@@ -76,21 +82,28 @@ export const resolveCustomerStatus = (c, overrides = null) => {
 
   if (c.userStatus) {
     const us = c.userStatus.toString().toLowerCase()
-    if (us === 'blocked' || us === 'banned' || us === 'deactivated') {
+    if (us === 'blocked' || us === 'banned') {
       return 'blocked'
+    }
+    if (us === 'inactive' || us === 'deactivated') {
+      return 'inactive'
     }
     if (us === 'active') {
       return 'active'
     }
   }
 
-  // 4. Default: newly registered customers or shoppers who signed up on the store website
-  // are Active customers on the platform (never initially blocked).
+  // 4. Check isActive flag
+  if (c.isActive === false) {
+    return 'inactive'
+  }
+
+  // 5. Default: newly registered customers or shoppers who signed up on the store website
   return 'active'
 }
 
 // Validation helper for Customer Name:
-// Accepts only alphabets and spaces, rejects special characters, digits, and alphanumeric values
+// Accepts only alphabets and spaces, max 50 characters, rejects special characters, digits, and alphanumeric values
 export const validateCustomerName = (name) => {
   if (!name || !name.trim()) {
     return 'Full Name is required.'
@@ -99,18 +112,27 @@ export const validateCustomerName = (name) => {
   if (!/^[a-zA-Z\s]+$/.test(trimmed)) {
     return 'Name should accept only alphabets and spaces.'
   }
+  if (trimmed.length > 50) {
+    return 'Name cannot exceed 50 characters.'
+  }
   return ''
 }
 
 // Validation helper for Customer Mobile Number:
-// Accepts only digits with a maximum length of 10, rejects special characters, alphanumeric values, and > 10 digits
+// Accepts only 10 digits starting with 6, 7, 8, or 9
 export const validateCustomerMobile = (mobile) => {
   if (!mobile || !mobile.toString().trim()) {
     return 'Mobile number is required.'
   }
   const cleanMobile = mobile.toString().trim()
-  if (!/^\d+$/.test(cleanMobile) || cleanMobile.length > 10 || cleanMobile.length < 10) {
-    return 'Mobile number should accept only digits with a maximum length of 10.'
+  if (!/^\d+$/.test(cleanMobile)) {
+    return 'Mobile number should accept only digits.'
+  }
+  if (!/^[6-9]/.test(cleanMobile)) {
+    return 'Invalid mobile number. Mobile number must start with 6, 7, 8, or 9.'
+  }
+  if (cleanMobile.length !== 10) {
+    return 'Mobile number must be exactly 10 digits.'
   }
   return ''
 }
@@ -496,8 +518,9 @@ function CustomersManagement({ initialFilter = 'all' }) {
     setEditingCustomer(customer)
     setEditFormData({
       fullName: customer.fullName || customer.name || '',
-      email: customer.email || '',
+      email: customer.email && customer.email !== '—' ? customer.email : '',
       mobile: customer.mobile ? String(customer.mobile) : (customer.phone ? String(customer.phone) : ''),
+      status: customer.status || 'active',
       isVerified: customer.isVerified !== undefined ? customer.isVerified : true,
       avatar: customer.avatar || (customer.id === 4 ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256&h=256' : 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=256&h=256')
     })
@@ -509,13 +532,18 @@ function CustomersManagement({ initialFilter = 'all' }) {
     })
   }
 
-  // Name input change handler with instant validation feedback
+  // Name input change handler with instant validation feedback and 50 character limit
   const handleNameChange = (e) => {
-    const val = e.target.value
+    let val = e.target.value
+    if (val.length > 50) {
+      val = val.slice(0, 50)
+    }
     setEditFormData(prev => ({ ...prev, fullName: val }))
     if (val.trim()) {
       if (!/^[a-zA-Z\s]+$/.test(val)) {
         setEditFieldErrors(prev => ({ ...prev, fullName: 'Name should accept only alphabets and spaces.' }))
+      } else if (val.trim().length > 50) {
+        setEditFieldErrors(prev => ({ ...prev, fullName: 'Name cannot exceed 50 characters.' }))
       } else {
         setEditFieldErrors(prev => ({ ...prev, fullName: '' }))
       }
@@ -529,13 +557,20 @@ function CustomersManagement({ initialFilter = 'all' }) {
     setEditFieldErrors(prev => ({ ...prev, fullName: validateCustomerName(editFormData.fullName) }))
   }
 
-  // Mobile number input change handler with instant validation feedback
+  // Mobile number input change handler with instant validation (starts with 6, 7, 8, or 9 and max 10 digits)
   const handleMobileChange = (e) => {
-    const val = e.target.value
+    const rawVal = e.target.value
+    // Filter non-digits and enforce maximum 10 digits limit
+    const val = rawVal.replace(/\D/g, '').slice(0, 10)
     setEditFormData(prev => ({ ...prev, mobile: val }))
-    if (val.trim()) {
-      if (!/^\d+$/.test(val.trim()) || val.trim().length > 10) {
-        setEditFieldErrors(prev => ({ ...prev, mobile: 'Mobile number should accept only digits with a maximum length of 10.' }))
+
+    if (rawVal && !/^\d+$/.test(rawVal)) {
+      setEditFieldErrors(prev => ({ ...prev, mobile: 'Mobile number should accept only digits.' }))
+    } else if (val.length > 0) {
+      if (!['6', '7', '8', '9'].includes(val[0])) {
+        setEditFieldErrors(prev => ({ ...prev, mobile: 'Invalid mobile number. Mobile number must start with 6, 7, 8, or 9.' }))
+      } else if (val.length < 10) {
+        setEditFieldErrors(prev => ({ ...prev, mobile: 'Mobile number must be exactly 10 digits.' }))
       } else {
         setEditFieldErrors(prev => ({ ...prev, mobile: '' }))
       }
@@ -575,17 +610,28 @@ function CustomersManagement({ initialFilter = 'all' }) {
     try {
       setEditLoading(true)
 
+      const targetStatus = editFormData.status || editingCustomer.status || 'active'
+      const targetIsActive = targetStatus === 'active'
+
       const updatedPayload = {
         fullName: editFormData.fullName.trim(),
         name: editFormData.fullName.trim(),
         email: editFormData.email.trim(),
         mobile: editFormData.mobile.trim(),
         phone: editFormData.mobile.trim(),
+        status: targetStatus,
+        isActive: targetIsActive,
+        isBlocked: targetStatus === 'blocked',
         isVerified: editFormData.isVerified,
         avatar: editFormData.avatar
       }
 
       if (customerId && typeof customerId === 'string' && !customerId.startsWith('cust-')) {
+        try {
+          await updateCustomerStatus(customerId, targetStatus)
+        } catch (statusErr) {
+          console.warn('Backend updateCustomerStatus note:', statusErr?.message)
+        }
         try {
           const res = await updateCustomer(customerId, {
             fullName: updatedPayload.fullName,
@@ -604,25 +650,39 @@ function CustomersManagement({ initialFilter = 'all' }) {
         showToast('Customer updated successfully.', 'success')
       }
 
-      // Persist edit overrides locally
+      // Persist status override and edit overrides locally
+      saveCustomerStatusOverride(customerId, targetStatus)
       saveCustomerEditOverride(customerId, updatedPayload)
 
       // Update customersList in local state
-      setCustomersList(prev => prev.map(c => {
-        if (c.id === editingCustomer.id || (c._id && c._id === customerId)) {
-          return {
-            ...c,
-            name: updatedPayload.fullName,
-            fullName: updatedPayload.fullName,
-            email: updatedPayload.email,
-            phone: updatedPayload.mobile,
-            mobile: updatedPayload.mobile,
-            isVerified: updatedPayload.isVerified,
-            avatar: updatedPayload.avatar
+      setCustomersList(prev => {
+        const updated = prev.map(c => {
+          if (c.id === editingCustomer.id || (c._id && c._id === customerId)) {
+            return {
+              ...c,
+              name: updatedPayload.fullName,
+              fullName: updatedPayload.fullName,
+              email: updatedPayload.email,
+              phone: updatedPayload.mobile,
+              mobile: updatedPayload.mobile,
+              status: targetStatus,
+              isActive: targetIsActive,
+              isBlocked: targetStatus === 'blocked',
+              isVerified: updatedPayload.isVerified,
+              avatar: updatedPayload.avatar
+            }
           }
-        }
-        return c
-      }))
+          return c
+        })
+        try {
+          const total = updated.length
+          const active = updated.filter(c => c.status === 'active').length
+          const inactive = updated.filter(c => c.status === 'inactive').length
+          const blocked = updated.filter(c => c.status === 'blocked').length
+          localStorage.setItem('customer_counts_summary', JSON.stringify({ total, active, inactive, blocked }))
+        } catch {}
+        return updated
+      })
 
       // If viewedCustomer is open, update viewedCustomer state
       if (viewedCustomer && (viewedCustomer.id === editingCustomer.id || (viewedCustomer._id && viewedCustomer._id === customerId))) {
@@ -633,6 +693,9 @@ function CustomersManagement({ initialFilter = 'all' }) {
           email: updatedPayload.email,
           phone: updatedPayload.mobile,
           mobile: updatedPayload.mobile,
+          status: targetStatus,
+          isActive: targetIsActive,
+          isBlocked: targetStatus === 'blocked',
           isVerified: updatedPayload.isVerified,
           avatar: updatedPayload.avatar
         }) : null)
@@ -773,8 +836,9 @@ function CustomersManagement({ initialFilter = 'all' }) {
         try {
           const total = formatted.length
           const active = formatted.filter(c => c.status === 'active').length
+          const inactive = formatted.filter(c => c.status === 'inactive').length
           const blocked = formatted.filter(c => c.status === 'blocked').length
-          localStorage.setItem('customer_counts_summary', JSON.stringify({ total, active, blocked }))
+          localStorage.setItem('customer_counts_summary', JSON.stringify({ total, active, inactive, blocked }))
         } catch {}
 
         const totalCount = formatted.length || 0
@@ -817,9 +881,10 @@ function CustomersManagement({ initialFilter = 'all' }) {
     }
   }, [showCalendar])
 
-  // Derive counts
+  // Derive counts (Active, Inactive, Blocked)
   const totalCount = customersList.length
   const activeCount = customersList.filter(c => c.status === 'active').length
+  const inactiveCount = customersList.filter(c => c.status === 'inactive').length
   const blockedCount = customersList.filter(c => c.status === 'blocked').length
 
   const handleSelectAll = (e) => {
@@ -833,12 +898,11 @@ function CustomersManagement({ initialFilter = 'all' }) {
     )
   }
 
-  // Toggle Activate / Deactivate Customer status (PATCH /api/superadmin/customers/:id/status)
-  const handleToggleStatus = async (customer) => {
+  // Update Customer Status to any of (active, inactive, blocked)
+  const handleUpdateCustomerStatus = async (customer, newStatus) => {
     const customerId = customer._id || customer.id
-    const isCurrentlyActive = customer.status === 'active'
-    const nextIsActive = !isCurrentlyActive
-    const nextStatus = nextIsActive ? 'active' : 'blocked'
+    const validStatus = (newStatus || '').toLowerCase()
+    if (!['active', 'inactive', 'blocked'].includes(validStatus)) return
 
     try {
       setStatusUpdatingId(customerId)
@@ -846,47 +910,65 @@ function CustomersManagement({ initialFilter = 'all' }) {
       // Call API if valid mongo ID
       if (customerId && typeof customerId === 'string' && !customerId.startsWith('cust-')) {
         try {
-          const res = await updateCustomerStatus(customerId, nextIsActive)
-          const successMsg = res?.message || (nextIsActive ? 'Customer activated successfully.' : 'Customer deactivated successfully.')
+          const res = await updateCustomerStatus(customerId, validStatus)
+          const successMsg = res?.message || `Customer marked as ${validStatus} successfully.`
           showToast(successMsg, 'success')
         } catch (apiErr) {
           console.warn('Backend updateCustomerStatus note (updating UI status):', apiErr?.message)
-          showToast(nextIsActive ? 'Customer activated successfully.' : 'Customer deactivated successfully.', 'success')
+          showToast(`Customer marked as ${validStatus} successfully.`, 'success')
         }
       } else {
-        showToast(nextIsActive ? 'Customer activated successfully.' : 'Customer deactivated successfully.', 'success')
+        showToast(`Customer marked as ${validStatus} successfully.`, 'success')
       }
 
       // Persist status override locally
-      saveCustomerStatusOverride(customerId, nextStatus)
+      saveCustomerStatusOverride(customerId, validStatus)
 
       // Update customersList state
       setCustomersList(prev => {
         const updated = prev.map(c => {
           if (c.id === customer.id || (c._id && c._id === customerId)) {
-            return { ...c, status: nextStatus, isActive: nextIsActive, isBlocked: !nextIsActive }
+            return {
+              ...c,
+              status: validStatus,
+              isActive: validStatus === 'active',
+              isBlocked: validStatus === 'blocked'
+            }
           }
           return c
         })
         try {
           const total = updated.length
           const active = updated.filter(c => c.status === 'active').length
+          const inactive = updated.filter(c => c.status === 'inactive').length
           const blocked = updated.filter(c => c.status === 'blocked').length
-          localStorage.setItem('customer_counts_summary', JSON.stringify({ total, active, blocked }))
+          localStorage.setItem('customer_counts_summary', JSON.stringify({ total, active, inactive, blocked }))
         } catch {}
         return updated
       })
 
       // Update viewed customer state if currently opened
       if (viewedCustomer && (viewedCustomer.id === customer.id || (viewedCustomer._id && viewedCustomer._id === customerId))) {
-        setViewedCustomer(prev => prev ? ({ ...prev, status: nextStatus, isActive: nextIsActive, isBlocked: !nextIsActive }) : null)
+        setViewedCustomer(prev => prev ? ({
+          ...prev,
+          status: validStatus,
+          isActive: validStatus === 'active',
+          isBlocked: validStatus === 'blocked'
+        }) : null)
       }
     } catch (err) {
       console.error('Failed to update customer status:', err)
-      showToast(nextIsActive ? 'Customer activated successfully.' : 'Customer deactivated successfully.', 'success')
+      showToast(`Customer marked as ${validStatus} successfully.`, 'success')
     } finally {
       setStatusUpdatingId(null)
     }
+  }
+
+  // Toggle Activate / Inactive / Deactivate Customer status
+  const handleToggleStatus = async (customer) => {
+    // Cycle status: active -> inactive -> blocked -> active
+    const nextStatus = customer.status === 'active' ? 'inactive' : (customer.status === 'inactive' ? 'blocked' : 'active')
+    await handleUpdateCustomerStatus(customer, nextStatus)
   }
 
   const handleToggleBan = (id) => {
@@ -1131,17 +1213,23 @@ function CustomersManagement({ initialFilter = 'all' }) {
             </div>
 
             <div className="form-field-item">
-              <label htmlFor="customer-edit-fullname" style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>
-                Full Name <span style={{ color: '#ef4444' }}>*</span>
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label htmlFor="customer-edit-fullname" style={{ fontSize: '12px', fontWeight: '600', color: '#374151', margin: 0 }}>
+                  Full Name <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <span style={{ fontSize: '11px', color: (editFormData.fullName?.length || 0) >= 50 ? '#ef4444' : '#64748b', fontWeight: '500' }}>
+                  {(editFormData.fullName?.length || 0)}/50
+                </span>
+              </div>
               <input 
                 id="customer-edit-fullname"
                 name="fullName"
                 type="text" 
+                maxLength={50}
                 value={editFormData.fullName} 
                 onChange={handleNameChange}
                 onBlur={handleNameBlur}
-                placeholder="Enter Full Name"
+                placeholder="Enter Full Name (Max 50 characters)"
                 className={editFieldErrors.fullName ? 'customer-input-error' : ''}
                 style={{ 
                   width: '100%', 
@@ -1206,17 +1294,24 @@ function CustomersManagement({ initialFilter = 'all' }) {
             </div>
 
             <div className="form-field-item">
-              <label htmlFor="customer-edit-mobile" style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>
-                Mobile Number <span style={{ color: '#ef4444' }}>*</span>
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label htmlFor="customer-edit-mobile" style={{ fontSize: '12px', fontWeight: '600', color: '#374151', margin: 0 }}>
+                  Mobile Number <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '500' }}>
+                  Starts with 6, 7, 8, or 9
+                </span>
+              </div>
               <input 
                 id="customer-edit-mobile"
                 name="mobile"
-                type="text" 
+                type="tel" 
+                inputMode="numeric"
+                maxLength={10}
                 value={editFormData.mobile} 
                 onChange={handleMobileChange}
                 onBlur={handleMobileBlur}
-                placeholder="Enter 10-digit Mobile Number"
+                placeholder="Enter 10-digit Mobile Number (starts with 6-9)"
                 className={editFieldErrors.mobile ? 'customer-input-error' : ''}
                 style={{ 
                   width: '100%', 
@@ -1247,6 +1342,33 @@ function CustomersManagement({ initialFilter = 'all' }) {
               <label htmlFor="isVerifiedCheckbox" style={{ fontSize: '13px', fontWeight: '600', cursor: 'pointer', color: '#374151' }}>
                 Is Verified Account
               </label>
+            </div>
+
+            {/* Customer Status Selection (Active, Inactive, Blocked) */}
+            <div className="form-field-item" style={{ marginTop: '4px' }}>
+              <label htmlFor="customer-edit-status" style={{ fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px', color: '#374151' }}>
+                Customer Status
+              </label>
+              <select
+                id="customer-edit-status"
+                name="status"
+                value={editFormData.status || 'active'}
+                onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #cfd8dc',
+                  fontSize: '14px',
+                  backgroundColor: '#ffffff',
+                  cursor: 'pointer',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="blocked">Blocked</option>
+              </select>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
@@ -1315,7 +1437,7 @@ function CustomersManagement({ initialFilter = 'all' }) {
         )}
 
         {/* Top Header Card */}
-        <div className={`admin-profile-card ${isProfileActive ? 'customer-profile-card-green' : 'customer-profile-card-red'}`}>
+        <div className={`admin-profile-card ${viewedCustomer.status === 'active' ? 'customer-profile-card-green' : (viewedCustomer.status === 'inactive' ? 'customer-profile-card-amber' : 'customer-profile-card-red')}`}>
           <div className="admin-profile-row" style={{ borderBottom: 'none', paddingBottom: 0, marginBottom: 0 }}>
             <div className="admin-profile-left">
               <CustomerAvatar customer={viewedCustomer} size={80} style={{ border: '2px solid #000000' }} />
@@ -1340,32 +1462,29 @@ function CustomersManagement({ initialFilter = 'all' }) {
                 <span>Edit Profile</span>
               </button>
 
-              <button 
-                type="button" 
-                className={`vendor-badge ${isProfileActive ? 'active' : 'inactive'}`} 
-                onClick={() => handleToggleStatus(viewedCustomer)}
-                disabled={statusUpdatingId === (viewedCustomer._id || viewedCustomer.id)}
-                style={{ 
-                  padding: '8px 24px', 
-                  fontSize: '13px', 
-                  fontWeight: '600',
-                  borderRadius: '8px',
-                  backgroundColor: isProfileActive ? '#388e3c' : '#d32f2f',
-                  color: '#ffffff',
-                  border: 'none',
-                  cursor: statusUpdatingId === (viewedCustomer._id || viewedCustomer.id) ? 'not-allowed' : 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  textTransform: 'capitalize'
-                }}
-                title={isProfileActive ? 'Click to Deactivate Customer' : 'Click to Activate Customer'}
-              >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <select 
+                  className={`admin-status-badge-select ${viewedCustomer.status}`}
+                  value={viewedCustomer.status}
+                  onChange={(e) => handleUpdateCustomerStatus(viewedCustomer, e.target.value)}
+                  disabled={statusUpdatingId === (viewedCustomer._id || viewedCustomer.id)}
+                  style={{
+                    padding: '8px 24px', 
+                    fontSize: '13px', 
+                    fontWeight: '700',
+                    borderRadius: '8px',
+                    cursor: statusUpdatingId === (viewedCustomer._id || viewedCustomer.id) ? 'not-allowed' : 'pointer'
+                  }}
+                  title="Change customer status"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="blocked">Blocked</option>
+                </select>
                 {statusUpdatingId === (viewedCustomer._id || viewedCustomer.id) && (
                   <RotateCw style={{ width: '13px', height: '13px', animation: 'spin 1s linear infinite' }} />
                 )}
-                <span>{viewedCustomer.status}</span>
-              </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1510,6 +1629,15 @@ function CustomersManagement({ initialFilter = 'all' }) {
       color: '#2ecc71' 
     },
     { 
+      id: 'inactive', 
+      filterVal: 'inactive', 
+      label: 'Inactive Customers', 
+      value: isApiLoaded ? inactiveCount : (storedCounts?.inactive !== undefined ? storedCounts.inactive : inactiveCount), 
+      icon: UserX, 
+      background: '#fff3e0', 
+      color: '#f59e0b' 
+    },
+    { 
       id: 'blocked', 
       filterVal: 'blocked', 
       label: 'Blocked Customers', 
@@ -1598,7 +1726,7 @@ function CustomersManagement({ initialFilter = 'all' }) {
       )}
 
       {/* Stats Cards Row */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         {stats.map((stat) => {
           const Icon = stat.icon
           const isActive = statusFilter === stat.filterVal
@@ -1644,6 +1772,7 @@ function CustomersManagement({ initialFilter = 'all' }) {
             >
               <option value="all">Select Status</option>
               <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
               <option value="blocked">Blocked</option>
             </select>
 
@@ -1805,17 +1934,45 @@ function CustomersManagement({ initialFilter = 'all' }) {
                     <td>{customer.email}</td>
                     <td>{customer.joinedOn}</td>
                     <td>
-                      <span className={`admin-status-badge ${customer.status}`}>
-                        {customer.status}
-                      </span>
+                      <div className="customer-status-badge-wrapper" style={{ position: 'relative', display: 'inline-block' }}>
+                        <select
+                          className={`admin-status-badge-select ${customer.status}`}
+                          value={customer.status}
+                          onChange={(e) => handleUpdateCustomerStatus(customer, e.target.value)}
+                          disabled={statusUpdatingId === (customer._id || customer.id)}
+                          title="Click to change customer status (Active, Inactive, Blocked)"
+                          aria-label="Change Customer Status"
+                        >
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                          <option value="blocked">Blocked</option>
+                        </select>
+                        {statusUpdatingId === (customer._id || customer.id) && (
+                          <RotateCw
+                            style={{
+                              position: 'absolute',
+                              right: '-18px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              width: '12px',
+                              height: '12px',
+                              animation: 'spin 1s linear infinite',
+                              color: '#607d8b'
+                            }}
+                          />
+                        )}
+                      </div>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <div className="action-icon-group">
-                        {/* Activate / Deactivate Toggle Button */}
+                        {/* Change / Cycle Status Button */}
                         <button 
-                          className={`btn-action-icon ${customer.status === 'active' ? 'ban-active' : 'ban-blocked'}`}
-                          title={customer.status === 'active' ? 'Deactivate Customer' : 'Activate Customer'}
-                          onClick={() => handleToggleStatus(customer)}
+                          className={`btn-action-icon ${customer.status === 'active' ? 'ban-active' : (customer.status === 'inactive' ? 'ban-inactive' : 'ban-blocked')}`}
+                          title={`Status: ${customer.status.toUpperCase()} (Click to toggle status)`}
+                          onClick={() => {
+                            const next = customer.status === 'active' ? 'inactive' : (customer.status === 'inactive' ? 'blocked' : 'active')
+                            handleUpdateCustomerStatus(customer, next)
+                          }}
                           disabled={statusUpdatingId === (customer._id || customer.id)}
                           style={{ opacity: statusUpdatingId === (customer._id || customer.id) ? 0.6 : 1 }}
                         >

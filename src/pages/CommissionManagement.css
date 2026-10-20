@@ -213,6 +213,12 @@
   color: var(--text-dark);
 }
 
+.commission-modal-select {
+  cursor: pointer;
+  appearance: auto;
+  background-color: #ffffff;
+}
+
 .commission-modal-field input:focus,
 .commission-modal-select:focus {
   border-color: #9ccc65;

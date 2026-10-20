@@ -22,15 +22,24 @@ import {
   FileText,
   ShoppingBag,
   LayoutGrid,
-  RotateCw
+  RotateCw,
+  PackageX
 } from 'lucide-react'
-import { getDashboardStats, getAllAdmins, getAllCustomers } from '../services/superAdminService'
+import { getDashboardStats, getAllAdmins, getAllCustomers, getAllProducts } from '../services/superAdminService'
 import { resolveCustomerStatus } from './CustomersManagement'
 import './Dashboard.css'
 
 function Dashboard({ onViewAllOrders, onNavigate }) {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [statsData, setStatsData] = useState(null)
+  const [productCounts, setProductCounts] = useState(() => {
+    try {
+      const stored = localStorage.getItem('product_counts_summary')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  })
   const [adminCounts, setAdminCounts] = useState(() => {
     try {
       const stored = localStorage.getItem('admin_counts_summary')
@@ -132,6 +141,54 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
       } catch (custErr) {
         console.warn('Failed to load customer stats for dashboard:', custErr)
       }
+
+      // Also fetch live product counts and respect persistent custom products
+      try {
+        const prodRes = await getAllProducts()
+        const productsData = Array.isArray(prodRes?.data) ? prodRes.data : (Array.isArray(prodRes?.products) ? prodRes.products : (Array.isArray(prodRes) ? prodRes : []))
+
+        let custom = []
+        try {
+          custom = JSON.parse(localStorage.getItem('zyvora_custom_products') || '[]')
+        } catch {}
+
+        const mergedMap = new Map()
+        custom.forEach(p => {
+          const key = String(p._id || p.id || p.sku || p.name)
+          mergedMap.set(key, p)
+        })
+        productsData.forEach(p => {
+          const key = String(p._id || p.id || p.sku || p.name)
+          if (!mergedMap.has(key)) {
+            mergedMap.set(key, p)
+          }
+        })
+
+        const list = Array.from(mergedMap.values())
+        if (list.length > 0) {
+          let active = 0
+          let inactive = 0
+          let outOfStock = 0
+
+          list.forEach(p => {
+            const st = (p.status || '').toLowerCase()
+            const stock = Number(p.stock)
+            if (st === 'out-of-stock' || stock === 0) {
+              outOfStock++
+            } else if (st === 'inactive') {
+              inactive++
+            } else {
+              active++
+            }
+          })
+
+          const counts = { total: list.length, active, inactive, outOfStock }
+          setProductCounts(counts)
+          localStorage.setItem('product_counts_summary', JSON.stringify(counts))
+        }
+      } catch (prodErr) {
+        console.warn('Failed to load product stats for dashboard:', prodErr)
+      }
     } catch (err) {
       console.error('Failed to fetch dashboard stats:', err)
       setError(err?.response?.data?.message || 'Failed to fetch live stats')
@@ -183,12 +240,43 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
         { 
           id: 'total-products', 
           label: 'Total Products', 
-          value: statsData?.totalProducts !== undefined ? Number(statsData.totalProducts).toLocaleString() : '500', 
+          value: productCounts?.total !== undefined ? Number(productCounts.total).toLocaleString() : (statsData?.totalProducts !== undefined ? Number(statsData.totalProducts).toLocaleString() : '500'), 
           icon: Package, 
-          colorClass: 'blue' 
+          colorClass: 'blue',
+          filterVal: 'all',
+          targetPage: 'Product Management',
+          clickable: true
         },
-        { id: 'active-products', label: 'Active Products', value: '448', icon: CheckCircle2, colorClass: 'green' },
-        { id: 'outofstock-products', label: 'Out Of Stock', value: '49', icon: ShieldAlert, colorClass: 'red' },
+        { 
+          id: 'active-products', 
+          label: 'Active Products', 
+          value: productCounts?.active !== undefined ? Number(productCounts.active).toLocaleString() : (statsData?.activeProducts !== undefined ? Number(statsData.activeProducts).toLocaleString() : '448'), 
+          icon: CheckCircle2, 
+          colorClass: 'green',
+          filterVal: 'active',
+          targetPage: 'Product Management',
+          clickable: true
+        },
+        { 
+          id: 'inactive-products', 
+          label: 'Inactive Products', 
+          value: productCounts?.inactive !== undefined ? Number(productCounts.inactive).toLocaleString() : (statsData?.inactiveProducts !== undefined ? Number(statsData.inactiveProducts).toLocaleString() : '3'), 
+          icon: PackageX, 
+          colorClass: 'red',
+          filterVal: 'inactive',
+          targetPage: 'Product Management',
+          clickable: true
+        },
+        { 
+          id: 'outofstock-products', 
+          label: 'Out Of Stock', 
+          value: productCounts?.outOfStock !== undefined ? Number(productCounts.outOfStock).toLocaleString() : (statsData?.outOfStockProducts !== undefined ? Number(statsData.outOfStockProducts).toLocaleString() : '49'), 
+          icon: ShieldAlert, 
+          colorClass: 'red',
+          filterVal: 'out-of-stock',
+          targetPage: 'Product Management',
+          clickable: true
+        },
         { id: 'product-category', label: 'Product Category', value: '20', icon: LayoutGrid, colorClass: 'blue' },
         { id: 'total-categories', label: 'Total Categories', value: '19', icon: Layers, colorClass: 'blue' },
         { id: 'active-categories', label: 'Active Categories', value: '17', icon: CheckSquare, colorClass: 'green' },
@@ -356,7 +444,14 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
               const Icon = stat.icon
               const isClickable = Boolean(stat.clickable || stat.filterVal !== undefined)
               const handleStatClick = () => {
-                if (stat.filterVal !== undefined) {
+                if (stat.targetPage === 'Product Management' && stat.filterVal !== undefined) {
+                  try {
+                    sessionStorage.setItem('products_initial_filter', stat.filterVal)
+                  } catch {}
+                  if (onNavigate) {
+                    onNavigate('Product Management')
+                  }
+                } else if (stat.filterVal !== undefined) {
                   try {
                     sessionStorage.setItem('customers_initial_filter', stat.filterVal)
                   } catch {}

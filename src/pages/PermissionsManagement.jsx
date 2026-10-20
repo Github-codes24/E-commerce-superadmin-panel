@@ -195,11 +195,17 @@ function PermissionsManagement() {
   // Toast status
   const [toastMessage, setToastMessage] = useState('')
   const [toastType, setToastType] = useState('success') // 'success' | 'error'
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const showToast = (msg, type = 'success') => {
     setToastMessage(msg)
     setToastType(type)
-    setTimeout(() => setToastMessage(''), 4000)
+    try {
+      window.dispatchEvent(new CustomEvent('app:toast', { detail: { text: msg, type } }))
+    } catch {}
+    setTimeout(() => {
+      setToastMessage(prev => (prev === msg ? '' : prev))
+    }, 4000)
   }
 
   // Fetch All Permissions from Backend (GET /api/superadmin/permissions/get-all)
@@ -307,41 +313,74 @@ function PermissionsManagement() {
     }
   }
 
+  // Fetch all admins (with option to preserve currently selected admin)
+  const fetchAdmins = async (preserveSelectedId = null) => {
+    try {
+      setLoadingAdmins(true)
+      const res = await getAllAdmins()
+      const admins = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.admins)
+        ? res.admins
+        : Array.isArray(res)
+        ? res
+        : []
+      
+      const formatted = admins.map(a => ({
+        id: a.id || a._id || a.userId?._id || a.userId?.id,
+        name: a.name || a.fullName || a.userId?.fullName || a.userId?.name || 'Admin',
+        email: a.email || a.userId?.email || '',
+        role: a.role || a.userId?.role || 'ADMIN'
+      }))
+
+      setAdminsList(formatted)
+      if (formatted.length > 0) {
+        const targetId = preserveSelectedId && formatted.some(a => a.id === preserveSelectedId)
+          ? preserveSelectedId
+          : formatted[0].id
+        setSelectedAdminId(targetId)
+        await fetchAdminPermissions(targetId)
+      }
+    } catch (err) {
+      console.error('Failed to load admins for permissions assignment:', err)
+    } finally {
+      setLoadingAdmins(false)
+    }
+  }
+
   // Fetch all admins on mount
   useEffect(() => {
-    const fetchAdmins = async () => {
-      try {
-        setLoadingAdmins(true)
-        const res = await getAllAdmins()
-        const admins = Array.isArray(res?.data)
-          ? res.data
-          : Array.isArray(res?.admins)
-          ? res.admins
-          : Array.isArray(res)
-          ? res
-          : []
-        
-        const formatted = admins.map(a => ({
-          id: a.id || a._id || a.userId?._id || a.userId?.id,
-          name: a.name || a.fullName || a.userId?.fullName || a.userId?.name || 'Admin',
-          email: a.email || a.userId?.email || '',
-          role: a.role || a.userId?.role || 'ADMIN'
-        }))
-
-        setAdminsList(formatted)
-        if (formatted.length > 0) {
-          setSelectedAdminId(formatted[0].id)
-          fetchAdminPermissions(formatted[0].id)
-        }
-      } catch (err) {
-        console.error('Failed to load admins for permissions assignment:', err)
-      } finally {
-        setLoadingAdmins(false)
-      }
-    }
     fetchAdmins()
     fetchPermissionsData()
   }, [])
+
+  // Comprehensive Refresh function
+  const handleRefresh = async () => {
+    try {
+      setIsRefreshing(true)
+      setFetchPermissionsError(null)
+
+      // 1. Refresh admins list and preserve currently selected admin
+      await fetchAdmins(selectedAdminId)
+
+      // 2. Fetch all permissions data
+      await fetchPermissionsData()
+
+      // 3. If target admin is selected, ensure their specific permissions are refreshed
+      if (selectedAdminId) {
+        await fetchAdminPermissions(selectedAdminId)
+      }
+
+      // 4. Show visible confirmation message indicating refresh completed successfully
+      showToast('Permissions refreshed successfully.', 'success')
+    } catch (err) {
+      console.error('Failed to refresh permissions:', err)
+      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to refresh permissions.'
+      showToast(errorMsg, 'error')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   // Refetch admin permissions when selectedAdminId changes
   const handleAdminChange = (newAdminId) => {
@@ -715,13 +754,31 @@ function PermissionsManagement() {
     <div className="permissions-page-container">
       {/* Toast Alert */}
       {toastMessage && (
-        <div className={`permissions-toast ${toastType === 'error' ? 'error' : ''}`}>
+        <div className={`permissions-toast ${toastType === 'error' ? 'error' : ''}`} role="alert">
           {toastType === 'error' ? (
-            <AlertCircle style={{ width: '18px', height: '18px', color: '#dc2626' }} />
+            <AlertCircle style={{ width: '18px', height: '18px', color: '#dc2626', flexShrink: 0 }} />
           ) : (
-            <CheckCircle style={{ width: '18px', height: '18px', color: '#2e7d32' }} />
+            <CheckCircle style={{ width: '18px', height: '18px', color: '#2e7d32', flexShrink: 0 }} />
           )}
           <span>{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage('')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+              padding: 0,
+              marginLeft: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              opacity: 0.7
+            }}
+            title="Dismiss notification"
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
 
@@ -764,12 +821,12 @@ function PermissionsManagement() {
             <button
               type="button"
               className="quick-toggle-btn"
-              onClick={fetchPermissionsData}
-              disabled={loadingPermissions}
+              onClick={handleRefresh}
+              disabled={isRefreshing || loadingPermissions}
               title="Refresh permissions from server"
             >
-              <RotateCw size={14} style={{ animation: loadingPermissions ? 'spin 1s linear infinite' : 'none' }} />
-              <span>{loadingPermissions ? 'Loading...' : 'Refresh'}</span>
+              <RotateCw size={14} style={{ animation: (isRefreshing || loadingPermissions) ? 'spin 1s linear infinite' : 'none' }} />
+              <span>{isRefreshing || loadingPermissions ? 'Refreshing...' : 'Refresh'}</span>
             </button>
             <button
               type="button"
@@ -837,7 +894,7 @@ function PermissionsManagement() {
         }}>
           <span>⚠️ {fetchPermissionsError}</span>
           <button
-            onClick={fetchPermissionsData}
+            onClick={handleRefresh}
             style={{
               backgroundColor: '#DC2626',
               color: '#fff',

@@ -418,14 +418,36 @@ export const updateCustomer = async (id, { fullName, name, email, mobile, phone,
 };
 
 // 24. Activate / Deactivate Customer (PATCH /api/superadmin/customers/:id/status)
-export const updateCustomerStatus = async (id, isActive) => {
-  const payloadIsActive = typeof isActive === 'boolean' 
-    ? isActive 
-    : (typeof isActive === 'string' ? (isActive.toUpperCase() === 'ACTIVE' || isActive.toLowerCase() === 'active') : Boolean(isActive));
+export const updateCustomerStatus = async (id, statusOrIsActive) => {
+  let payloadIsActive = false;
+  let statusString = 'ACTIVE';
+  let isBlocked = false;
+
+  if (typeof statusOrIsActive === 'string') {
+    const s = statusOrIsActive.toUpperCase();
+    if (s === 'ACTIVE') {
+      payloadIsActive = true;
+      statusString = 'ACTIVE';
+      isBlocked = false;
+    } else if (s === 'INACTIVE') {
+      payloadIsActive = false;
+      statusString = 'INACTIVE';
+      isBlocked = false;
+    } else {
+      payloadIsActive = false;
+      statusString = 'BLOCKED';
+      isBlocked = true;
+    }
+  } else if (typeof statusOrIsActive === 'boolean') {
+    payloadIsActive = statusOrIsActive;
+    statusString = statusOrIsActive ? 'ACTIVE' : 'INACTIVE';
+    isBlocked = !statusOrIsActive;
+  }
+
   const response = await api.patch(`/superadmin/customers/${id}/status`, {
     isActive: payloadIsActive,
-    status: payloadIsActive ? 'ACTIVE' : 'INACTIVE',
-    isBlocked: !payloadIsActive,
+    status: statusString,
+    isBlocked: isBlocked,
   });
   return response.data;
 };

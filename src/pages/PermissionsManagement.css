@@ -419,26 +419,26 @@
 /* Floating Toast alert */
 .permissions-toast {
   position: fixed;
-  bottom: 24px;
+  top: 24px;
   right: 24px;
   background-color: #e8f5e9;
-  border: 1px solid #c8e6c9;
-  color: #2e7d32;
-  padding: 12px 20px;
+  border: 1px solid #a5d6a7;
+  color: #1b5e20;
+  padding: 14px 22px;
   border-radius: 8px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 13px;
+  gap: 12px;
+  font-size: 14px;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
   animation: toastFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 1100;
+  z-index: 99999;
 }
 
 .permissions-toast.error {
   background-color: #fef2f2;
-  border-color: #fecaca;
+  border-color: #fca5a5;
   color: #dc2626;
 }
 
@@ -550,7 +550,7 @@
 }
 
 @keyframes toastFadeIn {
-  from { transform: translateY(20px); opacity: 0; }
+  from { transform: translateY(-12px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 

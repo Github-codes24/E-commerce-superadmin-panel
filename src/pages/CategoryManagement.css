@@ -172,3 +172,67 @@
 .spinning-loader {
   animation: spin 1s linear infinite;
 }
+
+/* Category banner image with hover zoom & fullscreen icon */
+.category-banner-img-container {
+  position: relative;
+  cursor: pointer;
+  border-radius: 12px;
+  overflow: hidden;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.category-banner-img-container:hover .category-banner-img {
+  transform: scale(1.05);
+}
+
+.img-fullscreen-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  border-radius: 12px;
+}
+
+.category-banner-img-container:hover .img-fullscreen-overlay {
+  opacity: 1;
+}
+
+/* Toast message animation */
+@keyframes slideInToast {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.custom-toast-notification {
+  animation: slideInToast 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Fullscreen Lightbox Backdrop */
+@keyframes fadeInLightbox {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fullscreen-image-modal {
+  animation: fadeInLightbox 0.2s ease-out;
+}
+

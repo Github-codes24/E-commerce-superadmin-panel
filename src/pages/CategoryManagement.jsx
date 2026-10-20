@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { LayoutGrid, Package, CheckSquare, AlertTriangle, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, ChevronDown, Check, X, ChevronRight, ChevronLeft, Loader2, RefreshCw, AlertCircle } from 'lucide-react'
+import { LayoutGrid, Package, CheckSquare, AlertTriangle, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, ChevronDown, Check, X, ChevronRight, ChevronLeft, Loader2, RefreshCw, AlertCircle, Maximize2, ZoomIn, ZoomOut, CheckCircle2 } from 'lucide-react'
 import { getAllCategories, createCategory, getCategoryById, updateCategory, deleteCategory, updateCategoryStatus, getAllProducts } from '../services/superAdminService'
 import './CategoryManagement.css'
 
@@ -54,13 +54,57 @@ const extractProductsList = (res) => {
   return []
 }
 
+// Helper to normalize and unify category names across singular/plural variations (e.g. "Electronic Items" vs "Electronics Items", "Fashion" vs "Fashions", "Furnitures" vs "Furniture")
+export const normalizeCategoryName = (name) => {
+  if (!name) return ''
+  const trimmed = name.toString().trim()
+  const lower = trimmed.toLowerCase().replace(/\s+/g, ' ')
+
+  if (lower === 'electronic items' || lower === 'electronics items' || lower === 'electronic item' || lower === 'electronics item') {
+    return 'Electronics Items'
+  }
+  if (lower === 'fashion' || lower === 'fashions') {
+    return 'Fashion'
+  }
+  if (lower === 'furniture' || lower === 'furnitures') {
+    return 'Furniture'
+  }
+  if (lower === 'mobile' || lower === 'mobiles') {
+    return 'Mobiles'
+  }
+  return trimmed
+}
+
+export const getCanonicalCategoryKey = (catName) => {
+  if (!catName) return ''
+  let cleaned = catName.toString().trim().toLowerCase().replace(/\s+/g, ' ')
+
+  if (cleaned === 'electronic items' || cleaned === 'electronics items' || cleaned === 'electronic item' || cleaned === 'electronics item') {
+    return 'electronics items'
+  }
+  if (cleaned === 'fashion' || cleaned === 'fashions') {
+    return 'fashion'
+  }
+  if (cleaned === 'furniture' || cleaned === 'furnitures') {
+    return 'furniture'
+  }
+  if (cleaned === 'mobile' || cleaned === 'mobiles') {
+    return 'mobiles'
+  }
+  if (cleaned.endsWith('s') && !cleaned.endsWith('ss') && cleaned.length > 4) {
+    return cleaned.slice(0, -1)
+  }
+  return cleaned
+}
+
 const DEFAULT_CATEGORIES = [
-  { id: 2, name: 'Beauty', subcatsCount: 5, productsCount: 76, status: 'inactive', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-  { id: 3, name: 'Home', subcatsCount: 4, productsCount: 543, status: 'active', image: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-  { id: 4, name: 'Mobiles', subcatsCount: 2, productsCount: 268, status: 'active', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-  { id: 5, name: 'Electronics', subcatsCount: 128, productsCount: 2450, status: 'active', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-  { id: 6, name: 'Perfumes', subcatsCount: 7, productsCount: 101, status: 'active', image: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
-  { id: 7, name: 'Handmades', subcatsCount: 2, productsCount: 420, status: 'active', image: 'https://images.unsplash.com/photo-1576016770956-debb63d90029?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+  { id: 1, name: 'Fashion', subcatsCount: 0, productsCount: 1, status: 'active', image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+  { id: 2, name: 'Test Category one', subcatsCount: 0, productsCount: 0, status: 'active', image: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+  { id: 3, name: 'Test Accessories', subcatsCount: 0, productsCount: 0, status: 'inactive', image: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+  { id: 4, name: 'Mobile by kajal', subcatsCount: 0, productsCount: 1, status: 'inactive', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+  { id: 5, name: 'Furniture', subcatsCount: 0, productsCount: 3, status: 'active', image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+  { id: 6, name: 'Electronics Items', subcatsCount: 0, productsCount: 1, status: 'active', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
+  { id: 7, name: 'Mobiles', subcatsCount: 0, productsCount: 2, status: 'active', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=200&h=200', checked: false },
 ]
 
 function CategoryManagement() {
@@ -84,6 +128,32 @@ function CategoryManagement() {
   const [deleteError, setDeleteError] = useState('')
   const [statusUpdatingId, setStatusUpdatingId] = useState(null)
   const [successToast, setSuccessToast] = useState('')
+  const [fullscreenImage, setFullscreenImage] = useState(null)
+  const [zoomLevel, setZoomLevel] = useState(1)
+
+  // ESC key to close fullscreen image
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setFullscreenImage(null)
+        setZoomLevel(1)
+      }
+    }
+    if (fullscreenImage) {
+      window.addEventListener('keydown', handleKeyDown)
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [fullscreenImage])
+
+  // Manual refresh with success message
+  const handleManualRefresh = async () => {
+    try {
+      await fetchCategories()
+    } finally {
+      setSuccessToast('Category refreshed successfully.')
+      setTimeout(() => setSuccessToast(''), 3500)
+    }
+  }
 
   // Filter & pagination states for Categories (main list)
   const [searchQuery, setSearchQuery] = useState('')
@@ -173,14 +243,15 @@ function CategoryManagement() {
     const rawImg = cat.image || cat.imageUrl || cat.categoryImage || cat.icon
     const image = rawImg ? getFullImageUrl(rawImg) : 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200'
 
-    const catName = (cat.name || cat.categoryName || 'Unnamed Category').trim()
+    const catName = normalizeCategoryName((cat.name || cat.categoryName || 'Unnamed Category').trim())
     const catId = String(cat._id || cat.id || `cat-${idx + 1}`)
     const subcatsCount = cat.subcategoriesCount ?? cat.subcatsCount ?? (Array.isArray(cat.subcategories) ? cat.subcategories.length : 0)
 
     // Live product count from cross-referenced products map or backend
     const mappedByName = productCountsMap[catName.toLowerCase()]
+    const mappedByCanonical = productCountsMap[getCanonicalCategoryKey(catName)]
     const mappedById = productCountsMap[catId.toLowerCase()]
-    const liveCalculatedCount = mappedByName !== undefined ? mappedByName : (mappedById !== undefined ? mappedById : undefined)
+    const liveCalculatedCount = mappedByCanonical !== undefined ? mappedByCanonical : (mappedByName !== undefined ? mappedByName : (mappedById !== undefined ? mappedById : undefined))
 
     const rawBackendCount = cat.productsCount || cat.totalProducts || cat.productCount || (Array.isArray(cat.products) ? cat.products.length : 0)
     const productsCount = liveCalculatedCount !== undefined ? liveCalculatedCount : (rawBackendCount || 0)
@@ -248,11 +319,28 @@ function CategoryManagement() {
 
         allProducts.forEach(p => {
           const catObj = typeof p.categoryId === 'object' && p.categoryId !== null ? p.categoryId : null
-          const pCatName = (catObj?.name || (typeof p.category === 'object' ? p.category?.name : p.category) || p.categoryName || p.category || '').trim().toLowerCase()
+          let pCatName = (catObj?.name || (typeof p.category === 'object' ? p.category?.name : p.category) || p.categoryName || p.category || '').trim()
           const pCatId = catObj?._id || (typeof p.categoryId === 'string' ? p.categoryId : '')
+          const pName = (p.productName || p.name || '').toLowerCase()
+
+          // Smart category auto-correction matching ProductManagement:
+          if (pName.includes('chair') || pName.includes('table') || pName.includes('sofa') || pName.includes('bed') || pName.includes('furniture')) {
+            pCatName = 'Furniture'
+          } else if ((pName.includes('iphone') || pName.includes('phone') || pName.includes('mobile')) && (!pCatName || pCatName.toLowerCase() === 'general')) {
+            pCatName = 'Mobiles'
+          } else if (pName.includes('laptop') && (!pCatName || pCatName.toLowerCase() === 'general')) {
+            pCatName = 'Electronics Items'
+          } else {
+            pCatName = normalizeCategoryName(pCatName)
+          }
 
           if (pCatName) {
-            productCountsMap[pCatName] = (productCountsMap[pCatName] || 0) + 1
+            const rawLower = pCatName.toLowerCase()
+            const canonicalKey = getCanonicalCategoryKey(pCatName)
+            productCountsMap[rawLower] = (productCountsMap[rawLower] || 0) + 1
+            if (canonicalKey !== rawLower) {
+              productCountsMap[canonicalKey] = (productCountsMap[canonicalKey] || 0) + 1
+            }
           }
           if (pCatId) {
             productCountsMap[String(pCatId).toLowerCase()] = (productCountsMap[String(pCatId).toLowerCase()] || 0) + 1
@@ -336,29 +424,50 @@ function CategoryManagement() {
       const apiFormatted = (categoriesData || []).map((item, idx) => formatCategoryItem(item, idx, productCountsMap))
 
       const mergedMap = new Map()
-      // API categories first - indexed by lowercase normalized name to deduplicate
+      // API categories first - indexed by canonical key to deduplicate plural/singular variants (e.g. Fashions vs Fashion, Electronic Items vs Electronics Items)
       apiFormatted.forEach(c => {
-        const key = (c.name || '').trim().toLowerCase()
-        if (key) {
-          mergedMap.set(key, c)
+        const canonicalKey = getCanonicalCategoryKey(c.name)
+        if (canonicalKey) {
+          const canonicalName = normalizeCategoryName(c.name)
+          if (mergedMap.has(canonicalKey)) {
+            const existing = mergedMap.get(canonicalKey)
+            mergedMap.set(canonicalKey, {
+              ...existing,
+              name: canonicalName,
+              productsCount: Math.max(existing.productsCount || 0, c.productsCount || 0) || ((existing.productsCount || 0) + (c.productsCount || 0)),
+              subcatsCount: Math.max(existing.subcatsCount || 0, c.subcatsCount || 0),
+              image: existing.image || c.image,
+              status: existing.status === 'active' || c.status === 'active' ? 'active' : 'inactive'
+            })
+          } else {
+            mergedMap.set(canonicalKey, {
+              ...c,
+              name: canonicalName
+            })
+          }
         }
       })
 
       // Custom created categories merged on top
       custom.forEach(c => {
-        const key = (c.name || '').trim().toLowerCase()
-        if (key) {
-          const existing = mergedMap.get(key)
+        const canonicalKey = getCanonicalCategoryKey(c.name)
+        if (canonicalKey) {
+          const canonicalName = normalizeCategoryName(c.name)
+          const existing = mergedMap.get(canonicalKey)
           if (existing) {
-            mergedMap.set(key, {
+            mergedMap.set(canonicalKey, {
               ...existing,
               ...c,
+              name: canonicalName,
               image: c.image || existing.image,
               productsCount: Math.max(c.productsCount || 0, existing.productsCount || 0)
             })
           } else {
             const formattedCustom = formatCategoryItem(c, mergedMap.size, productCountsMap)
-            mergedMap.set(key, formattedCustom)
+            mergedMap.set(canonicalKey, {
+              ...formattedCustom,
+              name: canonicalName
+            })
           }
         }
       })
@@ -370,6 +479,16 @@ function CategoryManagement() {
 
       setCategoriesList(mergedList)
       setIsApiLoaded(true)
+
+      try {
+        localStorage.setItem(
+          'zyvora_all_categories',
+          JSON.stringify(mergedList.map(c => ({ _id: c._id || c.id || c.rawId, id: c.id || c._id, name: c.name })))
+        )
+        window.dispatchEvent(new CustomEvent('zyvora_categories_updated'))
+      } catch (storageErr) {
+        console.warn('Could not sync zyvora_all_categories:', storageErr)
+      }
 
       const totalItems = pagination?.totalCategories !== undefined ? pagination.totalCategories : mergedList.length
       setPaginationData({
@@ -455,6 +574,69 @@ function CategoryManagement() {
   const [editingCategory, setEditingCategory] = useState(null)
   const [deletingCategoryId, setDeletingCategoryId] = useState(null)
   const [viewedCategory, setViewedCategory] = useState(null)
+
+  // Get live accurate subcategory count for any category
+  const getCategorySubcatsCount = useCallback((cat) => {
+    if (!cat) return 0
+    const catName = cat.name || cat.categoryName || ''
+    const canonicalKey = getCanonicalCategoryKey(catName)
+
+    // Subcategories in subcategoriesData matching this category
+    const localSubcats = subcategoriesData.filter(sc => 
+      sc.parentCategory && (
+        getCanonicalCategoryKey(sc.parentCategory) === canonicalKey ||
+        (cat.id && sc.parentCategoryId === cat.id) ||
+        (cat.rawId && sc.parentCategoryId === cat.rawId)
+      )
+    )
+
+    // User-created subcategories
+    const userCreatedSubcats = localSubcats.filter(sc => sc.id > 1000000 || typeof sc.id === 'string')
+
+    // Base count from category object if present from backend
+    const baseCount = typeof cat.subcategoriesCount === 'number'
+      ? cat.subcategoriesCount
+      : (Array.isArray(cat.subcategories) ? cat.subcategories.length : (typeof cat.subcatsCount === 'number' ? cat.subcatsCount : 0))
+
+    return Math.max(localSubcats.length, baseCount + userCreatedSubcats.length, baseCount)
+  }, [subcategoriesData])
+
+  // Get live accurate product count for any category (including products in subcategories & backend products)
+  const getCategoryProductsCount = useCallback((cat) => {
+    if (!cat) return 0
+    const catName = cat.name || cat.categoryName || ''
+    const canonicalKey = getCanonicalCategoryKey(catName)
+
+    // Subcategories matching this category
+    const localSubcats = subcategoriesData.filter(sc => 
+      sc.parentCategory && getCanonicalCategoryKey(sc.parentCategory) === canonicalKey
+    )
+    const localSubcatNames = new Set(localSubcats.map(sc => (sc.name || '').toLowerCase().trim()))
+
+    // Products directly in productsData for this category or its subcategories
+    const localProds = productsData.filter(p => 
+      (p.parentCategory && getCanonicalCategoryKey(p.parentCategory) === canonicalKey) ||
+      (p.subcatName && localSubcatNames.has((p.subcatName || '').toLowerCase().trim()))
+    )
+
+    // Custom products from localStorage (e.g. created in ProductManagement)
+    const customProds = getStoredCustomProducts().filter(p => {
+      const pCat = p.category || (typeof p.categoryId === 'object' ? p.categoryId?.name : '') || ''
+      return getCanonicalCategoryKey(pCat) === canonicalKey
+    })
+
+    // Sum of products recorded on subcategories
+    const subcatsProdSum = localSubcats.reduce((sum, sc) => sum + (Number(sc.productsCount) || 0), 0)
+    const localCount = Math.max(localProds.length, subcatsProdSum)
+
+    // Base count from backend / mapped products
+    const baseCount = typeof cat.productsCount === 'number' ? cat.productsCount : (typeof cat.productCount === 'number' ? cat.productCount : 0)
+
+    // User-created products added to this category in subcategories
+    const userCreatedProds = localProds.filter(p => p.id > 1000000 || typeof p.id === 'string')
+
+    return Math.max(localCount, baseCount + userCreatedProds.length, baseCount, customProds.length)
+  }, [subcategoriesData, productsData])
 
   // Sub-category expanded row ID
   const [expandedSubcatId, setExpandedSubcatId] = useState(null)
@@ -630,6 +812,14 @@ function CategoryManagement() {
         } : c)
         saveCustomCategories(updatedCustom)
 
+        try {
+          localStorage.setItem(
+            'zyvora_all_categories',
+            JSON.stringify(updatedCategories.map(c => ({ _id: c._id || c.id || c.rawId, id: c.id || c._id, name: c.name })))
+          )
+          window.dispatchEvent(new CustomEvent('zyvora_categories_updated'))
+        } catch (e) {}
+
         setSuccessToast('Category updated successfully.')
         setTimeout(() => setSuccessToast(''), 4000)
         handleResetForm()
@@ -682,7 +872,20 @@ function CategoryManagement() {
         const updatedCustom = [newCat, ...storedCustom.filter(c => c.name.toLowerCase() !== newCat.name.toLowerCase() && c.id !== newCat.id)]
         saveCustomCategories(updatedCustom)
 
-        setCategoriesList(prev => [newCat, ...prev.filter(c => c.name.toLowerCase() !== newCat.name.toLowerCase() && c.id !== newCat.id)])
+        setCategoriesList(prev => {
+          const nextList = [newCat, ...prev.filter(c => c.name.toLowerCase() !== newCat.name.toLowerCase() && c.id !== newCat.id)]
+          try {
+            localStorage.setItem(
+              'zyvora_all_categories',
+              JSON.stringify(nextList.map(c => ({ _id: c._id || c.id || c.rawId, id: c.id || c._id, name: c.name })))
+            )
+          } catch (e) {}
+          return nextList
+        })
+
+        try {
+          window.dispatchEvent(new CustomEvent('zyvora_categories_updated', { detail: newCat }))
+        } catch (e) {}
 
         setSuccessToast('Category created successfully.')
         setTimeout(() => setSuccessToast(''), 4000)
@@ -702,7 +905,13 @@ function CategoryManagement() {
 
   // Live fetch category by ID
   const handleViewCategory = async (category) => {
-    setViewedCategory(category)
+    const liveSubcats = getCategorySubcatsCount(category)
+    const liveProducts = getCategoryProductsCount(category)
+    setViewedCategory({
+      ...category,
+      subcatsCount: liveSubcats,
+      productsCount: liveProducts
+    })
     setExpandedSubcatId(null)
 
     const catId = category.rawId || category._id || category.id
@@ -717,28 +926,32 @@ function CategoryManagement() {
 
       if (data) {
         const rawId = data._id || data.id || category.id
-        const rawName = data.name || data.categoryName || category.name
+        const rawName = normalizeCategoryName(data.name || data.categoryName || category.name)
         const rawSlug = data.slug || ''
         const rawDesc = data.description || category.description || ''
-        const rawProductCount = data.productCount !== undefined ? data.productCount : (data.productsCount !== undefined ? data.productsCount : category.productsCount)
         const rawStatus = typeof data.isActive === 'boolean'
           ? (data.isActive ? 'active' : 'inactive')
           : (data.status ? data.status.toLowerCase() : category.status)
 
-        setViewedCategory(prev => ({
-          ...(prev || category),
-          id: rawId,
-          _id: rawId,
-          rawId: rawId,
-          name: rawName,
-          slug: rawSlug,
-          description: rawDesc,
-          productsCount: rawProductCount,
-          productCount: rawProductCount,
-          status: rawStatus,
-          image: data.image ? getFullImageUrl(data.image) : (data.imageUrl ? getFullImageUrl(data.imageUrl) : category.image),
-          rawData: data
-        }))
+        setViewedCategory(prev => {
+          const updated = {
+            ...(prev || category),
+            id: rawId,
+            _id: rawId,
+            rawId: rawId,
+            name: rawName,
+            slug: rawSlug,
+            description: rawDesc,
+            status: rawStatus,
+            image: data.image ? getFullImageUrl(data.image) : (data.imageUrl ? getFullImageUrl(data.imageUrl) : category.image),
+            rawData: data
+          }
+          return {
+            ...updated,
+            subcatsCount: getCategorySubcatsCount(updated),
+            productsCount: getCategoryProductsCount(updated)
+          }
+        })
       }
     } catch (err) {
       console.warn('Failed to fetch full category by ID:', err?.message || err)
@@ -906,7 +1119,17 @@ function CategoryManagement() {
       }
     } else {
       // Fallback for custom/mock items
-      setCategoriesList(prev => prev.filter(c => c.id !== deletingCategoryId && c.rawId !== catId && c._id !== catId))
+      setCategoriesList(prev => {
+        const nextList = prev.filter(c => c.id !== deletingCategoryId && c.rawId !== catId && c._id !== catId)
+        try {
+          localStorage.setItem(
+            'zyvora_all_categories',
+            JSON.stringify(nextList.map(c => ({ _id: c._id || c.id || c.rawId, id: c.id || c._id, name: c.name })))
+          )
+          window.dispatchEvent(new CustomEvent('zyvora_categories_updated'))
+        } catch (e) {}
+        return nextList
+      })
       const storedCustom = getStoredCustomCategories()
       saveCustomCategories(storedCustom.filter(c => c.id !== deletingCategoryId && c.rawId !== catId && c._id !== catId))
 
@@ -928,38 +1151,51 @@ function CategoryManagement() {
     const targetStatus = subcatFormData.isVisible ? 'active' : 'inactive'
 
     if (editingSubcat) {
-      setSubcategoriesData(subcategoriesData.map(sc => {
+      const updatedSubcats = subcategoriesData.map(sc => {
         if (sc.id === editingSubcat.id) {
           return {
             ...sc,
-            name: subcatFormData.name,
+            name: subcatFormData.name.trim(),
             status: targetStatus,
             image: subcatFormData.imagePreview || sc.image
           }
         }
         return sc
-      }))
+      })
+      setSubcategoriesData(updatedSubcats)
+      try {
+        localStorage.setItem('zyvora_subcategoriesData', JSON.stringify(updatedSubcats))
+      } catch (err) {
+        console.warn('Failed to persist subcategory update:', err)
+      }
     } else {
       const newSub = {
         id: Date.now(),
-        parentCategory: viewedCategory.name,
-        name: subcatFormData.name,
+        parentCategory: viewedCategory ? viewedCategory.name : '',
+        parentCategoryId: viewedCategory ? (viewedCategory.id || viewedCategory.rawId) : '',
+        name: subcatFormData.name.trim(),
         productsCount: 0,
         status: targetStatus,
         image: subcatFormData.imagePreview || 'https://via.placeholder.com/150',
         createdDate: new Date().toISOString().split('T')[0]
       }
-      setSubcategoriesData([newSub, ...subcategoriesData])
+      const updatedSubcats = [newSub, ...subcategoriesData]
+      setSubcategoriesData(updatedSubcats)
+      try {
+        localStorage.setItem('zyvora_subcategoriesData', JSON.stringify(updatedSubcats))
+      } catch (err) {
+        console.warn('Failed to persist new subcategory:', err)
+      }
 
       // Increment subcatsCount in categories list dynamically
       setCategoriesList(categoriesList.map(c => {
-        if (c.name === viewedCategory.name) {
-          return { ...c, subcatsCount: c.subcatsCount + 1 }
+        if (viewedCategory && (c.id === viewedCategory.id || getCanonicalCategoryKey(c.name) === getCanonicalCategoryKey(viewedCategory.name))) {
+          return { ...c, subcatsCount: (Number(c.subcatsCount) || 0) + 1 }
         }
         return c
       }))
       if (viewedCategory) {
-        setViewedCategory(prev => ({ ...prev, subcatsCount: prev.subcatsCount + 1 }))
+        setViewedCategory(prev => ({ ...prev, subcatsCount: (Number(prev.subcatsCount) || 0) + 1 }))
       }
     }
 
@@ -976,45 +1212,57 @@ function CategoryManagement() {
     const expandedSub = subcategoriesData.find(sc => sc.id === expandedSubcatId)
 
     if (editingProduct) {
-      setProductsData(productsData.map(p => {
+      const updatedProducts = productsData.map(p => {
         if (p.id === editingProduct.id) {
           return {
             ...p,
-            name: productFormData.name,
+            name: productFormData.name.trim(),
             price: parseFloat(productFormData.price) || 0,
             stock: parseInt(productFormData.stock) || 0,
             status: targetStatus
           }
         }
         return p
-      }))
+      })
+      setProductsData(updatedProducts)
+      try {
+        localStorage.setItem('zyvora_productsData', JSON.stringify(updatedProducts))
+      } catch (err) {
+        console.warn('Failed to persist product update:', err)
+      }
     } else {
       const newProd = {
         id: Date.now(),
-        subcatName: expandedSub.name,
-        parentCategory: viewedCategory.name,
-        name: productFormData.name,
+        subcatName: expandedSub ? expandedSub.name : '',
+        parentCategory: viewedCategory ? viewedCategory.name : '',
+        name: productFormData.name.trim(),
         price: parseFloat(productFormData.price) || 0,
         stock: parseInt(productFormData.stock) || 0,
         status: targetStatus
       }
-      setProductsData([newProd, ...productsData])
+      const updatedProducts = [newProd, ...productsData]
+      setProductsData(updatedProducts)
+      try {
+        localStorage.setItem('zyvora_productsData', JSON.stringify(updatedProducts))
+      } catch (err) {
+        console.warn('Failed to persist new product:', err)
+      }
 
       // Increment products count in subcategory & category dynamically
       setSubcategoriesData(subcategoriesData.map(sc => {
         if (sc.id === expandedSubcatId) {
-          return { ...sc, productsCount: sc.productsCount + 1 }
+          return { ...sc, productsCount: (Number(sc.productsCount) || 0) + 1 }
         }
         return sc
       }))
       setCategoriesList(categoriesList.map(c => {
-        if (c.name === viewedCategory.name) {
-          return { ...c, productsCount: c.productsCount + 1 }
+        if (viewedCategory && (c.id === viewedCategory.id || getCanonicalCategoryKey(c.name) === getCanonicalCategoryKey(viewedCategory.name))) {
+          return { ...c, productsCount: (Number(c.productsCount) || 0) + 1 }
         }
         return c
       }))
       if (viewedCategory) {
-        setViewedCategory(prev => ({ ...prev, productsCount: prev.productsCount + 1 }))
+        setViewedCategory(prev => ({ ...prev, productsCount: (Number(prev.productsCount) || 0) + 1 }))
       }
     }
 
@@ -1050,12 +1298,170 @@ function CategoryManagement() {
     }
   }, [totalCatPages, categoryPage])
 
+  // Full Screen Image Lightbox Modal
+  const renderFullscreenLightbox = () => {
+    if (!fullscreenImage) return null
+    return (
+      <div
+        className="fullscreen-image-modal"
+        onClick={() => { setFullscreenImage(null); setZoomLevel(1); }}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.90)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 99999,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+        }}
+      >
+        {/* Top Header Bar */}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            top: '20px',
+            left: '24px',
+            right: '24px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            color: '#ffffff',
+            zIndex: 100000
+          }}
+        >
+          <div>
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#f8fafc' }}>
+              {fullscreenImage.title || 'Category Image'}
+            </h3>
+            <span style={{ fontSize: '12px', color: '#94a3b8' }}>Full Screen Image View</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={() => setZoomLevel(prev => (prev >= 2.5 ? 1 : prev + 0.5))}
+              style={{
+                background: 'rgba(255, 255, 255, 0.15)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                color: '#ffffff',
+                borderRadius: '8px',
+                padding: '8px 14px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              title={zoomLevel > 1 ? "Reset Zoom" : "Zoom In"}
+            >
+              {zoomLevel > 1 ? <ZoomOut style={{ width: '16px', height: '16px' }} /> : <ZoomIn style={{ width: '16px', height: '16px' }} />}
+              <span>{Math.round(zoomLevel * 100)}%</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setFullscreenImage(null); setZoomLevel(1); }}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+                color: '#ffffff',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="Close Full Screen (Esc)"
+            >
+              <X style={{ width: '20px', height: '20px' }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Center Image Container */}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            maxWidth: '92vw',
+            maxHeight: '82vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'auto',
+            borderRadius: '12px'
+          }}
+        >
+          <img
+            src={fullscreenImage.url}
+            alt={fullscreenImage.title}
+            style={{
+              maxWidth: '90vw',
+              maxHeight: '80vh',
+              objectFit: 'contain',
+              borderRadius: '8px',
+              transform: `scale(${zoomLevel})`,
+              transition: 'transform 0.2s ease-out',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+            }}
+            onError={(e) => { e.target.src = 'https://via.placeholder.com/600x400' }}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Floating Toast Notification
+  const renderToastNotification = () => {
+    if (!successToast) return null
+    return (
+      <div
+        className="custom-toast-notification"
+        style={{
+          position: 'fixed',
+          top: '24px',
+          right: '24px',
+          backgroundColor: '#10b981',
+          color: '#ffffff',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          boxShadow: '0 10px 25px -3px rgba(16, 185, 129, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          zIndex: 99999,
+          fontWeight: '600',
+          fontSize: '14px',
+        }}
+      >
+        <CheckCircle2 style={{ width: '18px', height: '18px' }} />
+        <span>{successToast}</span>
+        <button
+          type="button"
+          onClick={() => setSuccessToast('')}
+          style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', marginLeft: '6px', padding: 0 }}
+        >
+          <X style={{ width: '16px', height: '16px' }} />
+        </button>
+      </div>
+    )
+  }
+
   // 1. RENDER VIEW CATEGORY DETAILS WITH EXPANDABLE SUB-CATEGORIES
   if (viewedCategory) {
     const isCatActive = viewedCategory.status === 'active'
 
     // Get subcategories filtered for this category
-    const rawSubcats = subcategoriesData.filter(sc => sc.parentCategory === viewedCategory.name)
+    const rawSubcats = subcategoriesData.filter(sc => 
+      sc.parentCategory && getCanonicalCategoryKey(sc.parentCategory) === getCanonicalCategoryKey(viewedCategory.name)
+    )
     const filteredSubcats = rawSubcats.filter(sc => {
       const matchesSearch = sc.name.toLowerCase().includes(subcatSearch.toLowerCase())
       const matchesStatus = subcatStatusFilter === 'all' ? true : sc.status === subcatStatusFilter
@@ -1093,14 +1499,23 @@ function CategoryManagement() {
         {/* Top Banner Category Details Card */}
         <div className={`category-banner-card ${isCatActive ? 'active' : 'inactive'}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-            <img
-              src={viewedCategory.image}
-              alt={viewedCategory.name}
-              className="category-banner-img"
-              onError={(e) => { e.target.src = 'https://via.placeholder.com/120x80' }}
-            />
+            <div
+              className="category-banner-img-container"
+              onClick={() => setFullscreenImage({ url: viewedCategory.image, title: viewedCategory.name })}
+              title="Click to view image in full screen"
+            >
+              <img
+                src={viewedCategory.image}
+                alt={viewedCategory.name}
+                className="category-banner-img"
+                onError={(e) => { e.target.src = 'https://via.placeholder.com/120x80' }}
+              />
+              <div className="img-fullscreen-overlay">
+                <Maximize2 style={{ width: '22px', height: '22px', color: '#ffffff' }} />
+              </div>
+            </div>
             <div className="category-banner-info">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
                 <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', color: '#607d8b' }}>Category Details</div>
                 {viewedCategory.slug && (
                   <span style={{ fontSize: '11px', background: 'rgba(0,0,0,0.06)', padding: '2px 8px', borderRadius: '6px', color: '#546e7a', fontWeight: '600' }}>
@@ -1110,6 +1525,28 @@ function CategoryManagement() {
                 {categoryDetailsLoading && (
                   <Loader2 className="spinning-loader" style={{ width: '14px', height: '14px', color: '#00897b' }} />
                 )}
+                <button
+                  type="button"
+                  onClick={() => setFullscreenImage({ url: viewedCategory.image, title: viewedCategory.name })}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    padding: '3px 10px',
+                    color: '#1e293b',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  }}
+                  title="View category image full screen"
+                >
+                  <Maximize2 style={{ width: '12px', height: '12px', color: '#00897b' }} />
+                  <span>Full Screen Image</span>
+                </button>
               </div>
               <span className="category-banner-name" style={{ fontSize: '22px', fontWeight: '800' }}>{viewedCategory.name}</span>
               {viewedCategory.description && (
@@ -1117,10 +1554,10 @@ function CategoryManagement() {
               )}
               <div style={{ display: 'flex', gap: '20px', marginTop: '12px' }}>
                 <span className="category-banner-subcats" style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <strong>Total Sub-Categories:</strong> {viewedCategory.subcatsCount !== undefined ? viewedCategory.subcatsCount : (subcategoriesData.filter(sc => sc.parentCategory === viewedCategory.name).length || 0)}
+                  <strong>Total Sub-Categories:</strong> {getCategorySubcatsCount(viewedCategory)}
                 </span>
                 <span className="category-banner-subcats" style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <strong>Total Products:</strong> {(viewedCategory.productsCount !== undefined ? viewedCategory.productsCount : (viewedCategory.productCount !== undefined ? viewedCategory.productCount : (subcategoriesData.filter(sc => sc.parentCategory === viewedCategory.name).reduce((sum, sc) => sum + sc.productsCount, 0) || 0))).toLocaleString()}
+                  <strong>Total Products:</strong> {getCategoryProductsCount(viewedCategory).toLocaleString()}
                 </span>
               </div>
             </div>
@@ -1210,7 +1647,10 @@ function CategoryManagement() {
                     const isExpanded = expandedSubcatId === sc.id
 
                     // Filter products for this subcat
-                    const rawProducts = productsData.filter(p => p.subcatName === sc.name && p.parentCategory === viewedCategory.name)
+                    const rawProducts = productsData.filter(p => 
+                      (p.subcatName && p.subcatName.toLowerCase() === sc.name.toLowerCase()) && 
+                      (!p.parentCategory || getCanonicalCategoryKey(p.parentCategory) === getCanonicalCategoryKey(viewedCategory.name))
+                    )
                     const filteredProducts = rawProducts.filter(p => {
                       const matchesSearch = p.name.toLowerCase().includes(prodSearch.toLowerCase())
                       const matchesStatus = prodStatusFilter === 'all' ? true : p.status === prodStatusFilter
@@ -1243,11 +1683,18 @@ function CategoryManagement() {
                           </td>
                           <td style={{ fontWeight: '700' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <img src={sc.image} alt={sc.name} style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover' }} onError={(e) => { e.target.src = 'https://via.placeholder.com/32' }} />
+                              <img
+                                src={sc.image}
+                                alt={sc.name}
+                                style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover', cursor: 'pointer' }}
+                                title="Click to view full screen"
+                                onClick={() => setFullscreenImage({ url: sc.image, title: `${viewedCategory.name} - ${sc.name}` })}
+                                onError={(e) => { e.target.src = 'https://via.placeholder.com/32' }}
+                              />
                               {sc.name}
                             </div>
                           </td>
-                          <td>{sc.productsCount} Products</td>
+                          <td>{Math.max(rawProducts.length, Number(sc.productsCount) || 0)} Products</td>
                           <td>
                             <span
                               className={`admin-status-badge clickable ${sc.status === 'active' ? 'active' : 'inactive-orange'}`}
@@ -1619,6 +2066,9 @@ function CategoryManagement() {
           </div>
         )}
 
+        {/* Fullscreen Lightbox & Toast Modal */}
+        {renderFullscreenLightbox()}
+        {renderToastNotification()}
       </div>
     )
   }
@@ -1795,7 +2245,7 @@ function CategoryManagement() {
     <div className="category-management-view" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Success Notification Banner */}
       {successToast && (
-        <div style={{
+        <div className="custom-toast-notification" style={{
           backgroundColor: '#e8f5e9',
           color: '#2e7d32',
           padding: '12px 16px',
@@ -1805,10 +2255,11 @@ function CategoryManagement() {
           justifyContent: 'space-between',
           fontSize: '14px',
           border: '1px solid #c8e6c9',
+          boxShadow: '0 4px 12px rgba(46, 125, 50, 0.12)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Check style={{ width: '18px', height: '18px', color: '#2e7d32' }} />
-            <span>{successToast}</span>
+            <CheckCircle2 style={{ width: '18px', height: '18px', color: '#2e7d32' }} />
+            <span><strong>Success:</strong> {successToast}</span>
           </div>
           <button
             type="button"
@@ -1833,7 +2284,7 @@ function CategoryManagement() {
             type="button"
             className="btn-reset-white"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}
-            onClick={fetchCategories}
+            onClick={handleManualRefresh}
             disabled={loading}
             title="Refresh Categories"
           >
@@ -2008,6 +2459,9 @@ function CategoryManagement() {
                         src={cat.image}
                         alt={cat.name}
                         className="product-thumbnail-img"
+                        style={{ cursor: 'pointer' }}
+                        title="Click to view full screen"
+                        onClick={() => setFullscreenImage({ url: cat.image, title: cat.name })}
                         onError={(e) => { e.target.src = 'https://via.placeholder.com/50' }}
                       />
                     </td>
@@ -2019,8 +2473,8 @@ function CategoryManagement() {
                         {cat.name}
                       </span>
                     </td>
-                    <td>{cat.subcatsCount !== undefined ? cat.subcatsCount : (subcategoriesData.filter(sc => sc.parentCategory === cat.name).length || 0)}</td>
-                    <td>{(cat.productsCount !== undefined ? cat.productsCount : (cat.productCount !== undefined ? cat.productCount : (subcategoriesData.filter(sc => sc.parentCategory === cat.name).reduce((sum, sc) => sum + sc.productsCount, 0) || 0))).toLocaleString()}</td>
+                    <td>{getCategorySubcatsCount(cat)}</td>
+                    <td>{getCategoryProductsCount(cat).toLocaleString()}</td>
                     <td>
                       <span
                         className={`admin-status-badge clickable ${cat.status === 'active' ? 'active' : 'inactive-orange'}`}
@@ -2187,6 +2641,12 @@ function CategoryManagement() {
           </div>
         </div>
       )}
+
+      {/* Full Screen Image Lightbox Modal */}
+      {renderFullscreenLightbox()}
+
+      {/* Floating Toast Notification */}
+      {renderToastNotification()}
     </div>
   )
 }

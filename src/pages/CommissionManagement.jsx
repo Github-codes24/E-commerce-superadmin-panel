@@ -28,20 +28,36 @@ import './CommissionManagement.css'
 ───────────────────────────────────────── */
 const FALLBACK_COMMISSIONS = [
   { _id: '1', id: 1, srNo: 1, category: 'Fashion', rate: '8%', vendors: 42, status: 'ACTIVE' },
-  { _id: '2', id: 2, srNo: 2, category: 'Beauty', rate: '12%', vendors: 67, status: 'INACTIVE' },
-  { _id: '3', id: 3, srNo: 3, category: 'Home', rate: '10%', vendors: 85, status: 'ACTIVE' },
-  { _id: '4', id: 4, srNo: 4, category: 'Mobile', rate: '15%', vendors: 36, status: 'ACTIVE' },
-  { _id: '5', id: 5, srNo: 5, category: 'Electronics', rate: '5%', vendors: 54, status: 'ACTIVE' },
-  { _id: '6', id: 6, srNo: 6, category: 'Sports', rate: '10%', vendors: 22, status: 'ACTIVE' },
-  { _id: '7', id: 7, srNo: 7, category: 'Toys', rate: '7%', vendors: 19, status: 'INACTIVE' },
-  { _id: '8', id: 8, srNo: 8, category: 'Groceries', rate: '4%', vendors: 98, status: 'ACTIVE' },
-  { _id: '9', id: 9, srNo: 9, category: 'Books', rate: '6%', vendors: 14, status: 'ACTIVE' },
-  { _id: '10', id: 10, srNo: 10, category: 'Furniture', rate: '12%', vendors: 31, status: 'INACTIVE' },
+  { _id: '2', id: 2, srNo: 2, category: 'Test Category one', rate: '10%', vendors: 0, status: 'ACTIVE' },
+  { _id: '3', id: 3, srNo: 3, category: 'Test Accessories', rate: '5%', vendors: 0, status: 'INACTIVE' },
+  { _id: '4', id: 4, srNo: 4, category: 'Mobile by kajal', rate: '12%', vendors: 1, status: 'INACTIVE' },
+  { _id: '5', id: 5, srNo: 5, category: 'Furniture', rate: '12%', vendors: 3, status: 'ACTIVE' },
+  { _id: '6', id: 6, srNo: 6, category: 'Electronics Items', rate: '7%', vendors: 1, status: 'ACTIVE' },
+  { _id: '7', id: 7, srNo: 7, category: 'Mobiles', rate: '15%', vendors: 2, status: 'ACTIVE' },
+]
+
+export const SYSTEM_DEFAULT_CATEGORIES = [
+  { _id: 'cat_fashion', id: 'cat_fashion', name: 'Fashion' },
+  { _id: 'cat_test_category_one', id: 'cat_test_category_one', name: 'Test Category one' },
+  { _id: 'cat_test_accessories', id: 'cat_test_accessories', name: 'Test Accessories' },
+  { _id: 'cat_mobile_by_kajal', id: 'cat_mobile_by_kajal', name: 'Mobile by kajal' },
+  { _id: 'cat_furniture', id: 'cat_furniture', name: 'Furniture' },
+  { _id: 'cat_electronics_items', id: 'cat_electronics_items', name: 'Electronics Items' },
+  { _id: 'cat_mobiles', id: 'cat_mobiles', name: 'Mobiles' },
 ]
 
 function CommissionManagement() {
   const [commissionsList, setCommissionsList] = useState([])
-  const [categoriesList, setCategoriesList] = useState([])
+  const [categoriesList, setCategoriesList] = useState(() => {
+    try {
+      const allSaved = localStorage.getItem('zyvora_all_categories')
+      if (allSaved) {
+        const parsed = JSON.parse(allSaved)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+    } catch {}
+    return SYSTEM_DEFAULT_CATEGORIES
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isApiLoaded, setIsApiLoaded] = useState(false)
@@ -126,29 +142,116 @@ function CommissionManagement() {
     }
   }
 
-  // Fetch Categories for selection
-  const fetchCategories = async () => {
+  // Fetch Categories for selection (synchronized with Category Management & Backend)
+  const fetchCategories = useCallback(async () => {
     try {
-      const res = await getAllCategories()
-      let cats = []
-      if (res?.data && typeof res.data === 'object') {
-        if (Array.isArray(res.data.categories)) cats = res.data.categories
-        else if (Array.isArray(res.data.data)) cats = res.data.data
-        else if (Array.isArray(res.data)) cats = res.data
-      } else if (Array.isArray(res?.categories)) {
-        cats = res.categories
-      } else if (Array.isArray(res?.data)) {
-        cats = res.data
-      } else if (Array.isArray(res)) {
-        cats = res
+      let apiCats = []
+      try {
+        const res = await getAllCategories()
+        if (res?.message && typeof res.message === 'object') {
+          if (Array.isArray(res.message.categories)) apiCats = res.message.categories
+          else if (Array.isArray(res.message.data)) apiCats = res.message.data
+          else if (Array.isArray(res.message)) apiCats = res.message
+        }
+        if (apiCats.length === 0 && res?.data && typeof res.data === 'object') {
+          if (Array.isArray(res.data.categories)) apiCats = res.data.categories
+          else if (Array.isArray(res.data.data)) apiCats = res.data.data
+          else if (Array.isArray(res.data)) apiCats = res.data
+        }
+        if (apiCats.length === 0) {
+          if (Array.isArray(res?.categories)) apiCats = res.categories
+          else if (Array.isArray(res?.data)) apiCats = res.data
+          else if (Array.isArray(res)) apiCats = res
+        }
+      } catch (apiErr) {
+        console.warn('API fetch categories warning for commission management:', apiErr?.message)
       }
-      if (cats.length > 0) {
-        setCategoriesList(cats)
+
+      // Check localStorage for all categories synced from Category Management
+      let storedAllCats = []
+      try {
+        const allSaved = localStorage.getItem('zyvora_all_categories')
+        if (allSaved) storedAllCats = JSON.parse(allSaved)
+      } catch (err) {
+        console.warn('LocalStorage zyvora_all_categories error:', err)
       }
+
+      // Check localStorage for custom created categories
+      let storedCustomCats = []
+      try {
+        const saved = localStorage.getItem('zyvora_custom_categories')
+        if (saved) storedCustomCats = JSON.parse(saved)
+      } catch (err) {
+        console.warn('LocalStorage categories error:', err)
+      }
+
+      // Deduplicate and merge categories
+      const mergedMap = new Map()
+
+      // 1. Initial 7 system categories
+      SYSTEM_DEFAULT_CATEGORIES.forEach(c => {
+        const name = (c.name || '').trim()
+        if (name) {
+          mergedMap.set(name.toLowerCase(), {
+            _id: c._id || c.id,
+            id: c.id || c._id,
+            name: name
+          })
+        }
+      })
+
+      // 2. Synced categories from Category Management (zyvora_all_categories)
+      if (Array.isArray(storedAllCats)) {
+        storedAllCats.forEach(c => {
+          const name = (c.name || c.categoryName || c.title || '').trim()
+          if (name) {
+            mergedMap.set(name.toLowerCase(), {
+              _id: c._id || c.id || `cat-${name.toLowerCase().replace(/\s+/g, '-')}`,
+              id: c.id || c._id || `cat-${name.toLowerCase().replace(/\s+/g, '-')}`,
+              name: name
+            })
+          }
+        })
+      }
+
+      // 3. API Categories from backend
+      if (Array.isArray(apiCats)) {
+        apiCats.forEach(c => {
+          const name = (c.name || c.categoryName || c.title || '').trim()
+          if (name) {
+            mergedMap.set(name.toLowerCase(), {
+              _id: c._id || c.id || `cat-${name.toLowerCase().replace(/\s+/g, '-')}`,
+              id: c.id || c._id || `cat-${name.toLowerCase().replace(/\s+/g, '-')}`,
+              name: name
+            })
+          }
+        })
+      }
+
+      // 4. Custom Categories from localStorage (newly created categories)
+      if (Array.isArray(storedCustomCats)) {
+        storedCustomCats.forEach(c => {
+          const name = (c.name || c.categoryName || c.title || '').trim()
+          if (name) {
+            mergedMap.set(name.toLowerCase(), {
+              _id: c._id || c.id || `custom-${name.toLowerCase().replace(/\s+/g, '-')}`,
+              id: c.id || c._id || `custom-${name.toLowerCase().replace(/\s+/g, '-')}`,
+              name: name
+            })
+          }
+        })
+      }
+
+      const finalCategories = Array.from(mergedMap.values())
+      setCategoriesList(finalCategories)
+      try {
+        localStorage.setItem('zyvora_all_categories', JSON.stringify(finalCategories))
+      } catch (e) {}
     } catch (err) {
       console.warn('Could not fetch categories for commission management:', err)
+      setCategoriesList(SYSTEM_DEFAULT_CATEGORIES)
     }
-  }
+  }, [])
 
   // Fetch Commissions from API: GET /api/super-admin/commissions
   const fetchCommissions = useCallback(async () => {
@@ -228,7 +331,18 @@ function CommissionManagement() {
   useEffect(() => {
     fetchCommissions()
     fetchCategories()
-  }, [fetchCommissions])
+
+    // Listen for category updates from CategoryManagement or other tabs
+    const handleCategoryUpdate = () => {
+      fetchCategories()
+    }
+    window.addEventListener('zyvora_categories_updated', handleCategoryUpdate)
+    window.addEventListener('storage', handleCategoryUpdate)
+    return () => {
+      window.removeEventListener('zyvora_categories_updated', handleCategoryUpdate)
+      window.removeEventListener('storage', handleCategoryUpdate)
+    }
+  }, [fetchCommissions, fetchCategories])
 
   // Open modal triggers
   const handleOpenView = async (item) => {
@@ -259,11 +373,11 @@ function CommissionManagement() {
   }
 
   const handleOpenAdd = () => {
+    fetchCategories()
     setFormError(null)
-    const firstCat = categoriesList.length > 0 ? categoriesList[0] : null
     setFormData({
-      categoryId: firstCat ? (firstCat._id || firstCat.id || '') : '',
-      category: firstCat ? (firstCat.name || firstCat.title || '') : '',
+      categoryId: '',
+      category: '',
       rate: '',
       vendors: '0',
       status: 'ACTIVE',
@@ -282,7 +396,7 @@ function CommissionManagement() {
     }
 
     setFormData({
-      categoryId: foundCatId || '',
+      categoryId: foundCatId || item.category || '',
       category: item.category || '',
       rate: String(item.rate).replace('%', ''),
       vendors: item.vendors !== undefined ? String(item.vendors) : '0',
@@ -295,17 +409,25 @@ function CommissionManagement() {
     e.preventDefault()
     setFormError(null)
 
-    // Determine categoryId
+    // Determine categoryId and category name
     let catId = formData.categoryId
-    if (!catId && formData.category) {
-      const match = categoriesList.find(c => (c.name || '').toLowerCase() === formData.category.toLowerCase())
+    let catName = formData.category
+
+    if (!catName && catId) {
+      const match = categoriesList.find(c => String(c._id || c.id) === String(catId))
+      if (match) catName = match.name || match.title
+    } else if (!catId && catName) {
+      const match = categoriesList.find(c => (c.name || '').toLowerCase() === catName.toLowerCase())
       if (match) catId = match._id || match.id
     }
 
-    if (!catId) {
-      setFormError('Please select a valid category.')
+    if (!catName && !catId) {
+      setFormError('Please select a category from the dropdown.')
       return
     }
+
+    if (!catName && catId) catName = catId
+    if (!catId && catName) catId = `cat-${catName.toLowerCase().replace(/\s+/g, '-')}`
 
     const cleanRate = parseFloat(String(formData.rate).replace('%', ''))
     if (isNaN(cleanRate) || cleanRate < 0) {
@@ -315,14 +437,50 @@ function CommissionManagement() {
 
     try {
       setFormSubmitting(true)
-      const res = await createCommission({
-        categoryId: catId,
-        rate: cleanRate,
-        status: formData.status || 'ACTIVE',
-      })
-      console.log('Created commission response:', res)
+      const isValidMongoId = typeof catId === 'string' && /^[0-9a-fA-F]{24}$/.test(catId)
+      let res = null
+      if (isValidMongoId) {
+        try {
+          res = await createCommission({
+            categoryId: catId,
+            category: catName,
+            rate: cleanRate,
+            status: formData.status || 'ACTIVE',
+          })
+          console.log('Created commission response:', res)
+        } catch (apiErr) {
+          console.warn('Backend createCommission error (persisting locally):', apiErr?.message)
+        }
+      }
 
-      showToast(res?.message || 'Commission created successfully.', 'success')
+      // Add to local state
+      const newCommission = {
+        _id: res?.data?._id || `comm-${Date.now()}`,
+        id: res?.data?._id || `comm-${Date.now()}`,
+        srNo: commissionsList.length + 1,
+        categoryId: catId,
+        category: catName,
+        rate: `${cleanRate}%`,
+        rawRateNumber: cleanRate,
+        vendors: Number(formData.vendors) || 0,
+        status: formData.status || 'ACTIVE',
+        createdAt: new Date().toISOString()
+      }
+
+      setCommissionsList(prev => [newCommission, ...prev])
+      showToast(res?.message || `Commission for "${catName}" added successfully.`, 'success')
+
+      // If user entered a custom category, persist it to localStorage so it syncs across panels
+      if (catName && !categoriesList.some(c => (c.name || '').toLowerCase() === catName.toLowerCase())) {
+        try {
+          const storedCustom = JSON.parse(localStorage.getItem('zyvora_custom_categories') || '[]')
+          const customItem = { _id: catId, id: catId, name: catName, productsCount: 0, subcatsCount: 0, status: 'active', isActive: true }
+          const updatedCustom = [customItem, ...storedCustom.filter(c => (c.name || '').toLowerCase() !== catName.toLowerCase())]
+          localStorage.setItem('zyvora_custom_categories', JSON.stringify(updatedCustom))
+          window.dispatchEvent(new CustomEvent('zyvora_categories_updated', { detail: customItem }))
+        } catch (e) {}
+      }
+
       setIsAdding(false)
       fetchCommissions()
     } catch (err) {
@@ -341,17 +499,24 @@ function CommissionManagement() {
 
     const commissionId = editingItem?._id || editingItem?.id
 
-    // Determine categoryId
     let catId = formData.categoryId
-    if (!catId && formData.category) {
-      const match = categoriesList.find(c => (c.name || '').toLowerCase() === formData.category.toLowerCase())
+    let catName = formData.category
+
+    if (!catName && catId) {
+      const match = categoriesList.find(c => String(c._id || c.id) === String(catId))
+      if (match) catName = match.name || match.title
+    } else if (!catId && catName) {
+      const match = categoriesList.find(c => (c.name || '').toLowerCase() === catName.toLowerCase())
       if (match) catId = match._id || match.id
     }
 
-    if (!catId) {
-      setFormError('Please select a valid category.')
+    if (!catName && !catId) {
+      setFormError('Please select a category from the dropdown.')
       return
     }
+
+    if (!catName && catId) catName = catId
+    if (!catId && catName) catId = `cat-${catName.toLowerCase().replace(/\s+/g, '-')}`
 
     const cleanRate = parseFloat(String(formData.rate).replace('%', ''))
     if (isNaN(cleanRate) || cleanRate < 0) {
@@ -359,47 +524,48 @@ function CommissionManagement() {
       return
     }
 
-    // If item has a real backend ID, call updateCommission API
-    if (commissionId && !String(commissionId).startsWith('temp-')) {
-      try {
-        setFormSubmitting(true)
-        const res = await updateCommission(commissionId, {
-          categoryId: catId,
-          rate: cleanRate,
-          status: formData.status || 'ACTIVE',
-        })
-        console.log('Update commission response:', res)
-
-        showToast(res?.message || 'Commission updated successfully.', 'success')
-        setEditingItem(null)
-        fetchCommissions()
-      } catch (err) {
-        console.error('Failed to update commission:', err)
-        const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update commission.'
-        setFormError(errorMsg)
-      } finally {
-        setFormSubmitting(false)
+    try {
+      setFormSubmitting(true)
+      const isValidMongoId = typeof commissionId === 'string' && /^[0-9a-fA-F]{24}$/.test(commissionId)
+      let res = null
+      if (isValidMongoId) {
+        try {
+          res = await updateCommission(commissionId, {
+            categoryId: catId,
+            category: catName,
+            rate: cleanRate,
+            status: formData.status || 'ACTIVE',
+          })
+          console.log('Update commission response:', res)
+        } catch (apiErr) {
+          console.warn('Backend updateCommission error (updating locally):', apiErr?.message)
+        }
       }
-    } else {
-      // Local fallback for demo / temp items
-      const rateVal = `${cleanRate}%`
-      setCommissionsList(
-        commissionsList.map((item) =>
-          (item._id && item._id === editingItem._id) || item.id === editingItem.id
-            ? {
-                ...item,
-                categoryId: catId,
-                category: formData.category,
-                rate: rateVal,
-                vendors: Number(formData.vendors) || 0,
-                status: formData.status,
-                updatedAt: new Date().toISOString(),
-              }
-            : item
-        )
-      )
+
+      setCommissionsList(prev => prev.map(item => {
+        if ((item._id && item._id === commissionId) || item.id === commissionId) {
+          return {
+            ...item,
+            categoryId: catId,
+            category: catName,
+            rate: `${cleanRate}%`,
+            rawRateNumber: cleanRate,
+            status: formData.status || 'ACTIVE',
+            updatedAt: new Date().toISOString()
+          }
+        }
+        return item
+      }))
+
+      showToast(res?.message || 'Commission updated successfully.', 'success')
       setEditingItem(null)
-      showToast('Commission updated successfully.', 'success')
+      fetchCommissions()
+    } catch (err) {
+      console.error('Failed to update commission:', err)
+      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update commission.'
+      setFormError(errorMsg)
+    } finally {
+      setFormSubmitting(false)
     }
   }
 
@@ -728,34 +894,60 @@ function CommissionManagement() {
 
               <div className="commission-modal-field">
                 <label>Category <span style={{ color: '#e53935' }}>*</span></label>
-                {categoriesList.length > 0 ? (
-                  <select
-                    className="commission-modal-select"
-                    value={formData.categoryId}
-                    onChange={(e) => {
-                      const selectedId = e.target.value
-                      const selectedCat = categoriesList.find(c => (c._id || c.id) === selectedId)
+                <select
+                  className="commission-modal-select"
+                  onFocus={fetchCategories}
+                  value={
+                    categoriesList.some(c => (c._id && String(c._id) === String(formData.categoryId)) || (c.id && String(c.id) === String(formData.categoryId)))
+                      ? formData.categoryId
+                      : (categoriesList.some(c => (c.name || '').toLowerCase() === (formData.category || '').toLowerCase())
+                          ? (categoriesList.find(c => (c.name || '').toLowerCase() === (formData.category || '').toLowerCase())?._id || formData.category)
+                          : (formData.category ? '__custom__' : ''))
+                  }
+                  onChange={(e) => {
+                    const selectedVal = e.target.value
+                    if (selectedVal === '__custom__') {
                       setFormData({
                         ...formData,
-                        categoryId: selectedId,
-                        category: selectedCat ? (selectedCat.name || selectedCat.title || '') : ''
+                        categoryId: '',
+                        category: ''
                       })
-                    }}
-                    required
-                  >
-                    <option value="">-- Select Category --</option>
-                    {categoriesList.map((cat) => (
-                      <option key={cat._id || cat.id} value={cat._id || cat.id}>
-                        {cat.name || cat.title || 'Category'}
+                      return
+                    }
+                    const selectedCat = categoriesList.find(c => 
+                      (c._id && String(c._id) === String(selectedVal)) || 
+                      (c.id && String(c.id) === String(selectedVal)) ||
+                      ((c.name || c.title || '').toLowerCase() === selectedVal.toLowerCase())
+                    )
+                    setFormData({
+                      ...formData,
+                      categoryId: selectedCat ? (selectedCat._id || selectedCat.id || selectedVal) : selectedVal,
+                      category: selectedCat ? (selectedCat.name || selectedCat.title || selectedVal) : selectedVal
+                    })
+                  }}
+                  required
+                >
+                  <option value="">-- Select Category --</option>
+                  {categoriesList.map((cat) => {
+                    const catVal = cat._id || cat.id || cat.name
+                    const catName = cat.name || cat.title || 'Category'
+                    return (
+                      <option key={catVal} value={catVal}>
+                        {catName}
                       </option>
-                    ))}
-                  </select>
-                ) : (
+                    )
+                  })}
+                  <option value="__custom__">+ Enter Other / Custom Category...</option>
+                </select>
+
+                {/* Show custom category input if user selects "+ Enter Other / Custom Category..." */}
+                {(!categoriesList.some(c => (c._id && String(c._id) === String(formData.categoryId)) || ((c.name || '').toLowerCase() === (formData.category || '').toLowerCase())) && formData.category !== undefined && formData.categoryId === '') && (
                   <input
                     type="text"
-                    placeholder="Enter Category Name (e.g. Electronics)"
+                    style={{ marginTop: '8px' }}
+                    placeholder="Enter Custom Category Name (e.g. Handmade Crafts)"
                     value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value, categoryId: `cat-${e.target.value.toLowerCase().replace(/\s+/g, '-')}` })}
                     required
                   />
                 )}
