@@ -26,7 +26,13 @@ function App() {
   }
 
   useEffect(() => {
-    document.title = 'e-commerce-superadmin'
+    document.title = 'ShopNow4U - Superadmin Dashboard'
+    const link = document.querySelector("link[rel*='icon']") || document.createElement('link')
+    link.type = 'image/png'
+    link.rel = 'shortcut icon'
+    link.href = '/favicon.png?v=2'
+    document.head.appendChild(link)
+
     const handleSessionExpired = () => {
       handleLogout()
     }

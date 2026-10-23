@@ -17,7 +17,8 @@ import {
   LogOut,
   Menu,
   UserRound,
-  LockKeyhole
+  LockKeyhole,
+  BookOpen
 } from 'lucide-react'
 import './admin.css'
 import Dashboard from './Dashboard'
@@ -35,7 +36,8 @@ import PermissionsManagement from './PermissionsManagement'
 import OffersCoupons from './OffersCoupons'
 import CommissionManagement from './CommissionManagement'
 import PaymentMonitoring from './PaymentMonitoring'
-import logoImg from '../assets/new logo.jpeg'
+import ShopnowShoppingGuide from './ShopnowShoppingGuide'
+import logoImg from '../assets/New logo1.jpeg'
 
 function AdminLayout({ onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard')
@@ -119,7 +121,8 @@ function AdminLayout({ onLogout }) {
     { name: 'Permissions Management', icon: Key }, // lowercase 'p' as in screenshot
     { name: 'Offers & Coupons', icon: Percent },
     { name: 'Commission Management', icon: Coins },
-    { name: 'Payment Monitoring', icon: CreditCard }
+    { name: 'Payment Monitoring', icon: CreditCard },
+    { name: 'Shopnow4u Shopping Guide', icon: BookOpen }
   ]
 
   const handleTabClick = (tabName) => {
@@ -156,6 +159,8 @@ function AdminLayout({ onLogout }) {
         return <CommissionManagement />
       case 'Payment Monitoring':
         return <PaymentMonitoring />
+      case 'Shopnow4u Shopping Guide':
+        return <ShopnowShoppingGuide />
       case 'Notifications':
         return <Notifications onBack={() => handleTabClick(prevTab && prevTab !== 'Notifications' ? prevTab : 'Dashboard')} />
       case 'Profile':

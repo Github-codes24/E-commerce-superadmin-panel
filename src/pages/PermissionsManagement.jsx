@@ -19,7 +19,8 @@ import {
   CreditCard,
   RotateCw,
   CheckSquare,
-  Square
+  Square,
+  BookOpen
 } from 'lucide-react'
 import { assignPermissions, getAllPermissions, getPermissionsByAdminId, updatePermissions, deletePermissions, checkModulePermission, getAllAdmins, deleteAdmin } from '../services/superAdminService'
 import './PermissionsManagement.css'
@@ -41,7 +42,8 @@ const ADMIN_MODULES = [
   'Permissions Management',
   'Offers & Coupons',
   'Commission Management',
-  'Payment Monitoring'
+  'Payment Monitoring',
+  'Shopnow4u Shopping Guide'
 ]
 
 const VENDOR_MODULES = [
@@ -78,6 +80,7 @@ const MODULE_CODE_MAP = {
   'Offers & Coupons': 'OFFERS_COUPONS',
   'Commission Management': 'COMMISSION_MANAGEMENT',
   'Payment Monitoring': 'PAYMENT_MONITORING',
+  'Shopnow4u Shopping Guide': 'SHOPPING_GUIDE',
   'Dashboard': 'DASHBOARD',
   'Reports': 'REPORTS',
   'Products': 'PRODUCTS',
@@ -99,6 +102,7 @@ const VALID_ACTIONS_MAP = {
   'Offers & Coupons': ['view', 'add', 'edit', 'delete'],
   'Commission Management': ['view', 'add', 'edit', 'delete'],
   'Payment Monitoring': ['view'],
+  'Shopnow4u Shopping Guide': ['view', 'add', 'edit', 'delete'],
   'Dashboard': ['view'],
   'Reports': ['view'],
   
@@ -127,7 +131,8 @@ const DEFAULT_PERMISSIONS = {
     'Permissions Management': { view: true, add: true, edit: true, delete: true, approve: false, reject: false, activate: false, deactivate: false },
     'Offers & Coupons': { view: true, add: true, edit: true, delete: true, approve: false, reject: false, activate: true, deactivate: true },
     'Commission Management': { view: true, add: true, edit: true, delete: true, approve: false, reject: false, activate: false, deactivate: false },
-    'Payment Monitoring': { view: true, add: false, edit: false, delete: false, approve: false, reject: false, activate: false, deactivate: false }
+    'Payment Monitoring': { view: true, add: false, edit: false, delete: false, approve: false, reject: false, activate: false, deactivate: false },
+    'Shopnow4u Shopping Guide': { view: true, add: true, edit: true, delete: true, approve: false, reject: false, activate: false, deactivate: false }
   },
   Vendor: {
     'Dashboard': { view: true, add: false, edit: false, delete: false, approve: false, reject: false, activate: false, deactivate: false },
@@ -685,6 +690,7 @@ function PermissionsManagement() {
     if (mod === 'Offers & Coupons') return <Percent className="module-icon" size={18} />
     if (mod === 'Commission Management') return <DollarSign className="module-icon" size={18} />
     if (mod === 'Payment Monitoring') return <CreditCard className="module-icon" size={18} />
+    if (mod === 'Shopnow4u Shopping Guide') return <BookOpen className="module-icon" size={18} />
     return <Shield className="module-icon" size={18} />
   }
 

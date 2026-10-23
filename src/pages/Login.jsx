@@ -7,7 +7,7 @@ import forgotArt from '../assets/Forgot password-pana 1.png'
 import otpArt from '../assets/EnterOPT.png'
 import resetArt from '../assets/aut-reset.png'
 import successArt from '../assets/Success.png'
-import newLogo from '../assets/new logo.jpeg'
+import newLogo from '../assets/New logo1.jpeg'
 
 const pageData = {
   login: {
