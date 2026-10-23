@@ -101,9 +101,61 @@ Explore the available products at Shopnow4u.com.`,
   tags: ['Shopping Tips', 'Online Shopping', 'Smart Shopping', 'Shopnow4u', 'Buying Guide']
 }
 
+// Blog 2: How to Shop Safely Online
+export const BLOG_2 = {
+  id: 'blog-2',
+  title: 'How to Shop Safely Online: A Customer Guide',
+  slug: 'how-to-shop-safely-online-a-customer-guide',
+  category: 'Online Safety',
+  author: 'Shopnow4u Team',
+  authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150&h=150',
+  coverImage: blog2Img,
+  readTime: '3 min read',
+  publishedDate: '2026-10-23',
+  status: 'Published',
+  featured: true,
+  views: 2840,
+  excerpt: 'Online shopping is convenient, but protecting your personal information is essential. A few basic precautions can help you reduce the risk of fraud and unauthorized account access.',
+  content: `Introduction
+
+Online shopping is convenient, but protecting your personal information is essential. A few basic precautions can help you reduce the risk of fraud and unauthorized account access.
+
+Verify the Website
+
+Always check the website address before entering personal information or making a payment. Avoid unfamiliar links sent through suspicious messages.
+
+Protect Your OTP
+
+OTPs are used to verify your identity during login or other transactions. Never share an OTP with another person, even if they claim to represent customer support.
+
+Use Secure Payment Methods
+
+Use the payment options provided through the website's official checkout process. Never share your banking password or confidential payment credentials through messages or calls.
+
+Check Order Details
+
+Review the product, quantity, delivery address, and payable amount before confirming your order.
+
+Avoid Suspicious Offers
+
+Be cautious of messages promising unrealistic discounts or asking you to pay through unknown links.
+
+Keep Your Account Secure
+
+Log out when using a shared device and report suspicious account activity through the official support channel.
+
+Conclusion
+
+Safe online shopping depends on awareness, careful verification, and responsible handling of personal information. Make security a priority whenever you shop online.
+
+Visit Shopnow4u.com to explore the website.`,
+  tags: ['Online Safety', 'Account Security', 'Safe Shopping', 'Shopnow4u', 'Customer Guide']
+}
+
 // Default Shopping Guides Library for Shopnow4u
 export const DEFAULT_SHOPPING_GUIDES = [
   BLOG_1,
+  BLOG_2,
   {
     id: 'guide-1',
     title: 'The Ultimate Smartphone Buying Guide 2026: Budget to Flagship',
@@ -111,7 +163,7 @@ export const DEFAULT_SHOPPING_GUIDES = [
     category: 'Electronics & Gadgets',
     author: 'Shopnow4u Tech Desk',
     authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150&h=150',
-    coverImage: blog2Img,
+    coverImage: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=800&h=500',
     readTime: '6 min read',
     publishedDate: '2026-10-20',
     status: 'Published',
@@ -227,6 +279,7 @@ All featured appliances come with brand warranty and official technician install
 const CATEGORIES_LIST = [
   'All Categories',
   'Shopping Tips',
+  'Online Safety',
   'Electronics & Gadgets',
   'Fashion & Style',
   'Smart Shopping Tips',
@@ -237,7 +290,7 @@ const CATEGORIES_LIST = [
 ]
 
 export default function ShopnowShoppingGuide() {
-  // 1. Guides State with localStorage persistence and automatic BLOG_1 injection
+  // 1. Guides State with localStorage persistence and automatic BLOG_1 & BLOG_2 injection
   const [guides, setGuides] = useState(() => {
     try {
       const stored = localStorage.getItem('shopnow4u_shopping_guides')
@@ -245,14 +298,30 @@ export default function ShopnowShoppingGuide() {
         let parsed = JSON.parse(stored)
         if (Array.isArray(parsed) && parsed.length > 0) {
           // Check if BLOG_1 is already present or needs updating with Blog 1.jpeg
-          const existsIndex = parsed.findIndex(
+          const b1Index = parsed.findIndex(
             g => g.id === 'blog-1' || g.title?.includes('10 Smart Tips for a Better Online Shopping Experience')
           )
-          if (existsIndex === -1) {
+          if (b1Index === -1) {
             parsed = [BLOG_1, ...parsed]
           } else {
-            parsed[existsIndex] = { ...parsed[existsIndex], ...BLOG_1, coverImage: blog1Img }
+            parsed[b1Index] = { ...parsed[b1Index], ...BLOG_1, coverImage: blog1Img }
           }
+
+          // Check if BLOG_2 is already present or needs updating with Blog 2.jpeg
+          const b2Index = parsed.findIndex(
+            g => g.id === 'blog-2' || g.title?.includes('How to Shop Safely Online')
+          )
+          if (b2Index === -1) {
+            const currentB1Idx = parsed.findIndex(g => g.id === 'blog-1')
+            if (currentB1Idx !== -1) {
+              parsed.splice(currentB1Idx + 1, 0, BLOG_2)
+            } else {
+              parsed.unshift(BLOG_2)
+            }
+          } else {
+            parsed[b2Index] = { ...parsed[b2Index], ...BLOG_2, coverImage: blog2Img }
+          }
+
           return parsed
         }
       }

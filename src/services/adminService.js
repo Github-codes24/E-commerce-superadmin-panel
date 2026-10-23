@@ -705,12 +705,34 @@ export const getOrdersByVendor = async (vendorId, params = {}) => {
 };
 
 // Create Offer / Coupon (POST /api/super-admin/offers-coupons/create)
-export const createOfferCoupon = async ({ type = 'OFFER', title, discount, status = true, ...extra }) => {
+export const createOfferCoupon = async (data = {}) => {
+  const { type = 'OFFER', title, discount, status = 'Active', ...extra } = data;
+  
+  let finalStatus = status;
+  if (finalStatus === undefined || finalStatus === null) {
+    finalStatus = 'Active';
+  } else if (typeof finalStatus === 'boolean') {
+    finalStatus = finalStatus ? 'Active' : 'Inactive';
+  }
+
+  const itemTitle = (title || extra.offerName || extra.name || extra.code || '').trim();
+  const discountNum = typeof discount === 'string' ? parseFloat(discount.replace(/[^0-9.]/g, '')) || 0 : Number(discount || 0);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const defaultEndStr = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
   const payload = {
     type: type ? type.toUpperCase() : 'OFFER',
-    title: (title || '').trim(),
-    discount: typeof discount === 'string' ? parseFloat(discount.replace(/[^0-9.]/g, '')) || 0 : Number(discount),
-    status: typeof status === 'boolean' ? status : (status === 'Active' || status === 'ACTIVE' || status === true),
+    title: itemTitle,
+    offerName: (extra.offerName || itemTitle).trim(),
+    name: (extra.name || itemTitle).trim(),
+    code: (extra.code || itemTitle).trim(),
+    discount: discountNum,
+    value: extra.value || (discountNum > 0 ? `${discountNum}% off` : 'Special Offer'),
+    location: extra.location || 'Home',
+    description: extra.description || (itemTitle ? `${itemTitle} special offer` : 'Special promotional offer'),
+    startDate: extra.startDate || todayStr,
+    endDate: extra.endDate || defaultEndStr,
+    status: finalStatus,
     ...extra,
   };
   const response = await api.post('/super-admin/offers-coupons/create', payload);
@@ -744,12 +766,28 @@ export const getOfferById = (id) => getOfferCouponById(id, 'OFFER');
 export const getCouponById = (id) => getOfferCouponById(id, 'COUPON');
 
 // Update Offer / Coupon (PUT /api/super-admin/offers-coupons/update/:id)
-export const updateOfferCoupon = async (id, { type = 'OFFER', title, discount, status = true, ...extra }) => {
+export const updateOfferCoupon = async (id, data = {}) => {
+  const { type = 'OFFER', title, discount, status, ...extra } = data;
+  
+  let finalStatus = status;
+  if (finalStatus !== undefined && typeof finalStatus === 'boolean') {
+    finalStatus = finalStatus ? 'Active' : 'Inactive';
+  }
+
+  const itemTitle = (title || extra.offerName || extra.name || extra.code || '').trim();
+  const discountNum = typeof discount === 'string' ? parseFloat(discount.replace(/[^0-9.]/g, '')) || 0 : Number(discount || 0);
+
   const payload = {
     type: type ? type.toUpperCase() : 'OFFER',
-    title: (title || '').trim(),
-    discount: typeof discount === 'string' ? parseFloat(discount.replace(/[^0-9.]/g, '')) || 0 : Number(discount),
-    status: typeof status === 'boolean' ? status : (status === 'Active' || status === 'ACTIVE' || status === true),
+    title: itemTitle,
+    offerName: (extra.offerName || itemTitle).trim(),
+    name: (extra.name || itemTitle).trim(),
+    code: (extra.code || itemTitle).trim(),
+    discount: discountNum,
+    value: extra.value || (discountNum > 0 ? `${discountNum}% off` : 'Special Offer'),
+    location: extra.location || 'Home',
+    description: extra.description || (itemTitle ? `${itemTitle} special offer` : 'Special promotional offer'),
+    ...(finalStatus ? { status: finalStatus } : {}),
     ...extra,
   };
   const response = await api.put(`/super-admin/offers-coupons/update/${id}`, payload);

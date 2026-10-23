@@ -53,7 +53,7 @@ const INITIAL_OFFERS = [
     startDate: '2026-05-11',
     endDate: '2026-05-25',
     description: 'Rockerz headphone upto 35% OFF',
-    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=600&h=200',
+    image: '',
   },
   {
     id: 3,
@@ -322,9 +322,15 @@ function ViewOfferDetail({ offer, loading, onToggleStatus, onBack }) {
       <div className="offer-detail-main-layout">
         {/* Left Column */}
         <div className="offer-detail-left-col">
-          <div className="detail-banner-card">
-            <img src={offer.image} alt={offer.name} className="detail-banner-img" />
-          </div>
+          {offer.image ? (
+            <div className="detail-banner-card">
+              <img src={offer.image} alt={offer.name} className="detail-banner-img" />
+            </div>
+          ) : (
+            <div className="detail-banner-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80px', background: '#f8fafc', border: '1px dashed #cfd8dc', color: '#90a4ae', fontSize: '13px', borderRadius: '8px' }}>
+              <span>No image uploaded</span>
+            </div>
+          )}
 
           <div className="detail-info-card">
             <h3>Offer Details</h3>
@@ -611,6 +617,9 @@ function OffersCoupons() {
               name: detail.title || detail.name || prev?.name,
               value: detail.discount !== undefined ? `${detail.discount}% off` : prev?.value,
               discount: detail.discount !== undefined ? detail.discount : prev?.discount,
+              image: (detail.image && !detail.image.includes('photo-1505740420928-5e560c06d30e'))
+                ? detail.image
+                : (detail.banner || detail.offerImage || (prev?.image && !prev.image.includes('photo-1505740420928-5e560c06d30e') ? prev.image : '')),
               status: typeof detail.status === 'boolean' ? (detail.status ? 'Active' : 'Inactive') : (detail.status || prev?.status),
             }))
           } else {
@@ -698,7 +707,9 @@ function OffersCoupons() {
             startDate: item.startDate || '-',
             endDate: item.endDate || '-',
             description: item.description || (item.title || item.name || ''),
-            image: item.image || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=600&h=200',
+            image: (item.image && !item.image.includes('photo-1505740420928-5e560c06d30e'))
+              ? item.image
+              : (item.banner || item.offerImage || ''),
             raw: item,
           }
         })
@@ -798,15 +809,18 @@ function OffersCoupons() {
   // Open Add modal
   const handleOpenAdd = () => {
     setFormError(null)
+    const todayStr = new Date().toISOString().split('T')[0]
+    const nextMonthStr = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     setFormData({
       type: activeTab === 'Offers' ? 'OFFER' : 'COUPON',
       title: '',
       name: '',
+      offerName: '',
       value: '',
       location: 'Home',
       tags: '',
-      startDate: '',
-      endDate: '',
+      startDate: todayStr,
+      endDate: nextMonthStr,
       description: '',
       image: '',
       code: '',
@@ -819,18 +833,21 @@ function OffersCoupons() {
   // Open Edit modal
   const handleOpenEdit = (item, type) => {
     setFormError(null)
+    const todayStr = new Date().toISOString().split('T')[0]
+    const nextMonthStr = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     if (type === 'offer') {
       setEditingOffer(item)
       setFormData({
         type: 'OFFER',
-        title: item.name || '',
-        name: item.name || '',
+        title: item.name || item.title || '',
+        name: item.name || item.title || '',
+        offerName: item.offerName || item.name || item.title || '',
         value: item.value || '',
         discount: item.discount !== undefined ? item.discount : (item.value ? item.value.replace(/[^0-9.]/g, '') : ''),
         location: item.location || 'Home',
         tags: item.tags || '',
-        startDate: item.startDate || '',
-        endDate: item.endDate || '',
+        startDate: item.startDate && item.startDate !== '-' ? item.startDate : todayStr,
+        endDate: item.endDate && item.endDate !== '-' ? item.endDate : nextMonthStr,
         description: item.description || '',
         image: item.image || '',
         status: item.status || 'Active',
@@ -839,12 +856,14 @@ function OffersCoupons() {
       setEditingCoupon(item)
       setFormData({
         type: 'COUPON',
-        title: item.code || '',
-        code: item.code || '',
+        title: item.code || item.title || '',
+        code: item.code || item.title || '',
+        offerName: item.code || item.title || '',
         discount: item.discount !== undefined ? (typeof item.discount === 'string' ? item.discount.replace(/[^0-9.]/g, '') : item.discount) : '',
         location: item.location || 'Home',
-        startDate: item.startDate === '-' ? '' : item.startDate,
-        endDate: item.endDate === '-' ? '' : item.endDate,
+        startDate: item.startDate && item.startDate !== '-' ? item.startDate : todayStr,
+        endDate: item.endDate && item.endDate !== '-' ? item.endDate : nextMonthStr,
+        description: item.description || '',
         status: item.status || 'Active',
       })
     }
@@ -858,7 +877,7 @@ function OffersCoupons() {
 
     const isOffer = activeTab === 'Offers'
     const type = isOffer ? 'OFFER' : 'COUPON'
-    const itemTitle = (isOffer ? (formData.title || formData.name) : (formData.title || formData.code) || '').trim()
+    const itemTitle = (isOffer ? (formData.title || formData.name || formData.offerName) : (formData.title || formData.code) || '').trim()
 
     if (!itemTitle) {
       setFormError(`Please enter a ${isOffer ? 'Offer Title / Name' : 'Coupon Code / Title'}`)
@@ -871,16 +890,34 @@ function OffersCoupons() {
       : (formData.value ? formData.value.replace(/[^0-9.]/g, '') : '0')
     const discountNum = parseFloat(rawDiscount) || 0
 
-    const isStatusActive = formData.status === 'Active' || formData.status === true || formData.status === 'ACTIVE'
+    const todayStr = new Date().toISOString().split('T')[0]
+    const nextMonthStr = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const startDate = formData.startDate && formData.startDate !== '-' ? formData.startDate : todayStr
+    const endDate = formData.endDate && formData.endDate !== '-' ? formData.endDate : nextMonthStr
+    const location = formData.location || 'Home'
+    const statusVal = formData.status || 'Active'
+    const valueStr = formData.value ? formData.value : (discountNum > 0 ? `${discountNum}% off` : `${itemTitle} Offer`)
+    const descriptionStr = formData.description && formData.description.trim() ? formData.description.trim() : `${itemTitle} - ${valueStr}`
 
     try {
-      const response = await createOfferCoupon({
+      const payload = {
         type,
         title: itemTitle,
+        offerName: itemTitle,
+        name: itemTitle,
+        code: itemTitle,
         discount: discountNum,
-        status: isStatusActive,
-      })
+        value: valueStr,
+        location,
+        description: descriptionStr,
+        startDate,
+        endDate,
+        status: statusVal,
+        tags: formData.tags || '',
+        image: formData.image || '',
+      }
 
+      const response = await createOfferCoupon(payload)
       const dataObj = response?.data || response
 
       if (isOffer) {
@@ -888,17 +925,17 @@ function OffersCoupons() {
           id: dataObj?._id || dataObj?.id || Date.now(),
           _id: dataObj?._id,
           srNo: 1,
-          name: dataObj?.title || itemTitle,
+          name: dataObj?.offerName || dataObj?.title || itemTitle,
           subtitle: formData.subtitle || 'Promo',
-          value: `${dataObj?.discount ?? discountNum}% off`,
+          value: dataObj?.value || valueStr,
           discount: dataObj?.discount ?? discountNum,
-          status: dataObj?.status !== undefined ? (dataObj.status ? 'Active' : 'Inactive') : (formData.status || 'Active'),
-          location: formData.location || 'Home',
+          status: dataObj?.status || statusVal,
+          location: dataObj?.location || location,
           tags: formData.tags || '',
-          startDate: formData.startDate || '',
-          endDate: formData.endDate || '',
-          description: formData.description || `${dataObj?.title || itemTitle} - ${dataObj?.discount ?? discountNum}% off`,
-          image: formData.image || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=600&h=200',
+          startDate,
+          endDate,
+          description: dataObj?.description || descriptionStr,
+          image: formData.image || '',
         }
         setOffersList((prev) => [newOffer, ...prev.map((o, idx) => ({ ...o, srNo: idx + 2 }))])
       } else {
@@ -906,13 +943,13 @@ function OffersCoupons() {
           id: dataObj?._id || dataObj?.id || Date.now(),
           _id: dataObj?._id,
           srNo: 1,
-          code: dataObj?.title || itemTitle,
+          code: dataObj?.code || dataObj?.title || itemTitle,
           title: dataObj?.title || itemTitle,
           discount: `${dataObj?.discount ?? discountNum}%`,
-          location: formData.location || 'Home',
-          startDate: formData.startDate || '-',
-          endDate: formData.endDate || '-',
-          status: dataObj?.status !== undefined ? (dataObj.status ? 'Active' : 'Inactive') : (formData.status || 'Active'),
+          location: dataObj?.location || location,
+          startDate,
+          endDate,
+          status: dataObj?.status || statusVal,
         }
         setCouponsList((prev) => [newCoupon, ...prev.map((c, idx) => ({ ...c, srNo: idx + 2 }))])
       }
@@ -940,7 +977,7 @@ function OffersCoupons() {
     const currentItem = isOffer ? editingOffer : editingCoupon
     const itemId = currentItem?._id || currentItem?.id
     const type = isOffer ? 'OFFER' : 'COUPON'
-    const itemTitle = (isOffer ? (formData.title || formData.name) : (formData.title || formData.code) || '').trim()
+    const itemTitle = (isOffer ? (formData.title || formData.name || formData.offerName) : (formData.title || formData.code) || '').trim()
 
     if (!itemTitle) {
       setFormError(`Please enter a ${isOffer ? 'Offer Title / Name' : 'Coupon Code / Title'}`)
@@ -953,16 +990,34 @@ function OffersCoupons() {
       : (formData.value ? formData.value.replace(/[^0-9.]/g, '') : '0')
     const discountNum = parseFloat(rawDiscount) || 0
 
-    const isStatusActive = formData.status === 'Active' || formData.status === true || formData.status === 'ACTIVE'
+    const todayStr = new Date().toISOString().split('T')[0]
+    const nextMonthStr = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const startDate = formData.startDate && formData.startDate !== '-' ? formData.startDate : todayStr
+    const endDate = formData.endDate && formData.endDate !== '-' ? formData.endDate : nextMonthStr
+    const location = formData.location || 'Home'
+    const statusVal = formData.status || 'Active'
+    const valueStr = formData.value ? formData.value : (discountNum > 0 ? `${discountNum}% off` : `${itemTitle} Offer`)
+    const descriptionStr = formData.description && formData.description.trim() ? formData.description.trim() : `${itemTitle} - ${valueStr}`
 
     try {
-      const response = await updateOfferCoupon(itemId, {
+      const payload = {
         type,
         title: itemTitle,
+        offerName: itemTitle,
+        name: itemTitle,
+        code: itemTitle,
         discount: discountNum,
-        status: isStatusActive,
-      })
+        value: valueStr,
+        location,
+        description: descriptionStr,
+        startDate,
+        endDate,
+        status: statusVal,
+        tags: formData.tags || '',
+        image: formData.image || '',
+      }
 
+      const response = await updateOfferCoupon(itemId, payload)
       const dataObj = response?.data || response
 
       if (isOffer) {
@@ -971,16 +1026,16 @@ function OffersCoupons() {
             (o._id === itemId || o.id === itemId)
               ? {
                   ...o,
-                  name: dataObj?.title || itemTitle,
-                  value: `${dataObj?.discount ?? discountNum}% off`,
+                  name: dataObj?.offerName || dataObj?.title || itemTitle,
+                  value: dataObj?.value || valueStr,
                   discount: dataObj?.discount ?? discountNum,
-                  location: formData.location || o.location,
+                  location: dataObj?.location || location,
                   tags: formData.tags !== undefined ? formData.tags : o.tags,
-                  startDate: formData.startDate || o.startDate,
-                  endDate: formData.endDate || o.endDate,
-                  description: formData.description || o.description,
-                  image: formData.image || o.image,
-                  status: dataObj?.status !== undefined ? (dataObj.status ? 'Active' : 'Inactive') : (formData.status || o.status),
+                  startDate,
+                  endDate,
+                  description: dataObj?.description || descriptionStr,
+                  image: formData.image !== undefined ? formData.image : (o.image || ''),
+                  status: dataObj?.status || statusVal,
                 }
               : o
           )
@@ -992,13 +1047,13 @@ function OffersCoupons() {
             (c._id === itemId || c.id === itemId)
               ? {
                   ...c,
-                  code: dataObj?.title || itemTitle,
+                  code: dataObj?.code || dataObj?.title || itemTitle,
                   title: dataObj?.title || itemTitle,
                   discount: `${dataObj?.discount ?? discountNum}%`,
-                  location: formData.location || c.location,
-                  startDate: formData.startDate || c.startDate,
-                  endDate: formData.endDate || c.endDate,
-                  status: dataObj?.status !== undefined ? (dataObj.status ? 'Active' : 'Inactive') : (formData.status || c.status),
+                  location: dataObj?.location || location,
+                  startDate,
+                  endDate,
+                  status: dataObj?.status || statusVal,
                 }
               : c
           )
@@ -1346,7 +1401,13 @@ function OffersCoupons() {
                     <tr key={o.id}>
                       <td style={{ fontWeight: '500' }}>{o.srNo}</td>
                       <td>
-                        <img src={o.image} alt={o.name} className="table-offer-banner-img" />
+                        {o.image ? (
+                          <img src={o.image} alt={o.name} className="table-offer-banner-img" />
+                        ) : (
+                          <div className="table-offer-banner-empty" title="No image uploaded">
+                            <span>No image</span>
+                          </div>
+                        )}
                       </td>
                       <td style={{ fontWeight: '600' }}>{o.name}</td>
                       <td style={{ fontWeight: '500' }}>{o.value}</td>
@@ -1616,6 +1677,16 @@ function OffersCoupons() {
                   </div>
 
                   <div className="offer-modal-field">
+                    <label>Description</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Special offer on selected products"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="offer-modal-field">
                     <input
                       type="file"
                       ref={fileInputRef}
@@ -1639,6 +1710,31 @@ function OffersCoupons() {
                         </>
                       )}
                     </div>
+                    {formData.image && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setFormData((prev) => ({ ...prev, image: '' }))
+                          if (fileInputRef.current) fileInputRef.current.value = ''
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#e53935',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          marginTop: '6px',
+                          fontWeight: 500,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <Trash2 style={{ width: '13px', height: '13px' }} />
+                        <span>Remove image (keep blank)</span>
+                      </button>
+                    )}
                   </div>
 
                   <div className="offer-modal-field">
@@ -1724,24 +1820,26 @@ function OffersCoupons() {
               {/* Start Date & End Date Row (Used by both) */}
               <div className="offer-modal-form-row">
                 <div className="offer-modal-field flex-1">
-                  <label>Start Date</label>
+                  <label>Start Date *</label>
                   <div className="date-input-wrapper">
                     <input
                       type="date"
                       value={formData.startDate}
                       onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                      required
                     />
                     <Calendar className="date-calendar-icon" />
                   </div>
                 </div>
 
                 <div className="offer-modal-field flex-1">
-                  <label>End Date</label>
+                  <label>End Date *</label>
                   <div className="date-input-wrapper">
                     <input
                       type="date"
                       value={formData.endDate}
                       onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                      required
                     />
                     <Calendar className="date-calendar-icon" />
                   </div>
