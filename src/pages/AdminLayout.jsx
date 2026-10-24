@@ -37,7 +37,8 @@ import OffersCoupons from './OffersCoupons'
 import CommissionManagement from './CommissionManagement'
 import PaymentMonitoring from './PaymentMonitoring'
 import ShopnowShoppingGuide from './ShopnowShoppingGuide'
-import logoImg from '../assets/New logo1.jpeg'
+import logoImg from '../assets/Updated logo.png'
+import logoIcon from '../assets/Updated logo icon.png'
 
 function AdminLayout({ onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard')
@@ -209,7 +210,7 @@ function AdminLayout({ onLogout }) {
       {/* Left Sidebar */}
       <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-logo-container">
-          <img src={logoImg} alt="Logo" className="sidebar-logo-image" />
+          <img src={isSidebarCollapsed ? logoIcon : logoImg} alt="Logo" className="sidebar-logo-image" />
         </div>
         <ul className="sidebar-menu">
           {menuItems.map((item) => {

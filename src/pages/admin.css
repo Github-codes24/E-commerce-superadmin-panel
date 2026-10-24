@@ -233,8 +233,8 @@ html, body {
 }
 
 .sidebar.collapsed .sidebar-logo-image {
-  max-width: 56px;
-  max-height: 32px;
+  max-width: 44px;
+  max-height: 40px;
 }
 
 .sidebar-toggle-btn {

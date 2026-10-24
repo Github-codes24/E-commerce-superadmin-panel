@@ -55,6 +55,7 @@ export const BLOG_1 = {
   coverImage: blog1Img,
   readTime: '4 min read',
   publishedDate: '2026-10-23',
+  createdAt: 1729677600000,
   status: 'Published',
   featured: true,
   views: 3120,
@@ -112,6 +113,7 @@ export const BLOG_2 = {
   coverImage: blog2Img,
   readTime: '3 min read',
   publishedDate: '2026-10-23',
+  createdAt: 1729692000000,
   status: 'Published',
   featured: true,
   views: 2840,
@@ -152,10 +154,165 @@ Visit Shopnow4u.com to explore the website.`,
   tags: ['Online Safety', 'Account Security', 'Safe Shopping', 'Shopnow4u', 'Customer Guide']
 }
 
-// Default Shopping Guides Library for Shopnow4u
+// Blog 3: How to Choose the Right Product When Shopping Online
+export const BLOG_3 = {
+  id: 'blog-3',
+  title: 'How to Choose the Right Product When Shopping Online',
+  slug: 'how-to-choose-the-right-product-when-shopping-online',
+  category: 'Product Guides',
+  author: 'Shopnow4u Team',
+  authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150&h=150',
+  coverImage: blog3Img,
+  readTime: '3 min read',
+  publishedDate: '2026-10-24',
+  createdAt: 1729764300000,
+  status: 'Published',
+  featured: true,
+  views: 2650,
+  excerpt: 'With so many products available online, choosing the right one can sometimes feel confusing. Comparing important details before purchasing helps you select products that match your needs.',
+  content: `Introduction
+
+With so many products available online, choosing the right one can sometimes feel confusing. Comparing important details before purchasing helps you select products that match your needs.
+
+Understand Your Requirements
+
+Start by identifying the purpose of the product and the features you need.
+
+Compare Specifications
+
+Check dimensions, materials, compatibility, size, colour, and other relevant specifications depending on the product category.
+
+Set a Budget
+
+Decide how much you want to spend and compare products within your budget.
+
+Read Available Reviews
+
+If customer reviews are available, read them to understand other buyers' experiences. Consider both positive and negative feedback.
+
+Check Delivery and Return Conditions
+
+Review delivery information and the applicable return or replacement policy before placing an order.
+
+Review Before Purchasing
+
+Make sure the selected product and variant match your requirements.
+
+Conclusion
+
+A little research before purchasing can help you make more confident decisions. Focus on your needs, compare relevant features, and review the product information carefully.
+
+Browse the available product categories on Shopnow4u.com.`,
+  tags: ['Product Guides', 'Smart Shopping', 'Shopnow4u', 'Buying Guide', 'Product Comparison']
+}
+
+// Blog 4: Understanding Online Orders, Delivery and Returns
+export const BLOG_4 = {
+  id: 'blog-4',
+  title: 'A Simple Guide to Online Orders, Delivery and Returns',
+  slug: 'a-simple-guide-to-online-orders-delivery-and-returns',
+  category: 'Orders & Delivery',
+  author: 'Shopnow4u Team',
+  authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150&h=150',
+  coverImage: blog4Img,
+  readTime: '4 min read',
+  publishedDate: '2026-10-24',
+  createdAt: 1729764600000,
+  status: 'Published',
+  featured: true,
+  views: 2430,
+  excerpt: 'Understanding the online ordering process helps customers know what to expect after making a purchase. From checkout to delivery, each step plays an important role in a smooth shopping experience.',
+  content: `Introduction
+
+Understanding the online ordering process helps customers know what to expect after making a purchase. From checkout to delivery, each step plays an important role in a smooth shopping experience.
+
+Step 1: Select Your Product
+
+Choose the product you want and review its description, price, and available options.
+
+Step 2: Complete Checkout
+
+Enter your delivery information, review the order total, and select an available payment method.
+
+Step 3: Save Your Order Details
+
+Keep the order confirmation and order ID for future reference.
+
+Step 4: Check the Order Status
+
+Use the website's order tracking facility if available. Delivery updates may depend on the order status and logistics provider.
+
+Step 5: Contact Support if Needed
+
+If your order is delayed or you receive an incorrect or damaged product, contact the official customer support team and provide the relevant order details.
+
+Step 6: Review the Return Policy
+
+Before requesting a return or refund, check the product's eligibility, applicable deadlines, and required procedure.
+
+Conclusion
+
+Knowing the ordering and return process helps you manage purchases more effectively. Always keep your order details and review the applicable policies when you need assistance.`,
+  tags: ['Orders & Delivery', 'Order Tracking', 'Delivery Guide', 'Returns & Refunds', 'Shopnow4u']
+}
+
+// Blog 5: Why Product Information Matters Before Buying
+export const BLOG_5 = {
+  id: 'blog-5',
+  title: 'Why You Should Always Read Product Details Before Buying',
+  slug: 'why-you-should-always-read-product-details-before-buying',
+  category: 'Shopping Guide',
+  author: 'Shopnow4u Team',
+  authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150&h=150',
+  coverImage: blog5Img,
+  readTime: '3 min read',
+  publishedDate: '2026-10-24',
+  createdAt: 1729764840000,
+  status: 'Published',
+  featured: true,
+  views: 2180,
+  excerpt: 'When shopping online, customers cannot always inspect a product physically before purchasing it. This makes product descriptions and specifications especially important.',
+  content: `Introduction
+
+When shopping online, customers cannot always inspect a product physically before purchasing it. This makes product descriptions and specifications especially important.
+
+Understand the Product's Features
+
+Read the description to learn about its functionality, materials, dimensions, and intended use.
+
+Check Size and Compatibility
+
+For clothing, furniture, electronics, and accessories, check the relevant size charts or compatibility details where available.
+
+Review Images Carefully
+
+Product images can help you understand appearance and design, but always refer to the written description for exact specifications.
+
+Check What Is Included
+
+Review whether accessories, batteries, installation services, or other items are included, where relevant.
+
+Understand the Applicable Policies
+
+Check warranty information, delivery conditions, and return eligibility where provided.
+
+Make an Informed Decision
+
+Compare the available information with your requirements before completing the purchase.
+
+Conclusion
+
+Reading product details helps set realistic expectations and reduces the chances of choosing an unsuitable item. Take a few moments to review the information before placing an order.`,
+  tags: ['Shopping Guide', 'Product Details', 'Smart Buying', 'Online Shopping', 'Shopnow4u']
+}
+
+// Default Shopping Guides Library for Shopnow4u (ordered newest-first)
 export const DEFAULT_SHOPPING_GUIDES = [
-  BLOG_1,
+  BLOG_5,
+  BLOG_4,
+  BLOG_3,
   BLOG_2,
+  BLOG_1,
   {
     id: 'guide-1',
     title: 'The Ultimate Smartphone Buying Guide 2026: Budget to Flagship',
@@ -188,7 +345,7 @@ Browse verified vendors on Shopnow4u with genuine warranties and express doorste
     category: 'Fashion & Style',
     author: 'Priya Sharma (Fashion Stylist)',
     authorAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150',
-    coverImage: blog3Img,
+    coverImage: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=80&w=800&h=500',
     readTime: '4 min read',
     publishedDate: '2026-10-18',
     status: 'Published',
@@ -212,7 +369,7 @@ Explore the curated festive collection today with special coupon discounts!`,
     category: 'Smart Shopping Tips',
     author: 'Shopnow4u Savings Team',
     authorAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150&h=150',
-    coverImage: blog4Img,
+    coverImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&q=80&w=800&h=500',
     readTime: '5 min read',
     publishedDate: '2026-10-15',
     status: 'Published',
@@ -235,7 +392,7 @@ Explore the curated festive collection today with special coupon discounts!`,
     category: 'Home & Living',
     author: 'Amit Verma',
     authorAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150&h=150',
-    coverImage: blog5Img,
+    coverImage: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&q=80&w=800&h=500',
     readTime: '7 min read',
     publishedDate: '2026-10-12',
     status: 'Published',
@@ -278,8 +435,11 @@ All featured appliances come with brand warranty and official technician install
 
 const CATEGORIES_LIST = [
   'All Categories',
+  'Shopping Guide',
   'Shopping Tips',
   'Online Safety',
+  'Product Guides',
+  'Orders & Delivery',
   'Electronics & Gadgets',
   'Fashion & Style',
   'Smart Shopping Tips',
@@ -289,8 +449,16 @@ const CATEGORIES_LIST = [
   'Gift Guides'
 ]
 
+// Helper to calculate exact chronological timestamp so latest blogs are always on top
+export const getGuideTimestamp = (item) => {
+  if (item?.createdAt) return Number(item.createdAt)
+  const parsed = new Date(item?.publishedDate || 0).getTime()
+  const numId = parseInt(String(item?.id || '').replace(/\D/g, '') || '0', 10)
+  return (isNaN(parsed) ? 0 : parsed) + numId
+}
+
 export default function ShopnowShoppingGuide() {
-  // 1. Guides State with localStorage persistence and automatic BLOG_1 & BLOG_2 injection
+  // 1. Guides State with localStorage persistence and automatic BLOG_1, BLOG_2, BLOG_3, BLOG_4 & BLOG_5 injection
   const [guides, setGuides] = useState(() => {
     try {
       const stored = localStorage.getItem('shopnow4u_shopping_guides')
@@ -321,6 +489,96 @@ export default function ShopnowShoppingGuide() {
           } else {
             parsed[b2Index] = { ...parsed[b2Index], ...BLOG_2, coverImage: blog2Img }
           }
+
+          // Check if BLOG_3 is already present or needs updating with Blog 3.jpeg
+          const b3Index = parsed.findIndex(
+            g => g.id === 'blog-3' || g.title?.includes('How to Choose the Right Product')
+          )
+          if (b3Index === -1) {
+            const currentB2Idx = parsed.findIndex(g => g.id === 'blog-2')
+            if (currentB2Idx !== -1) {
+              parsed.splice(currentB2Idx + 1, 0, BLOG_3)
+            } else {
+              const currentB1Idx = parsed.findIndex(g => g.id === 'blog-1')
+              if (currentB1Idx !== -1) {
+                parsed.splice(currentB1Idx + 1, 0, BLOG_3)
+              } else {
+                parsed.unshift(BLOG_3)
+              }
+            }
+          } else {
+            parsed[b3Index] = { ...parsed[b3Index], ...BLOG_3, coverImage: blog3Img }
+          }
+
+          // Check if BLOG_4 is already present or needs updating with Blog 4.jpeg
+          const b4Index = parsed.findIndex(
+            g => g.id === 'blog-4' || g.title?.includes('A Simple Guide to Online Orders, Delivery and Returns')
+          )
+          if (b4Index === -1) {
+            const currentB3Idx = parsed.findIndex(g => g.id === 'blog-3')
+            if (currentB3Idx !== -1) {
+              parsed.splice(currentB3Idx + 1, 0, BLOG_4)
+            } else {
+              const currentB2Idx = parsed.findIndex(g => g.id === 'blog-2')
+              if (currentB2Idx !== -1) {
+                parsed.splice(currentB2Idx + 1, 0, BLOG_4)
+              } else {
+                parsed.unshift(BLOG_4)
+              }
+            }
+          } else {
+            parsed[b4Index] = { ...parsed[b4Index], ...BLOG_4, coverImage: blog4Img }
+          }
+
+          // Check if BLOG_5 is already present or needs updating with Blog 5.jpeg
+          const b5Index = parsed.findIndex(
+            g => g.id === 'blog-5' || g.title?.includes('Why You Should Always Read Product Details Before Buying')
+          )
+          if (b5Index === -1) {
+            const currentB4Idx = parsed.findIndex(g => g.id === 'blog-4')
+            if (currentB4Idx !== -1) {
+              parsed.splice(currentB4Idx + 1, 0, BLOG_5)
+            } else {
+              const currentB3Idx = parsed.findIndex(g => g.id === 'blog-3')
+              if (currentB3Idx !== -1) {
+                parsed.splice(currentB3Idx + 1, 0, BLOG_5)
+              } else {
+                parsed.unshift(BLOG_5)
+              }
+            }
+          } else {
+            parsed[b5Index] = { ...parsed[b5Index], ...BLOG_5, coverImage: blog5Img }
+          }
+
+          // Ensure guide-2 has its distinct cover image so it doesn't conflict with Blog 3
+          const g2Index = parsed.findIndex(g => g.id === 'guide-2')
+          if (g2Index !== -1 && parsed[g2Index].coverImage === blog3Img) {
+            parsed[g2Index] = {
+              ...parsed[g2Index],
+              coverImage: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=80&w=800&h=500'
+            }
+          }
+
+          // Ensure guide-3 has its distinct cover image so it doesn't conflict with Blog 4
+          const g3Index = parsed.findIndex(g => g.id === 'guide-3')
+          if (g3Index !== -1 && parsed[g3Index].coverImage === blog4Img) {
+            parsed[g3Index] = {
+              ...parsed[g3Index],
+              coverImage: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&q=80&w=800&h=500'
+            }
+          }
+
+          // Ensure guide-4 has its distinct cover image so it doesn't conflict with Blog 5
+          const g4Index = parsed.findIndex(g => g.id === 'guide-4')
+          if (g4Index !== -1 && parsed[g4Index].coverImage === blog5Img) {
+            parsed[g4Index] = {
+              ...parsed[g4Index],
+              coverImage: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&q=80&w=800&h=500'
+            }
+          }
+
+          // Sort loaded guides newest first so the latest uploaded blog is always at the top
+          parsed.sort((a, b) => getGuideTimestamp(b) - getGuideTimestamp(a))
 
           return parsed
         }
@@ -493,9 +751,11 @@ export default function ShopnowShoppingGuide() {
       )
       triggerToast('Shopping Guide updated successfully!', 'success')
     } else {
-      // Create new
+      // Create new with current timestamp
+      const now = Date.now()
       const newGuide = {
-        id: `guide-${Date.now()}`,
+        id: `guide-${now}`,
+        createdAt: now,
         title: formTitle.trim(),
         slug: slugStr,
         category: formCategory,
@@ -576,10 +836,10 @@ export default function ShopnowShoppingGuide() {
       return matchesSearch && matchesCategory && matchesStatus
     }).sort((a, b) => {
       if (sortBy === 'newest') {
-        return new Date(b.publishedDate || 0) - new Date(a.publishedDate || 0)
+        return getGuideTimestamp(b) - getGuideTimestamp(a)
       }
       if (sortBy === 'oldest') {
-        return new Date(a.publishedDate || 0) - new Date(b.publishedDate || 0)
+        return getGuideTimestamp(a) - getGuideTimestamp(b)
       }
       if (sortBy === 'views') {
         return (b.views || 0) - (a.views || 0)

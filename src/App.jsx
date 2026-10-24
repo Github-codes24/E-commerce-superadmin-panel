@@ -30,7 +30,7 @@ function App() {
     const link = document.querySelector("link[rel*='icon']") || document.createElement('link')
     link.type = 'image/png'
     link.rel = 'shortcut icon'
-    link.href = '/favicon.png?v=2'
+    link.href = '/favicon.png?v=3'
     document.head.appendChild(link)
 
     const handleSessionExpired = () => {
