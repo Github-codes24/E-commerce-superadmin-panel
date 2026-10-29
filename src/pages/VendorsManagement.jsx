@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power } from 'lucide-react'
+import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power, Briefcase } from 'lucide-react'
 import { getAllVendors, getVendorById, createVendor, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor } from '../services/superAdminService'
 import './VendorsManagement.css'
 
@@ -235,7 +235,7 @@ const DEFAULT_VENDORS = [
   { id: 6, name: 'Home Needs', shopName: 'Home Shop', category: 'Groceries', products: 5, orders: 8, joinedOn: '10 Jan 2026', approval: 'pending', status: 'inactive', checked: false, email: 'home@shop.com', phone: '+91 9876543206', dob: '25/06/1994', gender: 'Female', bizType: 'Retail', gst: '22FFFFF0000F1Z6', pan: 'FGHIJ6789K', address: 'Residential Sector B', revenue: '₹8,000' },
 ]
 
-function VendorsManagement() {
+function VendorsManagement({ onNavigateToPlans }) {
   // Vendors List Data (initialized with stored custom vendors)
   const [vendorsList, setVendorsList] = useState(() => {
     const stored = getStoredCustomVendors()
@@ -1918,6 +1918,18 @@ function VendorsManagement() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {onNavigateToPlans && (
+            <button 
+              type="button" 
+              className="vendor-refresh-btn"
+              style={{ backgroundColor: '#f1f8e9', borderColor: '#c8e6c9', color: '#2e7d32' }}
+              onClick={onNavigateToPlans}
+              title="Manage Business Plans"
+            >
+              <Briefcase style={{ width: '15px', height: '15px' }} />
+              <span>Business Plans</span>
+            </button>
+          )}
           <button 
             type="button" 
             className="vendor-refresh-btn"

@@ -171,6 +171,209 @@ Endpoints for listing, updating, verifying, and checking vendor accounts.
 
 ---
 
+## 5b. Vendor Business Plans
+Endpoints for creating and managing vendor business/subscription tiers and commission plans.
+
+* **POST** `http://localhost:5000/api/super-admin/vendor-business-plans`
+  * *Description:* Creates a new vendor business plan.
+  * *Authentication:* Bearer Token
+  * *Authorization:* Super Admin
+  * *Request Body:*
+    ```json
+    {
+      "planKey": "PREMIUM",
+      "name": "Premium Annual Plan",
+      "billingCycle": "YEARLY",
+      "price": 3999,
+      "currency": "INR",
+      "durationDays": 365,
+      "registrationCharges": 35,
+      "commissionPercent": 5,
+      "payoutCycleDays": 5,
+      "deliveryDiscountPercent": 45,
+      "adsCredit": 0,
+      "premiumBadge": false,
+      "analyticsDashboard": true,
+      "unlimitedListings": true,
+      "priorityPlacement": true,
+      "dedicatedAccountManager": false,
+      "vendorSupport": "24x7 vendor support",
+      "features": [
+        "Unlimited listings",
+        "Low 5% commission",
+        "Advanced analytics dashboard",
+        "5-day payout cycle",
+        "24x7 vendor support",
+        "45% off delivery charges",
+        "Priority product placement"
+      ],
+      "isActive": true
+    }
+    ```
+* **GET** `http://localhost:5000/api/super-admin/vendor-business-plans`
+  * *Description:* Retrieves all vendor business plans with pagination and filtering.
+  * *Response (200 OK):*
+    ```json
+    {
+      "success": true,
+      "message": "Vendor business plans fetched successfully.",
+      "data": [
+        {
+          "_id": "6adf717761a7bc89ec6ade40",
+          "planKey": "PREMIUM",
+          "name": "Premium Annual Plan",
+          "billingCycle": "YEARLY",
+          "price": 3999,
+          "currency": "INR",
+          "durationDays": 365,
+          "registrationCharges": 35,
+          "commissionPercent": 5,
+          "payoutCycleDays": 5,
+          "deliveryDiscountPercent": 45,
+          "adsCredit": 0,
+          "premiumBadge": false,
+          "analyticsDashboard": true,
+          "unlimitedListings": true,
+          "priorityPlacement": true,
+          "dedicatedAccountManager": false,
+          "vendorSupport": "24x7 vendor support",
+          "description": "",
+          "features": [
+            "Unlimited listings",
+            "Low 5% commission",
+            "Advanced analytics dashboard",
+            "5-day payout cycle",
+            "24x7 vendor support",
+            "45% off delivery charges",
+            "Priority product placement"
+          ],
+          "isActive": true,
+          "createdBy": "6a9bc94b22a6736b2f9eb9db",
+          "updatedBy": "6a9bc94b22a6736b2f9eb9db",
+          "createdAt": "2026-10-26T15:27:51.279Z",
+          "updatedAt": "2026-10-26T15:27:51.279Z"
+        }
+      ],
+      "pagination": {
+        "total": 2,
+        "page": 1,
+        "limit": 10,
+        "totalPages": 1
+      }
+    }
+    ```
+* **GET** `http://localhost:5000/api/super-admin/vendor-business-plans/:id`
+  * *Description:* Retrieves a single vendor business plan by ID.
+* **PUT** `http://localhost:5000/api/super-admin/vendor-business-plans/:id`
+  * *Description:* Updates a vendor business plan details (e.g. price, registrationCharges, or any other plan properties).
+  * *Authentication:* Bearer Token
+  * *Authorization:* Super Admin
+  * *Request Body:*
+    ```json
+    {
+      "price": 599,
+      "registrationCharges": 50
+    }
+    ```
+  * *Response (200 OK):*
+    ```json
+    {
+      "success": true,
+      "message": "Vendor business plan updated successfully.",
+      "data": {
+        "_id": "6adf707c61a7bc89ec6ade3b",
+        "planKey": "PREMIUM",
+        "name": "Premium Plan",
+        "billingCycle": "MONTHLY",
+        "price": 599,
+        "currency": "INR",
+        "durationDays": 30,
+        "registrationCharges": 50,
+        "commissionPercent": 5,
+        "payoutCycleDays": 5,
+        "deliveryDiscountPercent": 45,
+        "adsCredit": 0,
+        "premiumBadge": false,
+        "analyticsDashboard": true,
+        "unlimitedListings": true,
+        "priorityPlacement": true,
+        "dedicatedAccountManager": false,
+        "vendorSupport": "24x7 vendor support",
+        "description": "For professional vendors looking to grow sales.",
+        "features": [
+          "Unlimited listings",
+          "Low 5% commission",
+          "Advanced analytics dashboard",
+          "5-day payout cycle",
+          "24x7 vendor support",
+          "45% off delivery charges",
+          "Priority product placement"
+        ],
+        "isActive": true,
+        "createdBy": "6a9bc94b22a6736b2f9eb9db",
+        "updatedBy": "6a9bc94b22a6736b2f9eb9db",
+        "createdAt": "2026-10-26T15:23:40.721Z",
+        "updatedAt": "2026-10-26T15:40:13.211Z"
+      }
+    }
+    ```
+* **DELETE** `http://localhost:5000/api/super-admin/vendor-business-plans/:id`
+  * *Description:* Deletes a vendor business plan.
+* **PATCH** `http://localhost:5000/api/super-admin/vendor-business-plans/:id/status`
+  * *Description:* Updates/toggles active status of a vendor business plan.
+  * *Authentication:* Bearer Token
+  * *Authorization:* Super Admin
+  * *Request Body:*
+    ```json
+    {
+      "isActive": false
+    }
+    ```
+  * *Response (200 OK):*
+    ```json
+    {
+      "success": true,
+      "message": "Vendor business plan deactivated successfully.",
+      "data": {
+        "_id": "6adf707c61a7bc89ec6ade3b",
+        "planKey": "PREMIUM",
+        "name": "Premium Plan",
+        "billingCycle": "MONTHLY",
+        "price": 599,
+        "currency": "INR",
+        "durationDays": 30,
+        "registrationCharges": 50,
+        "commissionPercent": 5,
+        "payoutCycleDays": 5,
+        "deliveryDiscountPercent": 45,
+        "adsCredit": 0,
+        "premiumBadge": false,
+        "analyticsDashboard": true,
+        "unlimitedListings": true,
+        "priorityPlacement": true,
+        "dedicatedAccountManager": false,
+        "vendorSupport": "24x7 vendor support",
+        "description": "For professional vendors looking to grow sales.",
+        "features": [
+          "Unlimited listings",
+          "Low 5% commission",
+          "Advanced analytics dashboard",
+          "5-day payout cycle",
+          "24x7 vendor support",
+          "45% off delivery charges",
+          "Priority product placement"
+        ],
+        "isActive": false,
+        "createdBy": "6a9bc94b22a6736b2f9eb9db",
+        "updatedBy": "6a9bc94b22a6736b2f9eb9db",
+        "createdAt": "2026-10-26T15:23:40.721Z",
+        "updatedAt": "2026-10-26T15:49:30.983Z"
+      }
+    }
+    ```
+
+---
+
 ## 6. Customers Management
 Endpoints for checking, blocking, and managing customer accounts.
 

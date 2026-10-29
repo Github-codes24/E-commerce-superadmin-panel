@@ -18,7 +18,8 @@ import {
   Menu,
   UserRound,
   LockKeyhole,
-  BookOpen
+  BookOpen,
+  Briefcase
 } from 'lucide-react'
 import './admin.css'
 import Dashboard from './Dashboard'
@@ -28,6 +29,7 @@ import ChangePassword from './ChangePassword'
 import Reports from './Reports'
 import AdminsManagement from './AdminsManagement'
 import VendorsManagement from './VendorsManagement'
+import BusinessPlansManagement from './BusinessPlansManagement'
 import CustomersManagement from './CustomersManagement'
 import ProductManagement from './ProductManagement'
 import CategoryManagement from './CategoryManagement'
@@ -115,6 +117,7 @@ function AdminLayout({ onLogout }) {
     { name: 'Reports', icon: BarChart3 },
     { name: 'Admins Management', icon: UserCheck },
     { name: 'Vendors Management', icon: Store },
+    { name: 'Vendor Business Plans', icon: Briefcase },
     { name: 'Customers Management', icon: Users },
     { name: 'Product Management', icon: Package },
     { name: 'Category Management', icon: Layers },
@@ -143,7 +146,10 @@ function AdminLayout({ onLogout }) {
       case 'Admins Management':
         return <AdminsManagement />
       case 'Vendors Management':
-        return <VendorsManagement />
+        return <VendorsManagement onNavigateToPlans={() => handleTabClick('Vendor Business Plans')} />
+      case 'Vendor Business Plans':
+      case 'Business Plans':
+        return <BusinessPlansManagement onNavigate={handleTabClick} />
       case 'Customers Management':
         return <CustomersManagement />
       case 'Product Management':

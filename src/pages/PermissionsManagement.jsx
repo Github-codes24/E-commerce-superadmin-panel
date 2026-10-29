@@ -20,7 +20,8 @@ import {
   RotateCw,
   CheckSquare,
   Square,
-  BookOpen
+  BookOpen,
+  Briefcase
 } from 'lucide-react'
 import { assignPermissions, getAllPermissions, getPermissionsByAdminId, updatePermissions, deletePermissions, checkModulePermission, getAllAdmins, deleteAdmin } from '../services/superAdminService'
 import './PermissionsManagement.css'
@@ -35,6 +36,7 @@ const ADMIN_MODULES = [
   'Reports',
   'Admins Management',
   'Vendors Management',
+  'Vendor Business Plans',
   'Customers Management',
   'Product Management',
   'Category Management',
@@ -71,6 +73,7 @@ export const ALLOWED_BACKEND_ACTIONS = [
 
 const MODULE_CODE_MAP = {
   'Vendors Management': 'VENDOR_MANAGEMENT',
+  'Vendor Business Plans': 'VENDOR_BUSINESS_PLANS',
   'Customers Management': 'CUSTOMER_MANAGEMENT',
   'Orders Management': 'ORDER_MANAGEMENT',
   'Product Management': 'PRODUCT_MANAGEMENT',
@@ -91,6 +94,7 @@ const MODULE_CODE_MAP = {
 const VALID_ACTIONS_MAP = {
   // Backend Supported Core Modules
   'Vendors Management': ['view', 'add', 'edit', 'delete'],
+  'Vendor Business Plans': ['view', 'add', 'edit', 'delete'],
   'Customers Management': ['view', 'add', 'edit', 'delete'],
   'Product Management': ['view', 'add', 'edit', 'delete'],
   'Orders Management': ['view', 'edit', 'cancel_order', 'change_order_status'],
@@ -124,6 +128,7 @@ const DEFAULT_PERMISSIONS = {
     'Reports': { view: true, add: false, edit: false, delete: false, approve: false, reject: false, activate: false, deactivate: false },
     'Admins Management': { view: true, add: true, edit: true, delete: true, approve: false, reject: false, activate: true, deactivate: true },
     'Vendors Management': { view: true, add: true, edit: true, delete: true, approve: true, reject: true, activate: true, deactivate: true },
+    'Vendor Business Plans': { view: true, add: true, edit: true, delete: true, approve: false, reject: false, activate: true, deactivate: true },
     'Customers Management': { view: true, add: true, edit: true, delete: true, approve: false, reject: false, activate: true, deactivate: true },
     'Product Management': { view: true, add: true, edit: true, delete: true, approve: false, reject: false, activate: true, deactivate: true },
     'Category Management': { view: true, add: true, edit: true, delete: true, approve: false, reject: false, activate: false, deactivate: false },
@@ -682,6 +687,7 @@ function PermissionsManagement() {
     if (mod === 'Reports') return <BarChart2 className="module-icon" size={18} />
     if (mod === 'Admins Management') return <Users className="module-icon" size={18} />
     if (mod === 'Vendors Management') return <Shield className="module-icon" size={18} />
+    if (mod === 'Vendor Business Plans') return <Briefcase className="module-icon" size={18} />
     if (mod === 'Customers Management') return <User className="module-icon" size={18} />
     if (mod === 'Product Management') return <Package className="module-icon" size={18} />
     if (mod === 'Category Management') return <FolderTree className="module-icon" size={18} />

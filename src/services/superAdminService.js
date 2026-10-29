@@ -881,6 +881,169 @@ export const getOrdersReport = async (params = {}) => {
 
 export const getOrderReports = getOrdersReport;
 
+// 65. Create Vendor Business Plan (POST /api/super-admin/vendor-business-plans)
+export const createVendorBusinessPlan = async (data = {}) => {
+  const payload = {
+    planKey: (data.planKey || 'PREMIUM').trim().toUpperCase(),
+    name: (data.name || '').trim(),
+    billingCycle: (data.billingCycle || 'YEARLY').trim().toUpperCase(),
+    price: Number(data.price) || 0,
+    currency: data.currency || 'INR',
+    durationDays: Number(data.durationDays) || 365,
+    registrationCharges: Number(data.registrationCharges) || 0,
+    commissionPercent: Number(data.commissionPercent) || 0,
+    payoutCycleDays: Number(data.payoutCycleDays) || 5,
+    deliveryDiscountPercent: Number(data.deliveryDiscountPercent) || 0,
+    adsCredit: Number(data.adsCredit) || 0,
+    premiumBadge: Boolean(data.premiumBadge),
+    analyticsDashboard: Boolean(data.analyticsDashboard),
+    unlimitedListings: Boolean(data.unlimitedListings),
+    priorityPlacement: Boolean(data.priorityPlacement),
+    dedicatedAccountManager: Boolean(data.dedicatedAccountManager),
+    vendorSupport: (data.vendorSupport || '24x7 vendor support').trim(),
+    description: (data.description || '').trim(),
+    features: Array.isArray(data.features) ? data.features.filter(Boolean) : [],
+    isActive: data.isActive !== undefined ? Boolean(data.isActive) : true,
+  };
+
+  try {
+    const response = await api.post('/super-admin/vendor-business-plans', payload);
+    return response.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      try {
+        const fb1 = await api.post('/superadmin/vendor-business-plans', payload);
+        return fb1.data;
+      } catch {
+        const fb2 = await api.post('/vendor-business-plans', payload);
+        return fb2.data;
+      }
+    }
+    throw err;
+  }
+};
+
+// 66. Get All Vendor Business Plans (GET /api/super-admin/vendor-business-plans)
+export const getAllVendorBusinessPlans = async (params = {}) => {
+  try {
+    const response = await api.get('/super-admin/vendor-business-plans', { params });
+    return response.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      try {
+        const fb1 = await api.get('/superadmin/vendor-business-plans', { params });
+        return fb1.data;
+      } catch {
+        const fb2 = await api.get('/vendor-business-plans', { params });
+        return fb2.data;
+      }
+    }
+    throw err;
+  }
+};
+
+// 67. Get Vendor Business Plan By ID (GET /api/super-admin/vendor-business-plans/:id)
+export const getVendorBusinessPlanById = async (id) => {
+  try {
+    const response = await api.get(`/super-admin/vendor-business-plans/${id}`);
+    return response.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      const fb = await api.get(`/superadmin/vendor-business-plans/${id}`);
+      return fb.data;
+    }
+    throw err;
+  }
+};
+
+// 68. Update Vendor Business Plan (PUT /api/super-admin/vendor-business-plans/:id)
+export const updateVendorBusinessPlan = async (id, data = {}) => {
+  const cleanId = (id || '').toString().trim();
+  const payload = { ...data };
+
+  if (data.planKey !== undefined) payload.planKey = data.planKey.trim().toUpperCase();
+  if (data.name !== undefined) payload.name = data.name.trim();
+  if (data.billingCycle !== undefined) payload.billingCycle = data.billingCycle.trim().toUpperCase();
+  if (data.price !== undefined) payload.price = Number(data.price);
+  if (data.currency !== undefined) payload.currency = data.currency;
+  if (data.durationDays !== undefined) payload.durationDays = Number(data.durationDays);
+  if (data.registrationCharges !== undefined) payload.registrationCharges = Number(data.registrationCharges);
+  if (data.commissionPercent !== undefined) payload.commissionPercent = Number(data.commissionPercent);
+  if (data.payoutCycleDays !== undefined) payload.payoutCycleDays = Number(data.payoutCycleDays);
+  if (data.deliveryDiscountPercent !== undefined) payload.deliveryDiscountPercent = Number(data.deliveryDiscountPercent);
+  if (data.adsCredit !== undefined) payload.adsCredit = Number(data.adsCredit);
+  if (data.premiumBadge !== undefined) payload.premiumBadge = Boolean(data.premiumBadge);
+  if (data.analyticsDashboard !== undefined) payload.analyticsDashboard = Boolean(data.analyticsDashboard);
+  if (data.unlimitedListings !== undefined) payload.unlimitedListings = Boolean(data.unlimitedListings);
+  if (data.priorityPlacement !== undefined) payload.priorityPlacement = Boolean(data.priorityPlacement);
+  if (data.dedicatedAccountManager !== undefined) payload.dedicatedAccountManager = Boolean(data.dedicatedAccountManager);
+  if (data.vendorSupport !== undefined) payload.vendorSupport = data.vendorSupport.trim();
+  if (data.description !== undefined) payload.description = data.description.trim();
+  if (data.features !== undefined) payload.features = Array.isArray(data.features) ? data.features.filter(Boolean) : [];
+  if (data.isActive !== undefined) payload.isActive = Boolean(data.isActive);
+
+  try {
+    const response = await api.put(`/super-admin/vendor-business-plans/${cleanId}`, payload);
+    return response.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      try {
+        const fb1 = await api.put(`/superadmin/vendor-business-plans/${cleanId}`, payload);
+        return fb1.data;
+      } catch {
+        const fb2 = await api.patch(`/super-admin/vendor-business-plans/${cleanId}`, payload);
+        return fb2.data;
+      }
+    }
+    throw err;
+  }
+};
+
+// 69. Delete Vendor Business Plan (DELETE /api/super-admin/vendor-business-plans/:id)
+export const deleteVendorBusinessPlan = async (id) => {
+  try {
+    const response = await api.delete(`/super-admin/vendor-business-plans/${id}`);
+    return response.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      const fb = await api.delete(`/superadmin/vendor-business-plans/${id}`);
+      return fb.data;
+    }
+    throw err;
+  }
+};
+
+// 70. Update Vendor Business Plan Status (PATCH /api/super-admin/vendor-business-plans/:id/status)
+export const updateVendorBusinessPlanStatus = async (id, isActive) => {
+  const cleanId = (id || '').toString().trim();
+  const payload = { isActive: Boolean(isActive) };
+
+  try {
+    const response = await api.patch(`/super-admin/vendor-business-plans/${cleanId}/status`, payload);
+    return response.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      try {
+        const fb1 = await api.patch(`/superadmin/vendor-business-plans/${cleanId}/status`, payload);
+        return fb1.data;
+      } catch {
+        const fb2 = await api.put(`/super-admin/vendor-business-plans/${cleanId}`, payload);
+        return fb2.data;
+      }
+    }
+    throw err;
+  }
+};
+
+// Business Plans Aliases
+export const createBusinessPlan = createVendorBusinessPlan;
+export const getAllBusinessPlans = getAllVendorBusinessPlans;
+export const getBusinessPlans = getAllVendorBusinessPlans;
+export const getBusinessPlanById = getVendorBusinessPlanById;
+export const updateBusinessPlan = updateVendorBusinessPlan;
+export const deleteBusinessPlan = deleteVendorBusinessPlan;
+export const updateBusinessPlanStatus = updateVendorBusinessPlanStatus;
+
 export default {
   createSuperAdmin,
   loginSuperAdmin,
@@ -969,6 +1132,19 @@ export default {
   getProductReports,
   getOrdersReport,
   getOrderReports,
+  createVendorBusinessPlan,
+  getAllVendorBusinessPlans,
+  getVendorBusinessPlanById,
+  updateVendorBusinessPlan,
+  deleteVendorBusinessPlan,
+  updateVendorBusinessPlanStatus,
+  createBusinessPlan,
+  getAllBusinessPlans,
+  getBusinessPlans,
+  getBusinessPlanById,
+  updateBusinessPlan,
+  deleteBusinessPlan,
+  updateBusinessPlanStatus,
 };
 
 
