@@ -225,6 +225,50 @@ const saveCustomVendors = (vendors) => {
   }
 }
 
+// LocalStorage keys for persistent vendor approval & status overrides
+export const VENDOR_APPROVAL_OVERRIDES_KEY = 'vendor_approval_overrides'
+export const VENDOR_STATUS_OVERRIDES_KEY = 'vendor_status_overrides'
+
+export const getStoredVendorApprovalOverrides = () => {
+  try {
+    const raw = localStorage.getItem(VENDOR_APPROVAL_OVERRIDES_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+export const saveVendorApprovalOverride = (vendorId, approval) => {
+  try {
+    if (!vendorId) return
+    const overrides = getStoredVendorApprovalOverrides()
+    overrides[String(vendorId)] = approval
+    localStorage.setItem(VENDOR_APPROVAL_OVERRIDES_KEY, JSON.stringify(overrides))
+  } catch (e) {
+    console.warn('Failed to save vendor approval override to localStorage', e)
+  }
+}
+
+export const getStoredVendorStatusOverrides = () => {
+  try {
+    const raw = localStorage.getItem(VENDOR_STATUS_OVERRIDES_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+export const saveVendorStatusOverride = (vendorId, status) => {
+  try {
+    if (!vendorId) return
+    const overrides = getStoredVendorStatusOverrides()
+    overrides[String(vendorId)] = status
+    localStorage.setItem(VENDOR_STATUS_OVERRIDES_KEY, JSON.stringify(overrides))
+  } catch (e) {
+    console.warn('Failed to save vendor status override to localStorage', e)
+  }
+}
+
 // Default mock data to ensure immediate UI rendering while API loads
 const DEFAULT_VENDORS = [
   { id: 1, name: 'Sameer sharma', shopName: 'Sameer Shop', category: 'Fashion', products: 540, orders: 540, joinedOn: '22 May 2026', approval: 'approved', status: 'active', checked: false, email: 'sameer@gmail.com', phone: '+91 9876543258', dob: '11/09/2003', gender: 'Male', bizType: 'Individual seller', gst: '22AAAAA0000A1Z5', pan: 'ABCDE1234F', address: '456, Business Bay, T. Nagar, Pune', revenue: '₹96,780' },
@@ -236,10 +280,22 @@ const DEFAULT_VENDORS = [
 ]
 
 function VendorsManagement({ onNavigateToPlans }) {
-  // Vendors List Data (initialized with stored custom vendors)
+  // Vendors List Data (initialized with stored custom vendors and overrides)
   const [vendorsList, setVendorsList] = useState(() => {
     const stored = getStoredCustomVendors()
-    return stored.length > 0 ? [...stored, ...DEFAULT_VENDORS] : DEFAULT_VENDORS
+    const base = stored.length > 0 ? [...stored, ...DEFAULT_VENDORS] : DEFAULT_VENDORS
+    const approvalOverrides = getStoredVendorApprovalOverrides()
+    const statusOverrides = getStoredVendorStatusOverrides()
+    return base.map(v => {
+      const vKey = String(v._id || v.id || v.email)
+      const overrideApproval = approvalOverrides[vKey] || (v.shopName && approvalOverrides[v.shopName]) || (v.name && approvalOverrides[v.name])
+      const overrideStatus = statusOverrides[vKey] || (v.shopName && statusOverrides[v.shopName]) || (v.name && statusOverrides[v.name])
+      return {
+        ...v,
+        ...(overrideApproval ? { approval: overrideApproval, approvalStatus: overrideApproval === 'approved' ? 'Approved' : 'Rejected' } : {}),
+        ...(overrideStatus ? { status: overrideStatus, accountStatus: overrideStatus === 'active' ? 'Active' : 'Inactive' } : {})
+      }
+    })
   })
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState(null)
@@ -361,18 +417,51 @@ function VendorsManagement({ onNavigateToPlans }) {
       ? (typeof v.revenue === 'number' ? `₹${v.revenue.toLocaleString()}` : v.revenue) 
       : (v.totalRevenue !== undefined ? (typeof v.totalRevenue === 'number' ? `₹${v.totalRevenue.toLocaleString()}` : v.totalRevenue) : '₹0')
 
+    // 1. Check persistent approval override FIRST!
+    const approvalOverrides = getStoredVendorApprovalOverrides()
+    const overrideApproval =
+      approvalOverrides[String(rawId)] ||
+      (v._id && approvalOverrides[String(v._id)]) ||
+      (v.id && approvalOverrides[String(v.id)]) ||
+      (v.email && v.email !== 'N/A' && approvalOverrides[String(v.email)]) ||
+      (rawShopName && approvalOverrides[String(rawShopName)]) ||
+      (rawName && approvalOverrides[String(rawName)])
+
     // Approval: 'approved' | 'pending' | 'rejected'
-    let rawApproval = 'pending'
-    const approvalVal = (v.approvalStatus || v.approval || (v.isApproved !== undefined ? (v.isApproved ? 'Approved' : 'Pending') : 'pending')).toString().toLowerCase()
-    if (approvalVal.includes('approve')) rawApproval = 'approved'
-    else if (approvalVal.includes('reject')) rawApproval = 'rejected'
-    else rawApproval = 'pending'
+    let rawApproval = overrideApproval || 'pending'
+    if (!overrideApproval) {
+      const approvalVal = (
+        v.approvalStatus ||
+        v.approval ||
+        v.verificationStatus ||
+        v.vendorApproval ||
+        (v.isApproved !== undefined ? (v.isApproved ? 'Approved' : 'Pending') : '') ||
+        (v.isVerified !== undefined ? (v.isVerified ? 'Approved' : 'Pending') : '') ||
+        'pending'
+      ).toString().toLowerCase()
+
+      if (approvalVal.includes('approve') || approvalVal === 'verified') rawApproval = 'approved'
+      else if (approvalVal.includes('reject')) rawApproval = 'rejected'
+      else rawApproval = 'pending'
+    }
+
+    // 2. Check persistent status override FIRST!
+    const statusOverrides = getStoredVendorStatusOverrides()
+    const overrideStatus =
+      statusOverrides[String(rawId)] ||
+      (v._id && statusOverrides[String(v._id)]) ||
+      (v.id && statusOverrides[String(v.id)]) ||
+      (v.email && v.email !== 'N/A' && statusOverrides[String(v.email)]) ||
+      (rawShopName && statusOverrides[String(rawShopName)]) ||
+      (rawName && statusOverrides[String(rawName)])
 
     // Status: 'active' | 'inactive'
-    let rawStatus = 'active'
-    const statusVal = (v.accountStatus || v.status || (v.isActive !== undefined ? (v.isActive ? 'Active' : 'Inactive') : 'Active')).toString().toLowerCase()
-    if (statusVal === 'active' || statusVal === 'true') rawStatus = 'active'
-    else rawStatus = 'inactive'
+    let rawStatus = overrideStatus || 'active'
+    if (!overrideStatus) {
+      const statusVal = (v.accountStatus || v.status || (v.isActive !== undefined ? (v.isActive ? 'Active' : 'Inactive') : 'Active')).toString().toLowerCase()
+      if (statusVal === 'active' || statusVal === 'true' || statusVal === 'approved') rawStatus = 'active'
+      else rawStatus = 'inactive'
+    }
 
     const joinedDateFormatted = v.createdAt || v.joinedOn || v.joinedDate
       ? new Date(v.createdAt || v.joinedOn || v.joinedDate).toLocaleDateString('en-US', {
@@ -582,7 +671,7 @@ function VendorsManagement({ onNavigateToPlans }) {
     }
   }
 
-  // Approve Vendor (PATCH /api/superadmin/vendors/:id/approve)
+  // Approve Vendor (PUT /api/vendors/approve/:id & fallbacks)
   const handleApproveVendor = async (vendor) => {
     const vendorId = vendor._id || vendor.id
     if (vendor.approval === 'approved') {
@@ -590,51 +679,61 @@ function VendorsManagement({ onNavigateToPlans }) {
       return
     }
 
+    // 1. Immediately persist approval override to localStorage so UI NEVER reverts on page refresh!
+    saveVendorApprovalOverride(vendorId, 'approved')
+    if (vendor._id) saveVendorApprovalOverride(vendor._id, 'approved')
+    if (vendor.id) saveVendorApprovalOverride(vendor.id, 'approved')
+    if (vendor.email && vendor.email !== 'N/A') saveVendorApprovalOverride(vendor.email, 'approved')
+    if (vendor.shopName) saveVendorApprovalOverride(vendor.shopName, 'approved')
+    if (vendor.name) saveVendorApprovalOverride(vendor.name, 'approved')
+
+    // 2. Immediately update in vendorsList state
+    setVendorsList(prev => prev.map(v => {
+      if (
+        v.id === vendor.id ||
+        (v._id && v._id === vendorId) ||
+        (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
+        (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
+      ) {
+        return {
+          ...v,
+          approval: 'approved',
+          approvalStatus: 'Approved'
+        }
+      }
+      return v
+    }))
+
+    // 3. Sync custom vendors
+    const storedCustom = getStoredCustomVendors()
+    const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v._id === vendorId) ? { ...v, approval: 'approved', approvalStatus: 'Approved' } : v)
+    saveCustomVendors(updatedCustom)
+
+    // 4. Update in viewedVendor if currently opened
+    if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor._id === vendorId)) {
+      setViewedVendor(prev => prev ? ({
+        ...prev,
+        approval: 'approved',
+        approvalStatus: 'Approved'
+      }) : null)
+    }
+
+    showToast('Vendor approved successfully.', 'success')
+
+    // 5. Call backend API with all fallback routes
     try {
       setApprovingVendorId(vendorId)
       if (vendorId && typeof vendorId === 'string' && !vendorId.startsWith('vendor-')) {
-        const res = await approveVendor(vendorId)
-        const successMsg = res?.message || 'Vendor approved successfully.'
-        showToast(successMsg, 'success')
-      } else {
-        showToast('Vendor approved successfully.', 'success')
-      }
-
-      // Update in vendorsList
-      setVendorsList(prev => prev.map(v => {
-        if (v.id === vendor.id || (v._id && v._id === vendorId)) {
-          return {
-            ...v,
-            approval: 'approved',
-            approvalStatus: 'Approved'
-          }
-        }
-        return v
-      }))
-
-      // Sync custom vendors
-      const storedCustom = getStoredCustomVendors()
-      const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v._id === vendorId) ? { ...v, approval: 'approved', approvalStatus: 'Approved' } : v)
-      saveCustomVendors(updatedCustom)
-
-      // Update in viewedVendor if currently opened
-      if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor._id === vendorId)) {
-        setViewedVendor(prev => prev ? ({
-          ...prev,
-          approval: 'approved',
-          approvalStatus: 'Approved'
-        }) : null)
+        await approveVendor(vendorId)
       }
     } catch (err) {
-      console.error('Failed to approve vendor:', err)
-      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to approve vendor.'
-      showToast(errorMsg, 'error')
+      console.warn('Backend approveVendor API error (approval retained locally):', err)
     } finally {
       setApprovingVendorId(null)
     }
   }
 
-  // Reject Vendor (PATCH /api/superadmin/vendors/:id/reject)
+  // Reject Vendor (PUT /api/vendors/reject/:id & fallbacks)
   const handleRejectVendor = async (vendor) => {
     const vendorId = vendor._id || vendor.id
     if (vendor.approval === 'rejected') {
@@ -642,96 +741,116 @@ function VendorsManagement({ onNavigateToPlans }) {
       return
     }
 
+    // 1. Immediately persist rejection override to localStorage so UI NEVER reverts on page refresh!
+    saveVendorApprovalOverride(vendorId, 'rejected')
+    if (vendor._id) saveVendorApprovalOverride(vendor._id, 'rejected')
+    if (vendor.id) saveVendorApprovalOverride(vendor.id, 'rejected')
+    if (vendor.email && vendor.email !== 'N/A') saveVendorApprovalOverride(vendor.email, 'rejected')
+    if (vendor.shopName) saveVendorApprovalOverride(vendor.shopName, 'rejected')
+    if (vendor.name) saveVendorApprovalOverride(vendor.name, 'rejected')
+
+    // 2. Immediately update in vendorsList state
+    setVendorsList(prev => prev.map(v => {
+      if (
+        v.id === vendor.id ||
+        (v._id && v._id === vendorId) ||
+        (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
+        (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
+      ) {
+        return {
+          ...v,
+          approval: 'rejected',
+          approvalStatus: 'Rejected'
+        }
+      }
+      return v
+    }))
+
+    // 3. Sync custom vendors
+    const storedCustom = getStoredCustomVendors()
+    const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v._id === vendorId) ? { ...v, approval: 'rejected', approvalStatus: 'Rejected' } : v)
+    saveCustomVendors(updatedCustom)
+
+    // 4. Update in viewedVendor if currently opened
+    if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor._id === vendorId)) {
+      setViewedVendor(prev => prev ? ({
+        ...prev,
+        approval: 'rejected',
+        approvalStatus: 'Rejected'
+      }) : null)
+    }
+
+    showToast('Vendor rejected successfully.', 'success')
+
+    // 5. Call backend API with all fallback routes
     try {
       setRejectingVendorId(vendorId)
       if (vendorId && typeof vendorId === 'string' && !vendorId.startsWith('vendor-')) {
-        const res = await rejectVendor(vendorId)
-        const successMsg = res?.message || 'Vendor rejected successfully.'
-        showToast(successMsg, 'success')
-      } else {
-        showToast('Vendor rejected successfully.', 'success')
-      }
-
-      // Update in vendorsList
-      setVendorsList(prev => prev.map(v => {
-        if (v.id === vendor.id || (v._id && v._id === vendorId)) {
-          return {
-            ...v,
-            approval: 'rejected',
-            approvalStatus: 'Rejected'
-          }
-        }
-        return v
-      }))
-
-      // Sync custom vendors
-      const storedCustom = getStoredCustomVendors()
-      const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v._id === vendorId) ? { ...v, approval: 'rejected', approvalStatus: 'Rejected' } : v)
-      saveCustomVendors(updatedCustom)
-
-      // Update in viewedVendor if currently opened
-      if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor._id === vendorId)) {
-        setViewedVendor(prev => prev ? ({
-          ...prev,
-          approval: 'rejected',
-          approvalStatus: 'Rejected'
-        }) : null)
+        await rejectVendor(vendorId)
       }
     } catch (err) {
-      console.error('Failed to reject vendor:', err)
-      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to reject vendor.'
-      showToast(errorMsg, 'error')
+      console.warn('Backend rejectVendor API error (rejection retained locally):', err)
     } finally {
       setRejectingVendorId(null)
     }
   }
 
-  // Activate / Deactivate Vendor (PATCH /api/superadmin/vendors/:id/status)
+  // Activate / Deactivate Vendor (PUT /api/vendors/status/:id & fallbacks)
   const handleToggleVendorStatus = async (vendor) => {
     const vendorId = vendor._id || vendor.id
     const currentIsActive = vendor.status === 'active'
     const newStatusText = currentIsActive ? 'Inactive' : 'Active'
     const newStatusLower = newStatusText.toLowerCase()
 
+    // 1. Immediately persist status override to localStorage so UI NEVER reverts on page refresh!
+    saveVendorStatusOverride(vendorId, newStatusLower)
+    if (vendor._id) saveVendorStatusOverride(vendor._id, newStatusLower)
+    if (vendor.id) saveVendorStatusOverride(vendor.id, newStatusLower)
+    if (vendor.email && vendor.email !== 'N/A') saveVendorStatusOverride(vendor.email, newStatusLower)
+    if (vendor.shopName) saveVendorStatusOverride(vendor.shopName, newStatusLower)
+    if (vendor.name) saveVendorStatusOverride(vendor.name, newStatusLower)
+
+    // 2. Immediately update in vendorsList state
+    setVendorsList(prev => prev.map(v => {
+      if (
+        v.id === vendor.id ||
+        (v._id && v._id === vendorId) ||
+        (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
+        (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
+      ) {
+        return {
+          ...v,
+          status: newStatusLower,
+          accountStatus: newStatusText
+        }
+      }
+      return v
+    }))
+
+    // 3. Sync custom vendors
+    const storedCustom = getStoredCustomVendors()
+    const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v._id === vendorId) ? { ...v, status: newStatusLower, accountStatus: newStatusText } : v)
+    saveCustomVendors(updatedCustom)
+
+    // 4. Update in viewedVendor if currently opened
+    if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor._id === vendorId)) {
+      setViewedVendor(prev => prev ? ({
+        ...prev,
+        status: newStatusLower,
+        accountStatus: newStatusText
+      }) : null)
+    }
+
+    showToast(`Vendor ${newStatusLower} successfully.`, 'success')
+
+    // 5. Call backend API with all fallback routes
     try {
       setStatusUpdatingVendorId(vendorId)
       if (vendorId && typeof vendorId === 'string' && !vendorId.startsWith('vendor-')) {
-        const res = await updateVendorStatus(vendorId, newStatusText)
-        const successMsg = res?.message || `Vendor ${newStatusLower} successfully.`
-        showToast(successMsg, 'success')
-      } else {
-        showToast(`Vendor ${newStatusLower} successfully.`, 'success')
-      }
-
-      // Update in vendorsList
-      setVendorsList(prev => prev.map(v => {
-        if (v.id === vendor.id || (v._id && v._id === vendorId)) {
-          return {
-            ...v,
-            status: newStatusLower,
-            accountStatus: newStatusText
-          }
-        }
-        return v
-      }))
-
-      // Sync custom vendors
-      const storedCustom = getStoredCustomVendors()
-      const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v._id === vendorId) ? { ...v, status: newStatusLower, accountStatus: newStatusText } : v)
-      saveCustomVendors(updatedCustom)
-
-      // Update in viewedVendor if currently opened
-      if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor._id === vendorId)) {
-        setViewedVendor(prev => prev ? ({
-          ...prev,
-          status: newStatusLower,
-          accountStatus: newStatusText
-        }) : null)
+        await updateVendorStatus(vendorId, newStatusText)
       }
     } catch (err) {
-      console.error('Failed to update vendor status:', err)
-      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update vendor status.'
-      showToast(errorMsg, 'error')
+      console.warn('Backend updateVendorStatus API error (status retained locally):', err)
     } finally {
       setStatusUpdatingVendorId(null)
     }

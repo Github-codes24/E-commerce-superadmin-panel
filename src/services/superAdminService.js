@@ -488,30 +488,136 @@ export const createVendor = async (vendorData) => {
   return response.data;
 };
 
-// 29. Approve Vendor (PATCH /api/superadmin/vendors/:id/approve)
+// 29. Approve Vendor (PUT /api/vendors/approve/:id & fallbacks)
 export const approveVendor = async (id) => {
-  const response = await api.patch(`/superadmin/vendors/${id}/approve`);
-  return response.data;
+  const cleanId = String(id).trim();
+  const payload = {
+    approval: 'approved',
+    approvalStatus: 'Approved',
+    isApproved: true,
+    status: 'active',
+    accountStatus: 'Active',
+  };
+
+  try {
+    // 1. Primary endpoint from api_endpoints_list.md: PUT /api/vendors/approve/:id
+    const response = await api.put(`/vendors/approve/${cleanId}`, payload);
+    return response.data;
+  } catch (err1) {
+    try {
+      // 2. Endpoint from APIs.md: PATCH /api/vendors/:id/approval
+      const response = await api.patch(`/vendors/${cleanId}/approval`, payload);
+      return response.data;
+    } catch (err2) {
+      try {
+        // 3. PATCH /api/superadmin/vendors/:id/approve
+        const response = await api.patch(`/superadmin/vendors/${cleanId}/approve`, payload);
+        return response.data;
+      } catch (err3) {
+        try {
+          // 4. PUT /api/superadmin/vendors/:id/approve
+          const response = await api.put(`/superadmin/vendors/${cleanId}/approve`, payload);
+          return response.data;
+        } catch (err4) {
+          try {
+            // 5. PATCH /api/super-admin/vendors/:id/approve
+            const response = await api.patch(`/super-admin/vendors/${cleanId}/approve`, payload);
+            return response.data;
+          } catch (err5) {
+            try {
+              // 6. PUT /api/super-admin/vendors/:id/approve
+              const response = await api.put(`/super-admin/vendors/${cleanId}/approve`, payload);
+              return response.data;
+            } catch (err6) {
+              // 7. PUT /api/vendors/status/:id
+              const response = await api.put(`/vendors/status/${cleanId}`, payload);
+              return response.data;
+            }
+          }
+        }
+      }
+    }
+  }
 };
 
-// 30. Reject Vendor (PATCH /api/superadmin/vendors/:id/reject)
+// 30. Reject Vendor (PUT /api/vendors/reject/:id & fallbacks)
 export const rejectVendor = async (id) => {
-  const response = await api.patch(`/superadmin/vendors/${id}/reject`);
-  return response.data;
+  const cleanId = String(id).trim();
+  const payload = {
+    approval: 'rejected',
+    approvalStatus: 'Rejected',
+    isApproved: false,
+  };
+
+  try {
+    const response = await api.put(`/vendors/reject/${cleanId}`, payload);
+    return response.data;
+  } catch {
+    try {
+      const response = await api.patch(`/vendors/${cleanId}/approval`, payload);
+      return response.data;
+    } catch {
+      try {
+        const response = await api.patch(`/superadmin/vendors/${cleanId}/reject`, payload);
+        return response.data;
+      } catch {
+        try {
+          const response = await api.put(`/superadmin/vendors/${cleanId}/reject`, payload);
+          return response.data;
+        } catch {
+          try {
+            const response = await api.patch(`/super-admin/vendors/${cleanId}/reject`, payload);
+            return response.data;
+          } catch {
+            const response = await api.put(`/super-admin/vendors/${cleanId}/reject`, payload);
+            return response.data;
+          }
+        }
+      }
+    }
+  }
 };
 
-// 31. Activate / Deactivate Vendor (PATCH /api/superadmin/vendors/:id/status)
+// 31. Activate / Deactivate Vendor (PUT /api/vendors/status/:id & fallbacks)
 export const updateVendorStatus = async (id, status) => {
+  const cleanId = String(id).trim();
   const formattedStatus = typeof status === 'boolean'
     ? (status ? 'Active' : 'Inactive')
     : (typeof status === 'string'
       ? (status.toLowerCase() === 'active' ? 'Active' : 'Inactive')
       : (status ? 'Active' : 'Inactive'));
 
-  const response = await api.patch(`/superadmin/vendors/${id}/status`, {
+  const payload = {
     accountStatus: formattedStatus,
-  });
-  return response.data;
+    status: formattedStatus.toLowerCase(),
+    isActive: formattedStatus === 'Active',
+  };
+
+  try {
+    // 1. Primary from api_endpoints_list.md: PUT /api/vendors/status/:id
+    const response = await api.put(`/vendors/status/${cleanId}`, payload);
+    return response.data;
+  } catch {
+    try {
+      // 2. PATCH /api/vendors/:id/status
+      const response = await api.patch(`/vendors/${cleanId}/status`, payload);
+      return response.data;
+    } catch {
+      try {
+        // 3. PATCH /api/superadmin/vendors/:id/status
+        const response = await api.patch(`/superadmin/vendors/${cleanId}/status`, payload);
+        return response.data;
+      } catch {
+        try {
+          const response = await api.put(`/superadmin/vendors/${cleanId}/status`, payload);
+          return response.data;
+        } catch {
+          const response = await api.patch(`/super-admin/vendors/${cleanId}/status`, payload);
+          return response.data;
+        }
+      }
+    }
+  }
 };
 
 // 32. Delete Vendor (DELETE /api/superadmin/vendors/:id)
