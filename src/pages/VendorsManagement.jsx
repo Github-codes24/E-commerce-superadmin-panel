@@ -287,13 +287,35 @@ function VendorsManagement({ onNavigateToPlans }) {
     const approvalOverrides = getStoredVendorApprovalOverrides()
     const statusOverrides = getStoredVendorStatusOverrides()
     return base.map(v => {
-      const vKey = String(v._id || v.id || v.email)
-      const overrideApproval = approvalOverrides[vKey] || (v.shopName && approvalOverrides[v.shopName]) || (v.name && approvalOverrides[v.name])
-      const overrideStatus = statusOverrides[vKey] || (v.shopName && statusOverrides[v.shopName]) || (v.name && statusOverrides[v.name])
+      const vKey = String(v.userId || v.vendorId || v._id || v.id || v.email)
+      const overrideApproval = approvalOverrides[vKey] ||
+        (v.userId && approvalOverrides[String(v.userId)]) ||
+        (v.vendorId && approvalOverrides[String(v.vendorId)]) ||
+        (v.id && approvalOverrides[String(v.id)]) ||
+        (v._id && approvalOverrides[String(v._id)]) ||
+        (v.email && v.email !== 'N/A' && approvalOverrides[String(v.email)]) ||
+        (v.shopName && approvalOverrides[String(v.shopName)]) ||
+        (v.name && approvalOverrides[String(v.name)])
+
+      const overrideStatus = statusOverrides[vKey] ||
+        (v.userId && statusOverrides[String(v.userId)]) ||
+        (v.vendorId && statusOverrides[String(v.vendorId)]) ||
+        (v.id && statusOverrides[String(v.id)]) ||
+        (v._id && statusOverrides[String(v._id)]) ||
+        (v.email && v.email !== 'N/A' && statusOverrides[String(v.email)]) ||
+        (v.shopName && statusOverrides[String(v.shopName)]) ||
+        (v.name && statusOverrides[String(v.name)])
+
+      const finalApproval = overrideApproval ? overrideApproval.toLowerCase() : (v.approval || 'pending').toLowerCase()
+      const finalStatus = overrideStatus ? overrideStatus.toLowerCase() : (v.status || 'active').toLowerCase()
+
       return {
         ...v,
-        ...(overrideApproval ? { approval: overrideApproval, approvalStatus: overrideApproval === 'approved' ? 'Approved' : 'Rejected' } : {}),
-        ...(overrideStatus ? { status: overrideStatus, accountStatus: overrideStatus === 'active' ? 'Active' : 'Inactive' } : {})
+        approval: finalApproval,
+        approvalStatus: finalApproval === 'approved' ? 'Approved' : (finalApproval === 'rejected' ? 'Rejected' : 'Pending'),
+        status: finalStatus,
+        accountStatus: finalStatus === 'active' ? 'Active' : 'Inactive',
+        isActive: finalStatus === 'active'
       }
     })
   })
@@ -425,51 +447,67 @@ function VendorsManagement({ onNavigateToPlans }) {
       ? (typeof v.revenue === 'number' ? `₹${v.revenue.toLocaleString()}` : v.revenue) 
       : (v.totalRevenue !== undefined ? (typeof v.totalRevenue === 'number' ? `₹${v.totalRevenue.toLocaleString()}` : v.totalRevenue) : '₹0')
 
-    // 1. Approval: Backend real approval status FIRST!
-    let rawApproval = 'pending'
-    const approvalVal = (
-      v.approvalStatus ||
-      v.approval ||
-      v.verificationStatus ||
-      v.vendorApproval ||
-      (v.isApproved !== undefined ? (v.isApproved ? 'Approved' : 'Pending') : '') ||
-      (v.isVerified !== undefined ? (v.isVerified ? 'Approved' : 'Pending') : '') ||
-      ''
-    ).toString().toLowerCase()
+    // 1. Approval: Check superadmin's explicit overrides FIRST so manual actions persist!
+    const approvalOverrides = getStoredVendorApprovalOverrides()
+    const overrideApproval =
+      approvalOverrides[String(rawId)] ||
+      (userId && approvalOverrides[String(userId)]) ||
+      (vendorId && approvalOverrides[String(vendorId)]) ||
+      (v._id && approvalOverrides[String(v._id)]) ||
+      (v.id && approvalOverrides[String(v.id)]) ||
+      (v.email && v.email !== 'N/A' && approvalOverrides[String(v.email)]) ||
+      (rawShopName && approvalOverrides[String(rawShopName)]) ||
+      (rawName && approvalOverrides[String(rawName)])
 
-    if (approvalVal.includes('approve') || approvalVal === 'verified') {
-      rawApproval = 'approved'
-    } else if (approvalVal.includes('reject')) {
-      rawApproval = 'rejected'
-    } else if (approvalVal.includes('pending')) {
-      rawApproval = 'pending'
+    let rawApproval = 'pending'
+    if (overrideApproval) {
+      rawApproval = overrideApproval.toLowerCase()
     } else {
-      // Local cache fallback only if backend gave nothing
-      const approvalOverrides = getStoredVendorApprovalOverrides()
-      const overrideApproval =
-        approvalOverrides[String(rawId)] ||
-        (userId && approvalOverrides[String(userId)]) ||
-        (vendorId && approvalOverrides[String(vendorId)]) ||
-        (v.email && v.email !== 'N/A' && approvalOverrides[String(v.email)]) ||
-        (rawShopName && approvalOverrides[String(rawShopName)])
-      if (overrideApproval) rawApproval = overrideApproval
+      const approvalVal = (
+        v.approvalStatus ||
+        v.approval ||
+        v.verificationStatus ||
+        v.vendorApproval ||
+        (v.isApproved !== undefined ? (v.isApproved ? 'Approved' : 'Pending') : '') ||
+        (v.isVerified !== undefined ? (v.isVerified ? 'Approved' : 'Pending') : '') ||
+        ''
+      ).toString().toLowerCase()
+
+      if (approvalVal.includes('reject')) {
+        rawApproval = 'rejected'
+      } else if (approvalVal.includes('approve') || approvalVal === 'verified') {
+        rawApproval = 'approved'
+      } else if (approvalVal.includes('pending')) {
+        rawApproval = 'pending'
+      } else {
+        rawApproval = 'pending'
+      }
     }
 
-    // 2. Status: Backend real status FIRST!
+    // 2. Status: Check superadmin's explicit overrides FIRST!
+    const statusOverrides = getStoredVendorStatusOverrides()
+    const overrideStatus =
+      statusOverrides[String(rawId)] ||
+      (userId && statusOverrides[String(userId)]) ||
+      (vendorId && statusOverrides[String(vendorId)]) ||
+      (v._id && statusOverrides[String(v._id)]) ||
+      (v.id && statusOverrides[String(v.id)]) ||
+      (v.email && v.email !== 'N/A' && statusOverrides[String(v.email)]) ||
+      (rawShopName && statusOverrides[String(rawShopName)]) ||
+      (rawName && statusOverrides[String(rawName)])
+
     let rawStatus = 'active'
-    const statusVal = (v.userStatus || v.accountStatus || v.status || (v.isActive !== undefined ? (v.isActive ? 'Active' : 'Inactive') : '')).toString().toLowerCase()
-    if (statusVal === 'inactive' || v.isActive === false) {
-      rawStatus = 'inactive'
-    } else if (statusVal === 'active' || v.isActive === true) {
-      rawStatus = 'active'
+    if (overrideStatus) {
+      rawStatus = overrideStatus.toLowerCase()
     } else {
-      const statusOverrides = getStoredVendorStatusOverrides()
-      const overrideStatus =
-        statusOverrides[String(rawId)] ||
-        (userId && statusOverrides[String(userId)]) ||
-        (vendorId && statusOverrides[String(vendorId)]) ||
-        (v.email && v.email !== 'N/A' && statusOverrides[String(v.email)])
-      if (overrideStatus) rawStatus = overrideStatus
+      const statusVal = (v.userStatus || v.accountStatus || v.status || (v.isActive !== undefined ? (v.isActive ? 'Active' : 'Inactive') : '')).toString().toLowerCase()
+      if (statusVal === 'inactive' || v.isActive === false) {
+        rawStatus = 'inactive'
+      } else if (statusVal === 'active' || v.isActive === true) {
+        rawStatus = 'active'
+      } else {
+        rawStatus = 'active'
+      }
     }
 
     const joinedDateFormatted = v.createdAt || v.joinedOn || v.joinedDate
@@ -597,11 +635,12 @@ function VendorsManagement({ onNavigateToPlans }) {
       }
 
       const custom = getStoredCustomVendors()
+      const formattedCustom = custom.map((v, idx) => formatVendorItem(v, idx))
       const apiFormatted = vendorsData.map((v, idx) => formatVendorItem(v, idx))
 
       const mergedMap = new Map()
-      // Custom created vendors first
-      custom.forEach(v => {
+      // Custom created vendors first (formatted with overrides applied)
+      formattedCustom.forEach(v => {
         const key = String(v.userId || v.vendorId || v._id || v.id || v.email)
         mergedMap.set(key, v)
       })
@@ -748,10 +787,11 @@ function VendorsManagement({ onNavigateToPlans }) {
       }) : null)
     }
 
-    // 4. Save to localStorage as soft fallback
+    // 4. Save to localStorage override
     if (targetUserId) saveVendorApprovalOverride(targetUserId, 'approved')
     if (targetVendorId) saveVendorApprovalOverride(targetVendorId, 'approved')
     if (vendor.id) saveVendorApprovalOverride(vendor.id, 'approved')
+    if (vendor._id) saveVendorApprovalOverride(vendor._id, 'approved')
     if (vendor.email && vendor.email !== 'N/A') saveVendorApprovalOverride(vendor.email, 'approved')
     if (vendor.shopName) saveVendorApprovalOverride(vendor.shopName, 'approved')
     if (vendor.name) saveVendorApprovalOverride(vendor.name, 'approved')
@@ -824,7 +864,10 @@ function VendorsManagement({ onNavigateToPlans }) {
     if (targetVendorId) saveVendorApprovalOverride(targetVendorId, 'rejected')
     if (targetUserId) saveVendorApprovalOverride(targetUserId, 'rejected')
     if (vendor.id) saveVendorApprovalOverride(vendor.id, 'rejected')
+    if (vendor._id) saveVendorApprovalOverride(vendor._id, 'rejected')
     if (vendor.email && vendor.email !== 'N/A') saveVendorApprovalOverride(vendor.email, 'rejected')
+    if (vendor.shopName) saveVendorApprovalOverride(vendor.shopName, 'rejected')
+    if (vendor.name) saveVendorApprovalOverride(vendor.name, 'rejected')
 
     // If mock or local vendor without MongoDB ID, stop here cleanly
     if (!targetVendorId && !targetUserId) {
@@ -896,7 +939,10 @@ function VendorsManagement({ onNavigateToPlans }) {
     if (targetVendorId) saveVendorStatusOverride(targetVendorId, newStatusLower)
     if (targetUserId) saveVendorStatusOverride(targetUserId, newStatusLower)
     if (vendor.id) saveVendorStatusOverride(vendor.id, newStatusLower)
+    if (vendor._id) saveVendorStatusOverride(vendor._id, newStatusLower)
     if (vendor.email && vendor.email !== 'N/A') saveVendorStatusOverride(vendor.email, newStatusLower)
+    if (vendor.shopName) saveVendorStatusOverride(vendor.shopName, newStatusLower)
+    if (vendor.name) saveVendorStatusOverride(vendor.name, newStatusLower)
 
     // If mock or local vendor without MongoDB ID, stop here cleanly
     if (!targetVendorId && !targetUserId) {
