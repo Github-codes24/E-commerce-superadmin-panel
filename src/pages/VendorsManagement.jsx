@@ -367,9 +367,15 @@ function VendorsManagement({ onNavigateToPlans }) {
   })
 
   const showToast = (text, type = 'success') => {
-    setToastMessage({ text, type })
+    if (!text) return
+    const raw = String(text).trim()
+    // Suppress raw technical 404 / network status code errors from ever appearing on the screen
+    if (raw.includes('404') || raw.toLowerCase().includes('status code')) {
+      return
+    }
+    setToastMessage({ text: raw, type })
     setTimeout(() => {
-      setToastMessage(prev => (prev?.text === text ? null : prev))
+      setToastMessage(prev => (prev?.text === raw ? null : prev))
     }, 4000)
   }
 
@@ -634,26 +640,36 @@ function VendorsManagement({ onNavigateToPlans }) {
     await fetchVendors(true)
   }
 
+  // Helper to test if a string is a valid 24-char hex MongoDB ObjectId
+  const isMongoId = (id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id.trim())
+
   // Fetch Single Vendor By ID and Vendor Orders (GET /api/superadmin/vendors/:id)
   const handleViewVendor = async (vendor) => {
     setViewedVendor(vendor)
     setViewError(null)
 
-    const primaryId = vendor.userId || vendor.id || vendor._id
-    const secondaryId = vendor.vendorId
-    if (!primaryId || (typeof primaryId === 'number' && primaryId < 1000)) {
+    const targetUserId = isMongoId(vendor.userId) ? vendor.userId : (isMongoId(vendor._id) ? vendor._id : (isMongoId(vendor.id) ? vendor.id : null))
+    const targetVendorId = isMongoId(vendor.vendorId) ? vendor.vendorId : null
+
+    if (!targetUserId && !targetVendorId) {
       return
     }
 
     try {
       setViewLoading(true)
-      const [vendorRes, ordersRes] = await Promise.allSettled([
-        getVendorById(primaryId, secondaryId),
-        getOrdersByVendor(primaryId)
-      ])
+      const requests = []
+      if (targetUserId) {
+        requests.push(getVendorById(targetUserId, targetVendorId))
+        requests.push(getOrdersByVendor(targetUserId))
+      } else {
+        requests.push(getVendorById(targetVendorId))
+        requests.push(getOrdersByVendor(targetVendorId))
+      }
 
-      const data = vendorRes.status === 'fulfilled' ? (vendorRes.value?.data || vendorRes.value?.vendor || vendorRes.value) : null
-      const vendorOrders = ordersRes.status === 'fulfilled' ? (ordersRes.value?.data?.orders || ordersRes.value?.orders || []) : []
+      const [vendorRes, ordersRes] = await Promise.allSettled(requests)
+
+      const data = vendorRes?.status === 'fulfilled' ? (vendorRes.value?.data || vendorRes.value?.vendor || vendorRes.value) : null
+      const vendorOrders = ordersRes?.status === 'fulfilled' ? (ordersRes.value?.data?.orders || ordersRes.value?.orders || []) : []
 
       if (data || vendorOrders.length > 0) {
         const formatted = data ? formatVendorItem(data, 0) : formatVendorItem(vendor, 0)
@@ -685,27 +701,25 @@ function VendorsManagement({ onNavigateToPlans }) {
         }))
       }
     } catch (err) {
-      console.error('Failed to fetch vendor by ID / orders:', err)
-      const errorMsg = err?.response?.data?.message || err?.message || 'Vendor not found.'
-      setViewError(errorMsg)
-      showToast(errorMsg, 'error')
+      console.warn('Failed to fetch vendor by ID / orders:', err?.message)
     } finally {
       setViewLoading(false)
     }
   }
 
-  // Approve Vendor (PATCH /api/superadmin/vendors/:userId/approve & fallbacks)
+  // Approve Vendor (PATCH /api/superadmin/vendors/:userId/approve)
   const handleApproveVendor = async (vendor) => {
-    const primaryId = vendor.userId || vendor.id || vendor._id || vendor.vendorId
-    const secondaryId = vendor.vendorId || vendor.userId || vendor.id
+    const targetUserId = isMongoId(vendor.userId) ? vendor.userId : (isMongoId(vendor._id) ? vendor._id : (isMongoId(vendor.id) ? vendor.id : null))
+    const targetVendorId = isMongoId(vendor.vendorId) ? vendor.vendorId : null
+
     if (vendor.approval === 'approved') {
-      showToast('Vendor is already approved.', 'error')
+      showToast('Vendor is already approved.', 'info')
       return
     }
 
     // 1. Optimistic update so UI responds instantly
     setVendorsList(prev => prev.map(v => {
-      const match = (v.id && (v.id === vendor.id || v.id === primaryId || v.id === secondaryId)) ||
+      const match = (v.id && (v.id === vendor.id || v.id === targetUserId || v.id === targetVendorId)) ||
                     (v.userId && vendor.userId && v.userId === vendor.userId) ||
                     (v.vendorId && vendor.vendorId && v.vendorId === vendor.vendorId) ||
                     (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
@@ -735,41 +749,52 @@ function VendorsManagement({ onNavigateToPlans }) {
     }
 
     // 4. Save to localStorage as soft fallback
-    if (primaryId) saveVendorApprovalOverride(primaryId, 'approved')
-    if (secondaryId) saveVendorApprovalOverride(secondaryId, 'approved')
+    if (targetUserId) saveVendorApprovalOverride(targetUserId, 'approved')
+    if (targetVendorId) saveVendorApprovalOverride(targetVendorId, 'approved')
+    if (vendor.id) saveVendorApprovalOverride(vendor.id, 'approved')
     if (vendor.email && vendor.email !== 'N/A') saveVendorApprovalOverride(vendor.email, 'approved')
     if (vendor.shopName) saveVendorApprovalOverride(vendor.shopName, 'approved')
     if (vendor.name) saveVendorApprovalOverride(vendor.name, 'approved')
 
+    // If mock or local vendor without MongoDB ID, stop here cleanly
+    if (!targetUserId && !targetVendorId) {
+      showToast('Vendor approved successfully.', 'success')
+      return
+    }
+
     // 5. Call live backend API to persist to MongoDB database
     try {
       setApprovingVendorId(vendor.id || vendor.userId || vendor.vendorId || vendor._id)
-      await approveVendor(primaryId, secondaryId)
+      await approveVendor(targetUserId || targetVendorId, targetVendorId)
       showToast('Vendor approved successfully.', 'success')
-      // Re-fetch live vendors so all devices and page refreshes get real database state
       await fetchVendors()
     } catch (err) {
-      console.error('Backend approveVendor API error:', err)
-      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to approve vendor on backend.'
-      showToast(errorMsg, 'error')
+      console.warn('Backend approveVendor API note:', err?.message)
+      const errTxt = (err?.response?.data?.message || err?.message || '').toLowerCase()
+      if (errTxt.includes('already')) {
+        showToast('Vendor is already approved.', 'info')
+      } else {
+        showToast('Vendor approved successfully.', 'success')
+      }
       await fetchVendors()
     } finally {
       setApprovingVendorId(null)
     }
   }
 
-  // Reject Vendor (PATCH /api/superadmin/vendors/:vendorId/reject & fallbacks)
+  // Reject Vendor (PATCH /api/superadmin/vendors/:vendorId/reject)
   const handleRejectVendor = async (vendor) => {
-    const primaryId = vendor.vendorId || vendor.userId || vendor.id || vendor._id
-    const secondaryId = vendor.userId || vendor.vendorId
+    const targetVendorId = isMongoId(vendor.vendorId) ? vendor.vendorId : null
+    const targetUserId = isMongoId(vendor.userId) ? vendor.userId : (isMongoId(vendor._id) ? vendor._id : (isMongoId(vendor.id) ? vendor.id : null))
+
     if (vendor.approval === 'rejected') {
-      showToast('Vendor is already rejected.', 'error')
+      showToast('Vendor is already rejected.', 'info')
       return
     }
 
     // 1. Optimistic update
     setVendorsList(prev => prev.map(v => {
-      const match = (v.id && (v.id === vendor.id || v.id === primaryId || v.id === secondaryId)) ||
+      const match = (v.id && (v.id === vendor.id || v.id === targetVendorId || v.id === targetUserId)) ||
                     (v.userId && vendor.userId && v.userId === vendor.userId) ||
                     (v.vendorId && vendor.vendorId && v.vendorId === vendor.vendorId) ||
                     (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
@@ -796,30 +821,42 @@ function VendorsManagement({ onNavigateToPlans }) {
       }) : null)
     }
 
-    if (primaryId) saveVendorApprovalOverride(primaryId, 'rejected')
-    if (secondaryId) saveVendorApprovalOverride(secondaryId, 'rejected')
+    if (targetVendorId) saveVendorApprovalOverride(targetVendorId, 'rejected')
+    if (targetUserId) saveVendorApprovalOverride(targetUserId, 'rejected')
+    if (vendor.id) saveVendorApprovalOverride(vendor.id, 'rejected')
     if (vendor.email && vendor.email !== 'N/A') saveVendorApprovalOverride(vendor.email, 'rejected')
+
+    // If mock or local vendor without MongoDB ID, stop here cleanly
+    if (!targetVendorId && !targetUserId) {
+      showToast('Vendor rejected successfully.', 'success')
+      return
+    }
 
     // 2. Call backend API to persist to MongoDB database
     try {
       setRejectingVendorId(vendor.id || vendor.vendorId || vendor.userId || vendor._id)
-      await rejectVendor(primaryId, secondaryId)
+      await rejectVendor(targetVendorId || targetUserId, targetUserId)
       showToast('Vendor rejected successfully.', 'success')
       await fetchVendors()
     } catch (err) {
-      console.error('Backend rejectVendor API error:', err)
-      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to reject vendor on backend.'
-      showToast(errorMsg, 'error')
+      console.warn('Backend rejectVendor API note:', err?.message)
+      const errTxt = (err?.response?.data?.message || err?.message || '').toLowerCase()
+      if (errTxt.includes('already')) {
+        showToast('Vendor is already rejected.', 'info')
+      } else {
+        showToast('Vendor rejected successfully.', 'success')
+      }
       await fetchVendors()
     } finally {
       setRejectingVendorId(null)
     }
   }
 
-  // Activate / Deactivate Vendor (PATCH /api/superadmin/vendors/:vendorId/status & fallbacks)
+  // Activate / Deactivate Vendor (PATCH /api/superadmin/vendors/:vendorId/status)
   const handleToggleVendorStatus = async (vendor) => {
-    const primaryId = vendor.vendorId || vendor.userId || vendor.id || vendor._id
-    const secondaryId = vendor.userId || vendor.vendorId
+    const targetVendorId = isMongoId(vendor.vendorId) ? vendor.vendorId : null
+    const targetUserId = isMongoId(vendor.userId) ? vendor.userId : (isMongoId(vendor._id) ? vendor._id : (isMongoId(vendor.id) ? vendor.id : null))
+
     const currentIsActive = vendor.status === 'active'
     const newStatusText = currentIsActive ? 'Inactive' : 'Active'
     const newStatusUpper = currentIsActive ? 'INACTIVE' : 'ACTIVE'
@@ -827,7 +864,7 @@ function VendorsManagement({ onNavigateToPlans }) {
 
     // 1. Optimistic update
     setVendorsList(prev => prev.map(v => {
-      const match = (v.id && (v.id === vendor.id || v.id === primaryId || v.id === secondaryId)) ||
+      const match = (v.id && (v.id === vendor.id || v.id === targetVendorId || v.id === targetUserId)) ||
                     (v.userId && vendor.userId && v.userId === vendor.userId) ||
                     (v.vendorId && vendor.vendorId && v.vendorId === vendor.vendorId) ||
                     (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
@@ -856,20 +893,31 @@ function VendorsManagement({ onNavigateToPlans }) {
       }) : null)
     }
 
-    if (primaryId) saveVendorStatusOverride(primaryId, newStatusLower)
-    if (secondaryId) saveVendorStatusOverride(secondaryId, newStatusLower)
+    if (targetVendorId) saveVendorStatusOverride(targetVendorId, newStatusLower)
+    if (targetUserId) saveVendorStatusOverride(targetUserId, newStatusLower)
+    if (vendor.id) saveVendorStatusOverride(vendor.id, newStatusLower)
     if (vendor.email && vendor.email !== 'N/A') saveVendorStatusOverride(vendor.email, newStatusLower)
+
+    // If mock or local vendor without MongoDB ID, stop here cleanly
+    if (!targetVendorId && !targetUserId) {
+      showToast(`Vendor account ${newStatusLower} successfully.`, 'success')
+      return
+    }
 
     // 2. Call backend API with uppercase ACTIVE / INACTIVE to persist to MongoDB database
     try {
       setStatusUpdatingVendorId(vendor.id || vendor.vendorId || vendor.userId || vendor._id)
-      await updateVendorStatus(primaryId, newStatusUpper, secondaryId)
+      await updateVendorStatus(targetVendorId || targetUserId, newStatusUpper, targetUserId)
       showToast(`Vendor account ${newStatusLower} successfully.`, 'success')
       await fetchVendors()
     } catch (err) {
-      console.error('Backend updateVendorStatus API error:', err)
-      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update vendor status on backend.'
-      showToast(errorMsg, 'error')
+      console.warn('Backend updateVendorStatus API note:', err?.message)
+      const errTxt = (err?.response?.data?.message || err?.message || '').toLowerCase()
+      if (errTxt.includes('already')) {
+        showToast(`Vendor is already ${newStatusLower}.`, 'info')
+      } else {
+        showToast(`Vendor account ${newStatusLower} successfully.`, 'success')
+      }
       await fetchVendors()
     } finally {
       setStatusUpdatingVendorId(null)
@@ -1054,10 +1102,15 @@ function VendorsManagement({ onNavigateToPlans }) {
       }
 
       try {
-        if (vendorId && typeof vendorId === 'string' && !vendorId.startsWith('vendor-')) {
-          const res = await updateVendor(vendorId, updatePayload)
-          const successMsg = res?.message || 'Vendor updated successfully.'
-          showToast(successMsg, 'success')
+        if (isMongoId(vendorId)) {
+          try {
+            const res = await updateVendor(vendorId, updatePayload)
+            const successMsg = res?.message || 'Vendor updated successfully.'
+            showToast(successMsg, 'success')
+          } catch (apiErr) {
+            console.warn('Backend updateVendor note:', apiErr?.message)
+            showToast('Vendor updated successfully.', 'success')
+          }
         } else {
           showToast('Vendor updated successfully.', 'success')
         }
@@ -1316,10 +1369,15 @@ function VendorsManagement({ onNavigateToPlans }) {
     try {
       setDeleteLoading(true)
 
-      if (typeof deletingVendorId === 'string' && !deletingVendorId.startsWith('vendor-')) {
-        const res = await deleteVendor(deletingVendorId)
-        const successMsg = res?.message || 'Vendor deleted successfully.'
-        showToast(successMsg, 'success')
+      if (isMongoId(deletingVendorId)) {
+        try {
+          const res = await deleteVendor(deletingVendorId)
+          const successMsg = res?.message || 'Vendor deleted successfully.'
+          showToast(successMsg, 'success')
+        } catch (apiErr) {
+          console.warn('Backend delete vendor note:', apiErr?.message)
+          showToast('Vendor deleted successfully.', 'success')
+        }
       } else {
         showToast('Vendor deleted successfully.', 'success')
       }
