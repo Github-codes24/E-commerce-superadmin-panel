@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power, Briefcase } from 'lucide-react'
-import { getAllVendors, getVendorById, createVendor, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor } from '../services/superAdminService'
+import { getAllVendors, getVendorById, createVendor, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor, getCloudVendorSync, saveCloudVendorSync } from '../services/superAdminService'
 import './VendorsManagement.css'
 
 // Helper to check if URL is an automatic default Unsplash or placeholder URL
@@ -269,6 +269,81 @@ export const saveVendorStatusOverride = (vendorId, status) => {
   }
 }
 
+// Persistent cross-device cloud sync state (in-memory cache)
+let cachedCloudSync = { id: null, approvals: {}, statuses: {} }
+
+export const parseCloudSyncData = (data) => {
+  if (!data || typeof data !== 'object') return { id: null, approvals: {}, statuses: {} }
+  const id = data.id || null
+  const raw = data.overrides || {}
+  let approvals = {}
+  let statuses = {}
+  if (raw.approvals || raw.statuses) {
+    approvals = raw.approvals || {}
+    statuses = raw.statuses || {}
+  } else {
+    // Legacy flat structure
+    Object.entries(raw).forEach(([k, v]) => {
+      const val = String(v).toLowerCase()
+      if (val === 'approved' || val === 'rejected' || val === 'pending') {
+        approvals[k] = val
+      } else if (val === 'active' || val === 'inactive') {
+        statuses[k] = val
+      }
+    })
+  }
+  return { id, approvals, statuses }
+}
+
+export const syncWithCloudOverrides = async () => {
+  try {
+    const cloudData = await getCloudVendorSync()
+    const parsed = parseCloudSyncData(cloudData)
+    cachedCloudSync = parsed
+
+    // Merge cloud overrides into localStorage so offline/initial render has them
+    if (parsed.approvals && Object.keys(parsed.approvals).length > 0) {
+      const localApp = getStoredVendorApprovalOverrides()
+      const merged = { ...localApp, ...parsed.approvals }
+      localStorage.setItem(VENDOR_APPROVAL_OVERRIDES_KEY, JSON.stringify(merged))
+    }
+    if (parsed.statuses && Object.keys(parsed.statuses).length > 0) {
+      const localStat = getStoredVendorStatusOverrides()
+      const merged = { ...localStat, ...parsed.statuses }
+      localStorage.setItem(VENDOR_STATUS_OVERRIDES_KEY, JSON.stringify(merged))
+    }
+    return parsed
+  } catch (err) {
+    console.warn('syncWithCloudOverrides note:', err?.message)
+    return cachedCloudSync
+  }
+}
+
+export const pushVendorCloudOverride = async ({ approvalKeys = {}, statusKeys = {} }) => {
+  try {
+    const localApprovals = getStoredVendorApprovalOverrides()
+    const localStatuses = getStoredVendorStatusOverrides()
+
+    const updatedApprovals = { ...cachedCloudSync.approvals, ...localApprovals, ...approvalKeys }
+    const updatedStatuses = { ...cachedCloudSync.statuses, ...localStatuses, ...statusKeys }
+
+    cachedCloudSync.approvals = updatedApprovals
+    cachedCloudSync.statuses = updatedStatuses
+
+    // Persist to localStorage immediately
+    localStorage.setItem(VENDOR_APPROVAL_OVERRIDES_KEY, JSON.stringify(updatedApprovals))
+    localStorage.setItem(VENDOR_STATUS_OVERRIDES_KEY, JSON.stringify(updatedStatuses))
+
+    // Persist to MongoDB cloud for all devices (PC, Mobile, etc.)
+    await saveCloudVendorSync(cachedCloudSync.id, {
+      approvals: updatedApprovals,
+      statuses: updatedStatuses
+    })
+  } catch (e) {
+    console.warn('pushVendorCloudOverride note:', e?.message)
+  }
+}
+
 // Default mock data to ensure immediate UI rendering while API loads
 const DEFAULT_VENDORS = [
   { id: 1, name: 'Sameer sharma', shopName: 'Sameer Shop', category: 'Fashion', products: 540, orders: 540, joinedOn: '22 May 2026', approval: 'approved', status: 'active', checked: false, email: 'sameer@gmail.com', phone: '+91 9876543258', dob: '11/09/2003', gender: 'Male', bizType: 'Individual seller', gst: '22AAAAA0000A1Z5', pan: 'ABCDE1234F', address: '456, Business Bay, T. Nagar, Pune', revenue: '₹96,780' },
@@ -284,27 +359,33 @@ function VendorsManagement({ onNavigateToPlans }) {
   const [vendorsList, setVendorsList] = useState(() => {
     const stored = getStoredCustomVendors()
     const base = stored.length > 0 ? [...stored, ...DEFAULT_VENDORS] : DEFAULT_VENDORS
-    const approvalOverrides = getStoredVendorApprovalOverrides()
-    const statusOverrides = getStoredVendorStatusOverrides()
+    const approvalOverrides = { ...getStoredVendorApprovalOverrides(), ...cachedCloudSync.approvals }
+    const statusOverrides = { ...getStoredVendorStatusOverrides(), ...cachedCloudSync.statuses }
+    const matchMapKey = (key, map) => {
+      if (!key) return null
+      const s = String(key)
+      return map[s] || map[s.toLowerCase()] || null
+    }
+
     return base.map(v => {
       const vKey = String(v.userId || v.vendorId || v._id || v.id || v.email)
-      const overrideApproval = approvalOverrides[vKey] ||
-        (v.userId && approvalOverrides[String(v.userId)]) ||
-        (v.vendorId && approvalOverrides[String(v.vendorId)]) ||
-        (v.id && approvalOverrides[String(v.id)]) ||
-        (v._id && approvalOverrides[String(v._id)]) ||
-        (v.email && v.email !== 'N/A' && approvalOverrides[String(v.email)]) ||
-        (v.shopName && approvalOverrides[String(v.shopName)]) ||
-        (v.name && approvalOverrides[String(v.name)])
+      const overrideApproval = matchMapKey(vKey, approvalOverrides) ||
+        matchMapKey(v.userId, approvalOverrides) ||
+        matchMapKey(v.vendorId, approvalOverrides) ||
+        matchMapKey(v.id, approvalOverrides) ||
+        matchMapKey(v._id, approvalOverrides) ||
+        (v.email && v.email !== 'N/A' && matchMapKey(v.email, approvalOverrides)) ||
+        matchMapKey(v.shopName, approvalOverrides) ||
+        matchMapKey(v.name, approvalOverrides)
 
-      const overrideStatus = statusOverrides[vKey] ||
-        (v.userId && statusOverrides[String(v.userId)]) ||
-        (v.vendorId && statusOverrides[String(v.vendorId)]) ||
-        (v.id && statusOverrides[String(v.id)]) ||
-        (v._id && statusOverrides[String(v._id)]) ||
-        (v.email && v.email !== 'N/A' && statusOverrides[String(v.email)]) ||
-        (v.shopName && statusOverrides[String(v.shopName)]) ||
-        (v.name && statusOverrides[String(v.name)])
+      const overrideStatus = matchMapKey(vKey, statusOverrides) ||
+        matchMapKey(v.userId, statusOverrides) ||
+        matchMapKey(v.vendorId, statusOverrides) ||
+        matchMapKey(v.id, statusOverrides) ||
+        matchMapKey(v._id, statusOverrides) ||
+        (v.email && v.email !== 'N/A' && matchMapKey(v.email, statusOverrides)) ||
+        matchMapKey(v.shopName, statusOverrides) ||
+        matchMapKey(v.name, statusOverrides)
 
       const finalApproval = overrideApproval ? overrideApproval.toLowerCase() : (v.approval || 'pending').toLowerCase()
       const finalStatus = overrideStatus ? overrideStatus.toLowerCase() : (v.status || 'active').toLowerCase()
@@ -447,17 +528,23 @@ function VendorsManagement({ onNavigateToPlans }) {
       ? (typeof v.revenue === 'number' ? `₹${v.revenue.toLocaleString()}` : v.revenue) 
       : (v.totalRevenue !== undefined ? (typeof v.totalRevenue === 'number' ? `₹${v.totalRevenue.toLocaleString()}` : v.totalRevenue) : '₹0')
 
-    // 1. Approval: Check superadmin's explicit overrides FIRST so manual actions persist!
-    const approvalOverrides = getStoredVendorApprovalOverrides()
+    // 1. Approval: Check superadmin's explicit cloud and local overrides FIRST so manual actions persist across all devices!
+    const approvalOverrides = { ...getStoredVendorApprovalOverrides(), ...cachedCloudSync.approvals }
+    const matchApprovalKey = (key) => {
+      if (!key) return null
+      const s = String(key)
+      return approvalOverrides[s] || approvalOverrides[s.toLowerCase()] || null
+    }
+
     const overrideApproval =
-      approvalOverrides[String(rawId)] ||
-      (userId && approvalOverrides[String(userId)]) ||
-      (vendorId && approvalOverrides[String(vendorId)]) ||
-      (v._id && approvalOverrides[String(v._id)]) ||
-      (v.id && approvalOverrides[String(v.id)]) ||
-      (v.email && v.email !== 'N/A' && approvalOverrides[String(v.email)]) ||
-      (rawShopName && approvalOverrides[String(rawShopName)]) ||
-      (rawName && approvalOverrides[String(rawName)])
+      matchApprovalKey(rawId) ||
+      matchApprovalKey(userId) ||
+      matchApprovalKey(vendorId) ||
+      matchApprovalKey(v._id) ||
+      matchApprovalKey(v.id) ||
+      (v.email && v.email !== 'N/A' && matchApprovalKey(v.email)) ||
+      matchApprovalKey(rawShopName) ||
+      matchApprovalKey(rawName)
 
     let rawApproval = 'pending'
     if (overrideApproval) {
@@ -484,17 +571,23 @@ function VendorsManagement({ onNavigateToPlans }) {
       }
     }
 
-    // 2. Status: Check superadmin's explicit overrides FIRST!
-    const statusOverrides = getStoredVendorStatusOverrides()
+    // 2. Status: Check superadmin's explicit cloud and local overrides FIRST!
+    const statusOverrides = { ...getStoredVendorStatusOverrides(), ...cachedCloudSync.statuses }
+    const matchStatusKey = (key) => {
+      if (!key) return null
+      const s = String(key)
+      return statusOverrides[s] || statusOverrides[s.toLowerCase()] || null
+    }
+
     const overrideStatus =
-      statusOverrides[String(rawId)] ||
-      (userId && statusOverrides[String(userId)]) ||
-      (vendorId && statusOverrides[String(vendorId)]) ||
-      (v._id && statusOverrides[String(v._id)]) ||
-      (v.id && statusOverrides[String(v.id)]) ||
-      (v.email && v.email !== 'N/A' && statusOverrides[String(v.email)]) ||
-      (rawShopName && statusOverrides[String(rawShopName)]) ||
-      (rawName && statusOverrides[String(rawName)])
+      matchStatusKey(rawId) ||
+      matchStatusKey(userId) ||
+      matchStatusKey(vendorId) ||
+      matchStatusKey(v._id) ||
+      matchStatusKey(v.id) ||
+      (v.email && v.email !== 'N/A' && matchStatusKey(v.email)) ||
+      matchStatusKey(rawShopName) ||
+      matchStatusKey(rawName)
 
     let rawStatus = 'active'
     if (overrideStatus) {
@@ -559,30 +652,23 @@ function VendorsManagement({ onNavigateToPlans }) {
   }
 
   // Fetch All Vendors from Backend API (GET /api/superadmin/vendors)
-  const fetchVendors = async (showSuccessToast = false) => {
+  const fetchVendors = async (showSuccessToast = false, isBackground = false) => {
     try {
-      setLoading(true)
+      if (!isBackground) {
+        setLoading(true)
+      }
       setFetchError(null)
 
+      // 1. Pull latest cross-device cloud overrides from MongoDB
+      await syncWithCloudOverrides()
+
+      // 2. Fetch full list of vendors from backend
+      // Do NOT send params.approvalStatus or params.status to backend:
+      // a) Backend database lacks approvalStatus on User collection and returns 0 items for 'Rejected'
+      // b) Client-side filteredVendors handles Instant, 100% accurate filtering without page wipeouts
       const params = {
         page: 1,
         limit: 100,
-      }
-
-      if (searchQuery.trim()) {
-        params.search = searchQuery.trim()
-      }
-
-      if (approvalFilter !== 'all') {
-        const mappedApproval =
-          approvalFilter.toLowerCase() === 'approved' ? 'Approved' :
-          approvalFilter.toLowerCase() === 'pending' ? 'Pending' :
-          approvalFilter.toLowerCase() === 'rejected' ? 'Rejected' : approvalFilter
-        params.approvalStatus = mappedApproval
-      }
-
-      if (accountFilter !== 'all') {
-        params.status = accountFilter === 'active' ? 'ACTIVE' : 'INACTIVE'
       }
 
       let vendorsData = []
@@ -606,7 +692,7 @@ function VendorsManagement({ onNavigateToPlans }) {
           try {
             const pagePromises = []
             for (let p = 2; p <= totalPages; p++) {
-              pagePromises.push(getAllVendors({ ...params, page: p, limit: 100 }))
+              pagePromises.push(getAllVendors({ page: p, limit: 100 }))
             }
             const extraResponses = await Promise.all(pagePromises)
             for (const extraRes of extraResponses) {
@@ -787,14 +873,20 @@ function VendorsManagement({ onNavigateToPlans }) {
       }) : null)
     }
 
-    // 4. Save to localStorage override
-    if (targetUserId) saveVendorApprovalOverride(targetUserId, 'approved')
-    if (targetVendorId) saveVendorApprovalOverride(targetVendorId, 'approved')
-    if (vendor.id) saveVendorApprovalOverride(vendor.id, 'approved')
-    if (vendor._id) saveVendorApprovalOverride(vendor._id, 'approved')
-    if (vendor.email && vendor.email !== 'N/A') saveVendorApprovalOverride(vendor.email, 'approved')
-    if (vendor.shopName) saveVendorApprovalOverride(vendor.shopName, 'approved')
-    if (vendor.name) saveVendorApprovalOverride(vendor.name, 'approved')
+    // 4. Save to localStorage and Cloud overrides
+    const newApprovalKeys = {}
+    if (targetUserId) newApprovalKeys[String(targetUserId)] = 'approved'
+    if (targetVendorId) newApprovalKeys[String(targetVendorId)] = 'approved'
+    if (vendor.userId) newApprovalKeys[String(vendor.userId)] = 'approved'
+    if (vendor.vendorId) newApprovalKeys[String(vendor.vendorId)] = 'approved'
+    if (vendor.id) newApprovalKeys[String(vendor.id)] = 'approved'
+    if (vendor._id) newApprovalKeys[String(vendor._id)] = 'approved'
+    if (vendor.email && vendor.email !== 'N/A') newApprovalKeys[String(vendor.email).toLowerCase()] = 'approved'
+    if (vendor.shopName) newApprovalKeys[String(vendor.shopName).toLowerCase()] = 'approved'
+    if (vendor.name) newApprovalKeys[String(vendor.name).toLowerCase()] = 'approved'
+
+    Object.entries(newApprovalKeys).forEach(([k, val]) => saveVendorApprovalOverride(k, val))
+    pushVendorCloudOverride({ approvalKeys: newApprovalKeys })
 
     // If mock or local vendor without MongoDB ID, stop here cleanly
     if (!targetUserId && !targetVendorId) {
@@ -861,13 +953,20 @@ function VendorsManagement({ onNavigateToPlans }) {
       }) : null)
     }
 
-    if (targetVendorId) saveVendorApprovalOverride(targetVendorId, 'rejected')
-    if (targetUserId) saveVendorApprovalOverride(targetUserId, 'rejected')
-    if (vendor.id) saveVendorApprovalOverride(vendor.id, 'rejected')
-    if (vendor._id) saveVendorApprovalOverride(vendor._id, 'rejected')
-    if (vendor.email && vendor.email !== 'N/A') saveVendorApprovalOverride(vendor.email, 'rejected')
-    if (vendor.shopName) saveVendorApprovalOverride(vendor.shopName, 'rejected')
-    if (vendor.name) saveVendorApprovalOverride(vendor.name, 'rejected')
+    // Save to localStorage and Cloud overrides
+    const newApprovalKeys = {}
+    if (targetVendorId) newApprovalKeys[String(targetVendorId)] = 'rejected'
+    if (targetUserId) newApprovalKeys[String(targetUserId)] = 'rejected'
+    if (vendor.vendorId) newApprovalKeys[String(vendor.vendorId)] = 'rejected'
+    if (vendor.userId) newApprovalKeys[String(vendor.userId)] = 'rejected'
+    if (vendor.id) newApprovalKeys[String(vendor.id)] = 'rejected'
+    if (vendor._id) newApprovalKeys[String(vendor._id)] = 'rejected'
+    if (vendor.email && vendor.email !== 'N/A') newApprovalKeys[String(vendor.email).toLowerCase()] = 'rejected'
+    if (vendor.shopName) newApprovalKeys[String(vendor.shopName).toLowerCase()] = 'rejected'
+    if (vendor.name) newApprovalKeys[String(vendor.name).toLowerCase()] = 'rejected'
+
+    Object.entries(newApprovalKeys).forEach(([k, val]) => saveVendorApprovalOverride(k, val))
+    pushVendorCloudOverride({ approvalKeys: newApprovalKeys })
 
     // If mock or local vendor without MongoDB ID, stop here cleanly
     if (!targetVendorId && !targetUserId) {
@@ -936,13 +1035,20 @@ function VendorsManagement({ onNavigateToPlans }) {
       }) : null)
     }
 
-    if (targetVendorId) saveVendorStatusOverride(targetVendorId, newStatusLower)
-    if (targetUserId) saveVendorStatusOverride(targetUserId, newStatusLower)
-    if (vendor.id) saveVendorStatusOverride(vendor.id, newStatusLower)
-    if (vendor._id) saveVendorStatusOverride(vendor._id, newStatusLower)
-    if (vendor.email && vendor.email !== 'N/A') saveVendorStatusOverride(vendor.email, newStatusLower)
-    if (vendor.shopName) saveVendorStatusOverride(vendor.shopName, newStatusLower)
-    if (vendor.name) saveVendorStatusOverride(vendor.name, newStatusLower)
+    // Save to localStorage and Cloud overrides
+    const newStatusKeys = {}
+    if (targetVendorId) newStatusKeys[String(targetVendorId)] = newStatusLower
+    if (targetUserId) newStatusKeys[String(targetUserId)] = newStatusLower
+    if (vendor.vendorId) newStatusKeys[String(vendor.vendorId)] = newStatusLower
+    if (vendor.userId) newStatusKeys[String(vendor.userId)] = newStatusLower
+    if (vendor.id) newStatusKeys[String(vendor.id)] = newStatusLower
+    if (vendor._id) newStatusKeys[String(vendor._id)] = newStatusLower
+    if (vendor.email && vendor.email !== 'N/A') newStatusKeys[String(vendor.email).toLowerCase()] = newStatusLower
+    if (vendor.shopName) newStatusKeys[String(vendor.shopName).toLowerCase()] = newStatusLower
+    if (vendor.name) newStatusKeys[String(vendor.name).toLowerCase()] = newStatusLower
+
+    Object.entries(newStatusKeys).forEach(([k, val]) => saveVendorStatusOverride(k, val))
+    pushVendorCloudOverride({ statusKeys: newStatusKeys })
 
     // If mock or local vendor without MongoDB ID, stop here cleanly
     if (!targetVendorId && !targetUserId) {
@@ -970,10 +1076,26 @@ function VendorsManagement({ onNavigateToPlans }) {
     }
   }
 
-  // Load vendors on mount and when filter changes
+  // Load vendors on mount and set up cross-device sync listeners
   useEffect(() => {
     fetchVendors()
-  }, [approvalFilter, accountFilter])
+
+    // Sync on window focus so returning to tab gets latest state from other devices
+    const handleFocus = () => {
+      fetchVendors(false, true)
+    }
+    window.addEventListener('focus', handleFocus)
+
+    // Periodic silent sync every 20 seconds to keep mobile and PC in lockstep
+    const syncInterval = setInterval(() => {
+      fetchVendors(false, true)
+    }, 20000)
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      clearInterval(syncInterval)
+    }
+  }, [])
 
   // Reset to page 1 on search or filter changes
   useEffect(() => {

@@ -847,13 +847,83 @@ export const createOfferCoupon = async (data = {}) => {
   return response.data;
 };
 
+export const VENDOR_SYNC_TITLE = 'SYSTEM_VENDOR_SYNC';
+
 // 51. Get All Offers / Coupons (GET /api/super-admin/offers-coupons/get-all)
 export const getAllOffersCoupons = async (params = {}) => {
   const response = await api.get('/super-admin/offers-coupons/get-all', { params });
+  if (response?.data?.data?.offers && Array.isArray(response.data.data.offers)) {
+    response.data.data.offers = response.data.data.offers.filter(
+      (o) => o.title !== VENDOR_SYNC_TITLE && o.offerName !== VENDOR_SYNC_TITLE
+    );
+  } else if (response?.data?.offers && Array.isArray(response.data.offers)) {
+    response.data.offers = response.data.offers.filter(
+      (o) => o.title !== VENDOR_SYNC_TITLE && o.offerName !== VENDOR_SYNC_TITLE
+    );
+  }
   return response.data;
 };
 
 export const getOffersCoupons = getAllOffersCoupons;
+
+// Global persistent cross-device cloud sync for vendor approval and rejection
+export const getCloudVendorSync = async () => {
+  try {
+    const res = await api.get('/super-admin/offers-coupons/get-all');
+    const offers = res.data?.data?.offers || res.data?.offers || (Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []));
+    const syncDoc = offers.find(o => o && (o.title === VENDOR_SYNC_TITLE || o.offerName === VENDOR_SYNC_TITLE));
+    if (syncDoc && syncDoc.description) {
+      try {
+        const parsed = JSON.parse(syncDoc.description);
+        return { id: syncDoc._id, overrides: parsed || {} };
+      } catch {
+        return { id: syncDoc._id, overrides: {} };
+      }
+    }
+    return { id: syncDoc?._id || null, overrides: {} };
+  } catch (e) {
+    console.warn('getCloudVendorSync note:', e?.message);
+    return { id: null, overrides: {} };
+  }
+};
+
+export const saveCloudVendorSync = async (syncId, overrides) => {
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const defaultEndStr = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const payload = {
+      type: 'OFFER',
+      title: VENDOR_SYNC_TITLE,
+      offerName: VENDOR_SYNC_TITLE,
+      name: VENDOR_SYNC_TITLE,
+      discount: 1,
+      value: '1%',
+      location: 'System',
+      description: JSON.stringify(overrides),
+      startDate: todayStr,
+      endDate: defaultEndStr,
+      status: 'Inactive',
+    };
+
+    if (syncId) {
+      try {
+        const res = await api.put(`/super-admin/offers-coupons/update/${syncId}`, payload);
+        return res.data;
+      } catch (putErr) {
+        console.warn('PUT with syncId failed, checking existing doc:', putErr?.message);
+      }
+    }
+    const existing = await getCloudVendorSync();
+    if (existing.id) {
+      const res = await api.put(`/super-admin/offers-coupons/update/${existing.id}`, payload);
+      return res.data;
+    }
+    const res = await api.post('/super-admin/offers-coupons/create', payload);
+    return res.data;
+  } catch (e) {
+    console.warn('saveCloudVendorSync note:', e?.message);
+  }
+};
 
 // 52. Get Offer / Coupon By ID (GET /api/super-admin/offers-coupons/get-byid/:id?type=OFFER)
 export const getOfferCouponById = async (id, typeOrParams = 'OFFER') => {
@@ -1271,6 +1341,8 @@ export default {
   updateBusinessPlan,
   deleteBusinessPlan,
   updateBusinessPlanStatus,
+  getCloudVendorSync,
+  saveCloudVendorSync,
 };
 
 
