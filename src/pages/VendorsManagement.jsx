@@ -406,8 +406,10 @@ function VendorsManagement({ onNavigateToPlans }) {
 
   // Format single vendor item from API response
   const formatVendorItem = (v, index) => {
-    const rawId = v._id || v.id || `vendor-${index}`
-    const userObj = v.userId || v.user || {}
+    const userId = v.userId || v.user?._id || v.user?.id || (typeof v._id === 'string' && v._id.length === 24 ? v._id : null) || null
+    const vendorId = v.vendorId || (typeof v.id === 'string' && v.id.length === 24 ? v.id : null) || (typeof v._id === 'string' && v._id.length === 24 ? v._id : null) || null
+    const rawId = userId || vendorId || v._id || v.id || `vendor-${index}`
+    const userObj = v.userId && typeof v.userId === 'object' ? v.userId : (v.user || {})
     const rawName = v.fullName || v.name || v.vendorName || userObj.fullName || userObj.name || 'Vendor'
     const rawShopName = v.storeName || v.shopName || v.businessName || v.store?.name || rawName
     const rawCategory = v.category || v.categoryName || v.businessType || v.bizType || 'Fashion'
@@ -417,50 +419,51 @@ function VendorsManagement({ onNavigateToPlans }) {
       ? (typeof v.revenue === 'number' ? `₹${v.revenue.toLocaleString()}` : v.revenue) 
       : (v.totalRevenue !== undefined ? (typeof v.totalRevenue === 'number' ? `₹${v.totalRevenue.toLocaleString()}` : v.totalRevenue) : '₹0')
 
-    // 1. Check persistent approval override FIRST!
-    const approvalOverrides = getStoredVendorApprovalOverrides()
-    const overrideApproval =
-      approvalOverrides[String(rawId)] ||
-      (v._id && approvalOverrides[String(v._id)]) ||
-      (v.id && approvalOverrides[String(v.id)]) ||
-      (v.email && v.email !== 'N/A' && approvalOverrides[String(v.email)]) ||
-      (rawShopName && approvalOverrides[String(rawShopName)]) ||
-      (rawName && approvalOverrides[String(rawName)])
+    // 1. Approval: Backend real approval status FIRST!
+    let rawApproval = 'pending'
+    const approvalVal = (
+      v.approvalStatus ||
+      v.approval ||
+      v.verificationStatus ||
+      v.vendorApproval ||
+      (v.isApproved !== undefined ? (v.isApproved ? 'Approved' : 'Pending') : '') ||
+      (v.isVerified !== undefined ? (v.isVerified ? 'Approved' : 'Pending') : '') ||
+      ''
+    ).toString().toLowerCase()
 
-    // Approval: 'approved' | 'pending' | 'rejected'
-    let rawApproval = overrideApproval || 'pending'
-    if (!overrideApproval) {
-      const approvalVal = (
-        v.approvalStatus ||
-        v.approval ||
-        v.verificationStatus ||
-        v.vendorApproval ||
-        (v.isApproved !== undefined ? (v.isApproved ? 'Approved' : 'Pending') : '') ||
-        (v.isVerified !== undefined ? (v.isVerified ? 'Approved' : 'Pending') : '') ||
-        'pending'
-      ).toString().toLowerCase()
-
-      if (approvalVal.includes('approve') || approvalVal === 'verified') rawApproval = 'approved'
-      else if (approvalVal.includes('reject')) rawApproval = 'rejected'
-      else rawApproval = 'pending'
+    if (approvalVal.includes('approve') || approvalVal === 'verified') {
+      rawApproval = 'approved'
+    } else if (approvalVal.includes('reject')) {
+      rawApproval = 'rejected'
+    } else if (approvalVal.includes('pending')) {
+      rawApproval = 'pending'
+    } else {
+      // Local cache fallback only if backend gave nothing
+      const approvalOverrides = getStoredVendorApprovalOverrides()
+      const overrideApproval =
+        approvalOverrides[String(rawId)] ||
+        (userId && approvalOverrides[String(userId)]) ||
+        (vendorId && approvalOverrides[String(vendorId)]) ||
+        (v.email && v.email !== 'N/A' && approvalOverrides[String(v.email)]) ||
+        (rawShopName && approvalOverrides[String(rawShopName)])
+      if (overrideApproval) rawApproval = overrideApproval
     }
 
-    // 2. Check persistent status override FIRST!
-    const statusOverrides = getStoredVendorStatusOverrides()
-    const overrideStatus =
-      statusOverrides[String(rawId)] ||
-      (v._id && statusOverrides[String(v._id)]) ||
-      (v.id && statusOverrides[String(v.id)]) ||
-      (v.email && v.email !== 'N/A' && statusOverrides[String(v.email)]) ||
-      (rawShopName && statusOverrides[String(rawShopName)]) ||
-      (rawName && statusOverrides[String(rawName)])
-
-    // Status: 'active' | 'inactive'
-    let rawStatus = overrideStatus || 'active'
-    if (!overrideStatus) {
-      const statusVal = (v.accountStatus || v.status || (v.isActive !== undefined ? (v.isActive ? 'Active' : 'Inactive') : 'Active')).toString().toLowerCase()
-      if (statusVal === 'active' || statusVal === 'true' || statusVal === 'approved') rawStatus = 'active'
-      else rawStatus = 'inactive'
+    // 2. Status: Backend real status FIRST!
+    let rawStatus = 'active'
+    const statusVal = (v.userStatus || v.accountStatus || v.status || (v.isActive !== undefined ? (v.isActive ? 'Active' : 'Inactive') : '')).toString().toLowerCase()
+    if (statusVal === 'inactive' || v.isActive === false) {
+      rawStatus = 'inactive'
+    } else if (statusVal === 'active' || v.isActive === true) {
+      rawStatus = 'active'
+    } else {
+      const statusOverrides = getStoredVendorStatusOverrides()
+      const overrideStatus =
+        statusOverrides[String(rawId)] ||
+        (userId && statusOverrides[String(userId)]) ||
+        (vendorId && statusOverrides[String(vendorId)]) ||
+        (v.email && v.email !== 'N/A' && statusOverrides[String(v.email)])
+      if (overrideStatus) rawStatus = overrideStatus
     }
 
     const joinedDateFormatted = v.createdAt || v.joinedOn || v.joinedDate
@@ -477,6 +480,8 @@ function VendorsManagement({ onNavigateToPlans }) {
     return {
       id: rawId,
       _id: rawId,
+      userId: userId,
+      vendorId: vendorId,
       name: rawName,
       fullName: rawName,
       shopName: rawShopName,
@@ -486,7 +491,10 @@ function VendorsManagement({ onNavigateToPlans }) {
       orders: rawOrders,
       joinedOn: joinedDateFormatted,
       approval: rawApproval,
+      approvalStatus: rawApproval === 'approved' ? 'Approved' : (rawApproval === 'rejected' ? 'Rejected' : 'Pending'),
       status: rawStatus,
+      accountStatus: rawStatus === 'active' ? 'Active' : 'Inactive',
+      isActive: rawStatus === 'active',
       checked: false,
       email: v.email || userObj.email || 'N/A',
       phone: v.mobile || v.phone || userObj.mobile || userObj.phone || 'N/A',
@@ -513,8 +521,8 @@ function VendorsManagement({ onNavigateToPlans }) {
       setFetchError(null)
 
       const params = {
-        page: currentPage,
-        limit: itemsPerPage,
+        page: 1,
+        limit: 100,
       }
 
       if (searchQuery.trim()) {
@@ -537,32 +545,44 @@ function VendorsManagement({ onNavigateToPlans }) {
       try {
         const res = await getAllVendors(params)
 
-        if (res?.data && Array.isArray(res.data)) {
-          vendorsData = res.data
+        if (res?.data?.vendors && Array.isArray(res.data.vendors)) {
+          vendorsData = res.data.vendors
         } else if (res?.vendors && Array.isArray(res.vendors)) {
           vendorsData = res.vendors
-        } else if (res?.data && Array.isArray(res.data.vendors)) {
-          vendorsData = res.data.vendors
+        } else if (res?.data && Array.isArray(res.data)) {
+          vendorsData = res.data
         } else if (Array.isArray(res)) {
           vendorsData = res
         }
 
+        // If backend paginates across multiple pages, fetch remaining pages in parallel
         const pagination = res?.pagination || res?.data?.pagination
-        if (pagination) {
-          setPaginationData({
-            total: pagination.total !== undefined ? pagination.total : (pagination.totalVendors !== undefined ? pagination.totalVendors : vendorsData.length),
-            page: pagination.page || pagination.currentPage || currentPage,
-            limit: pagination.limit || itemsPerPage,
-            totalPages: pagination.totalPages || Math.ceil((pagination.total || vendorsData.length) / itemsPerPage) || 1
-          })
-        } else if (res?.total !== undefined) {
-          setPaginationData({
-            total: res.total,
-            page: res.page || currentPage,
-            limit: res.limit || itemsPerPage,
-            totalPages: res.totalPages || Math.ceil(res.total / itemsPerPage) || 1
-          })
+        const totalPages = pagination?.totalPages || 1
+        if (totalPages > 1) {
+          try {
+            const pagePromises = []
+            for (let p = 2; p <= totalPages; p++) {
+              pagePromises.push(getAllVendors({ ...params, page: p, limit: 100 }))
+            }
+            const extraResponses = await Promise.all(pagePromises)
+            for (const extraRes of extraResponses) {
+              const extraList = extraRes?.data?.vendors || extraRes?.vendors || extraRes?.data || []
+              if (Array.isArray(extraList)) {
+                vendorsData = vendorsData.concat(extraList)
+              }
+            }
+          } catch (pageErr) {
+            console.warn('Could not fetch remaining vendor pages:', pageErr)
+          }
         }
+
+        const totalCount = pagination?.total || pagination?.totalVendors || vendorsData.length
+        setPaginationData({
+          total: totalCount,
+          page: currentPage,
+          limit: itemsPerPage,
+          totalPages: Math.max(1, Math.ceil(totalCount / itemsPerPage))
+        })
       } catch (apiErr) {
         console.warn('getAllVendors API note:', apiErr?.message)
         if (apiErr?.response?.data?.message) {
@@ -576,11 +596,11 @@ function VendorsManagement({ onNavigateToPlans }) {
       const mergedMap = new Map()
       // Custom created vendors first
       custom.forEach(v => {
-        const key = String(v._id || v.id || v.email)
+        const key = String(v.userId || v.vendorId || v._id || v.id || v.email)
         mergedMap.set(key, v)
       })
       apiFormatted.forEach(v => {
-        const key = String(v._id || v.id || v.email)
+        const key = String(v.userId || v.vendorId || v._id || v.id || v.email)
         if (!mergedMap.has(key)) {
           mergedMap.set(key, v)
         }
@@ -614,21 +634,22 @@ function VendorsManagement({ onNavigateToPlans }) {
     await fetchVendors(true)
   }
 
-// Fetch Single Vendor By ID and Vendor Orders (GET /api/super-admin/vendors/:id & GET /api/super-admin/orders/vendor/:vendorId)
+  // Fetch Single Vendor By ID and Vendor Orders (GET /api/superadmin/vendors/:id)
   const handleViewVendor = async (vendor) => {
     setViewedVendor(vendor)
     setViewError(null)
 
-    const vendorId = vendor._id || vendor.id
-    if (!vendorId || typeof vendorId === 'number' && vendorId < 1000) {
+    const primaryId = vendor.userId || vendor.id || vendor._id
+    const secondaryId = vendor.vendorId
+    if (!primaryId || (typeof primaryId === 'number' && primaryId < 1000)) {
       return
     }
 
     try {
       setViewLoading(true)
       const [vendorRes, ordersRes] = await Promise.allSettled([
-        getVendorById(vendorId),
-        getOrdersByVendor(vendorId)
+        getVendorById(primaryId, secondaryId),
+        getOrdersByVendor(primaryId)
       ])
 
       const data = vendorRes.status === 'fulfilled' ? (vendorRes.value?.data || vendorRes.value?.vendor || vendorRes.value) : null
@@ -640,8 +661,10 @@ function VendorsManagement({ onNavigateToPlans }) {
           ...(prev || {}),
           ...formatted,
           ...(data || {}),
-          id: data?._id || data?.id || formatted.id,
-          _id: data?._id || data?.id || formatted._id,
+          id: data?.vendorId || data?.userId || data?._id || data?.id || formatted.id,
+          _id: data?.vendorId || data?.userId || data?._id || data?.id || formatted._id,
+          userId: data?.userId || formatted.userId,
+          vendorId: data?.vendorId || formatted.vendorId,
           name: formatted.name,
           shopName: formatted.shopName,
           email: formatted.email,
@@ -671,30 +694,23 @@ function VendorsManagement({ onNavigateToPlans }) {
     }
   }
 
-  // Approve Vendor (PUT /api/vendors/approve/:id & fallbacks)
+  // Approve Vendor (PATCH /api/superadmin/vendors/:userId/approve & fallbacks)
   const handleApproveVendor = async (vendor) => {
-    const vendorId = vendor._id || vendor.id
+    const primaryId = vendor.userId || vendor.id || vendor._id || vendor.vendorId
+    const secondaryId = vendor.vendorId || vendor.userId || vendor.id
     if (vendor.approval === 'approved') {
       showToast('Vendor is already approved.', 'error')
       return
     }
 
-    // 1. Immediately persist approval override to localStorage so UI NEVER reverts on page refresh!
-    saveVendorApprovalOverride(vendorId, 'approved')
-    if (vendor._id) saveVendorApprovalOverride(vendor._id, 'approved')
-    if (vendor.id) saveVendorApprovalOverride(vendor.id, 'approved')
-    if (vendor.email && vendor.email !== 'N/A') saveVendorApprovalOverride(vendor.email, 'approved')
-    if (vendor.shopName) saveVendorApprovalOverride(vendor.shopName, 'approved')
-    if (vendor.name) saveVendorApprovalOverride(vendor.name, 'approved')
-
-    // 2. Immediately update in vendorsList state
+    // 1. Optimistic update so UI responds instantly
     setVendorsList(prev => prev.map(v => {
-      if (
-        v.id === vendor.id ||
-        (v._id && v._id === vendorId) ||
-        (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
-        (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
-      ) {
+      const match = (v.id && (v.id === vendor.id || v.id === primaryId || v.id === secondaryId)) ||
+                    (v.userId && vendor.userId && v.userId === vendor.userId) ||
+                    (v.vendorId && vendor.vendorId && v.vendorId === vendor.vendorId) ||
+                    (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
+                    (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
+      if (match) {
         return {
           ...v,
           approval: 'approved',
@@ -704,13 +720,13 @@ function VendorsManagement({ onNavigateToPlans }) {
       return v
     }))
 
-    // 3. Sync custom vendors
+    // 2. Sync custom vendors store
     const storedCustom = getStoredCustomVendors()
-    const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v._id === vendorId) ? { ...v, approval: 'approved', approvalStatus: 'Approved' } : v)
+    const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v.userId === vendor.userId || v.vendorId === vendor.vendorId) ? { ...v, approval: 'approved', approvalStatus: 'Approved' } : v)
     saveCustomVendors(updatedCustom)
 
-    // 4. Update in viewedVendor if currently opened
-    if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor._id === vendorId)) {
+    // 3. Update viewedVendor if currently opened
+    if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor.userId === vendor.userId || viewedVendor.vendorId === vendor.vendorId)) {
       setViewedVendor(prev => prev ? ({
         ...prev,
         approval: 'approved',
@@ -718,45 +734,47 @@ function VendorsManagement({ onNavigateToPlans }) {
       }) : null)
     }
 
-    showToast('Vendor approved successfully.', 'success')
+    // 4. Save to localStorage as soft fallback
+    if (primaryId) saveVendorApprovalOverride(primaryId, 'approved')
+    if (secondaryId) saveVendorApprovalOverride(secondaryId, 'approved')
+    if (vendor.email && vendor.email !== 'N/A') saveVendorApprovalOverride(vendor.email, 'approved')
+    if (vendor.shopName) saveVendorApprovalOverride(vendor.shopName, 'approved')
+    if (vendor.name) saveVendorApprovalOverride(vendor.name, 'approved')
 
-    // 5. Call backend API with all fallback routes
+    // 5. Call live backend API to persist to MongoDB database
     try {
-      setApprovingVendorId(vendorId)
-      if (vendorId && typeof vendorId === 'string' && !vendorId.startsWith('vendor-')) {
-        await approveVendor(vendorId)
-      }
+      setApprovingVendorId(vendor.id || vendor.userId || vendor.vendorId || vendor._id)
+      await approveVendor(primaryId, secondaryId)
+      showToast('Vendor approved successfully.', 'success')
+      // Re-fetch live vendors so all devices and page refreshes get real database state
+      await fetchVendors()
     } catch (err) {
-      console.warn('Backend approveVendor API error (approval retained locally):', err)
+      console.error('Backend approveVendor API error:', err)
+      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to approve vendor on backend.'
+      showToast(errorMsg, 'error')
+      await fetchVendors()
     } finally {
       setApprovingVendorId(null)
     }
   }
 
-  // Reject Vendor (PUT /api/vendors/reject/:id & fallbacks)
+  // Reject Vendor (PATCH /api/superadmin/vendors/:vendorId/reject & fallbacks)
   const handleRejectVendor = async (vendor) => {
-    const vendorId = vendor._id || vendor.id
+    const primaryId = vendor.vendorId || vendor.userId || vendor.id || vendor._id
+    const secondaryId = vendor.userId || vendor.vendorId
     if (vendor.approval === 'rejected') {
       showToast('Vendor is already rejected.', 'error')
       return
     }
 
-    // 1. Immediately persist rejection override to localStorage so UI NEVER reverts on page refresh!
-    saveVendorApprovalOverride(vendorId, 'rejected')
-    if (vendor._id) saveVendorApprovalOverride(vendor._id, 'rejected')
-    if (vendor.id) saveVendorApprovalOverride(vendor.id, 'rejected')
-    if (vendor.email && vendor.email !== 'N/A') saveVendorApprovalOverride(vendor.email, 'rejected')
-    if (vendor.shopName) saveVendorApprovalOverride(vendor.shopName, 'rejected')
-    if (vendor.name) saveVendorApprovalOverride(vendor.name, 'rejected')
-
-    // 2. Immediately update in vendorsList state
+    // 1. Optimistic update
     setVendorsList(prev => prev.map(v => {
-      if (
-        v.id === vendor.id ||
-        (v._id && v._id === vendorId) ||
-        (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
-        (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
-      ) {
+      const match = (v.id && (v.id === vendor.id || v.id === primaryId || v.id === secondaryId)) ||
+                    (v.userId && vendor.userId && v.userId === vendor.userId) ||
+                    (v.vendorId && vendor.vendorId && v.vendorId === vendor.vendorId) ||
+                    (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
+                    (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
+      if (match) {
         return {
           ...v,
           approval: 'rejected',
@@ -766,13 +784,11 @@ function VendorsManagement({ onNavigateToPlans }) {
       return v
     }))
 
-    // 3. Sync custom vendors
     const storedCustom = getStoredCustomVendors()
-    const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v._id === vendorId) ? { ...v, approval: 'rejected', approvalStatus: 'Rejected' } : v)
+    const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v.userId === vendor.userId || v.vendorId === vendor.vendorId) ? { ...v, approval: 'rejected', approvalStatus: 'Rejected' } : v)
     saveCustomVendors(updatedCustom)
 
-    // 4. Update in viewedVendor if currently opened
-    if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor._id === vendorId)) {
+    if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor.userId === vendor.userId || viewedVendor.vendorId === vendor.vendorId)) {
       setViewedVendor(prev => prev ? ({
         ...prev,
         approval: 'rejected',
@@ -780,77 +796,81 @@ function VendorsManagement({ onNavigateToPlans }) {
       }) : null)
     }
 
-    showToast('Vendor rejected successfully.', 'success')
+    if (primaryId) saveVendorApprovalOverride(primaryId, 'rejected')
+    if (secondaryId) saveVendorApprovalOverride(secondaryId, 'rejected')
+    if (vendor.email && vendor.email !== 'N/A') saveVendorApprovalOverride(vendor.email, 'rejected')
 
-    // 5. Call backend API with all fallback routes
+    // 2. Call backend API to persist to MongoDB database
     try {
-      setRejectingVendorId(vendorId)
-      if (vendorId && typeof vendorId === 'string' && !vendorId.startsWith('vendor-')) {
-        await rejectVendor(vendorId)
-      }
+      setRejectingVendorId(vendor.id || vendor.vendorId || vendor.userId || vendor._id)
+      await rejectVendor(primaryId, secondaryId)
+      showToast('Vendor rejected successfully.', 'success')
+      await fetchVendors()
     } catch (err) {
-      console.warn('Backend rejectVendor API error (rejection retained locally):', err)
+      console.error('Backend rejectVendor API error:', err)
+      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to reject vendor on backend.'
+      showToast(errorMsg, 'error')
+      await fetchVendors()
     } finally {
       setRejectingVendorId(null)
     }
   }
 
-  // Activate / Deactivate Vendor (PUT /api/vendors/status/:id & fallbacks)
+  // Activate / Deactivate Vendor (PATCH /api/superadmin/vendors/:vendorId/status & fallbacks)
   const handleToggleVendorStatus = async (vendor) => {
-    const vendorId = vendor._id || vendor.id
+    const primaryId = vendor.vendorId || vendor.userId || vendor.id || vendor._id
+    const secondaryId = vendor.userId || vendor.vendorId
     const currentIsActive = vendor.status === 'active'
     const newStatusText = currentIsActive ? 'Inactive' : 'Active'
+    const newStatusUpper = currentIsActive ? 'INACTIVE' : 'ACTIVE'
     const newStatusLower = newStatusText.toLowerCase()
 
-    // 1. Immediately persist status override to localStorage so UI NEVER reverts on page refresh!
-    saveVendorStatusOverride(vendorId, newStatusLower)
-    if (vendor._id) saveVendorStatusOverride(vendor._id, newStatusLower)
-    if (vendor.id) saveVendorStatusOverride(vendor.id, newStatusLower)
-    if (vendor.email && vendor.email !== 'N/A') saveVendorStatusOverride(vendor.email, newStatusLower)
-    if (vendor.shopName) saveVendorStatusOverride(vendor.shopName, newStatusLower)
-    if (vendor.name) saveVendorStatusOverride(vendor.name, newStatusLower)
-
-    // 2. Immediately update in vendorsList state
+    // 1. Optimistic update
     setVendorsList(prev => prev.map(v => {
-      if (
-        v.id === vendor.id ||
-        (v._id && v._id === vendorId) ||
-        (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
-        (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
-      ) {
+      const match = (v.id && (v.id === vendor.id || v.id === primaryId || v.id === secondaryId)) ||
+                    (v.userId && vendor.userId && v.userId === vendor.userId) ||
+                    (v.vendorId && vendor.vendorId && v.vendorId === vendor.vendorId) ||
+                    (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
+                    (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
+      if (match) {
         return {
           ...v,
           status: newStatusLower,
-          accountStatus: newStatusText
+          accountStatus: newStatusText,
+          isActive: newStatusText === 'Active'
         }
       }
       return v
     }))
 
-    // 3. Sync custom vendors
     const storedCustom = getStoredCustomVendors()
-    const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v._id === vendorId) ? { ...v, status: newStatusLower, accountStatus: newStatusText } : v)
+    const updatedCustom = storedCustom.map(v => (v.id === vendor.id || v.userId === vendor.userId || v.vendorId === vendor.vendorId) ? { ...v, status: newStatusLower, accountStatus: newStatusText, isActive: newStatusText === 'Active' } : v)
     saveCustomVendors(updatedCustom)
 
-    // 4. Update in viewedVendor if currently opened
-    if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor._id === vendorId)) {
+    if (viewedVendor && (viewedVendor.id === vendor.id || viewedVendor.userId === vendor.userId || viewedVendor.vendorId === vendor.vendorId)) {
       setViewedVendor(prev => prev ? ({
         ...prev,
         status: newStatusLower,
-        accountStatus: newStatusText
+        accountStatus: newStatusText,
+        isActive: newStatusText === 'Active'
       }) : null)
     }
 
-    showToast(`Vendor ${newStatusLower} successfully.`, 'success')
+    if (primaryId) saveVendorStatusOverride(primaryId, newStatusLower)
+    if (secondaryId) saveVendorStatusOverride(secondaryId, newStatusLower)
+    if (vendor.email && vendor.email !== 'N/A') saveVendorStatusOverride(vendor.email, newStatusLower)
 
-    // 5. Call backend API with all fallback routes
+    // 2. Call backend API with uppercase ACTIVE / INACTIVE to persist to MongoDB database
     try {
-      setStatusUpdatingVendorId(vendorId)
-      if (vendorId && typeof vendorId === 'string' && !vendorId.startsWith('vendor-')) {
-        await updateVendorStatus(vendorId, newStatusText)
-      }
+      setStatusUpdatingVendorId(vendor.id || vendor.vendorId || vendor.userId || vendor._id)
+      await updateVendorStatus(primaryId, newStatusUpper, secondaryId)
+      showToast(`Vendor account ${newStatusLower} successfully.`, 'success')
+      await fetchVendors()
     } catch (err) {
-      console.warn('Backend updateVendorStatus API error (status retained locally):', err)
+      console.error('Backend updateVendorStatus API error:', err)
+      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update vendor status on backend.'
+      showToast(errorMsg, 'error')
+      await fetchVendors()
     } finally {
       setStatusUpdatingVendorId(null)
     }

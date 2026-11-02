@@ -471,9 +471,20 @@ export const getAllVendors = async (params = {}) => {
 };
 
 // 27. Get Vendor By ID (GET /api/superadmin/vendors/:id)
-export const getVendorById = async (id) => {
-  const response = await api.get(`/superadmin/vendors/${id}`);
-  return response.data;
+// Backend expects userId; fall back to secondary ID (vendorId) if needed
+export const getVendorById = async (id, secondaryId = null) => {
+  const cleanId = String(id || '').trim();
+  try {
+    const response = await api.get(`/superadmin/vendors/${cleanId}`);
+    return response.data;
+  } catch (err) {
+    if (secondaryId) {
+      const cleanSecondary = String(secondaryId).trim();
+      const fallback = await api.get(`/superadmin/vendors/${cleanSecondary}`);
+      return fallback.data;
+    }
+    throw err;
+  }
 };
 
 // 28. Update Vendor (PUT /api/superadmin/vendors/:id)
@@ -488,142 +499,158 @@ export const createVendor = async (vendorData) => {
   return response.data;
 };
 
-// 29. Approve Vendor (PUT /api/vendors/approve/:id & fallbacks)
-export const approveVendor = async (id) => {
-  const cleanId = String(id).trim();
+// 29. Approve Vendor (PATCH /api/superadmin/vendors/:id/approve & fallbacks)
+// Backend controller expects userId: PATCH /api/superadmin/vendors/:userId/approve
+export const approveVendor = async (id, secondaryId = null) => {
+  const cleanId = String(id || '').trim();
+  const cleanSecondary = secondaryId ? String(secondaryId).trim() : null;
   const payload = {
     approval: 'approved',
     approvalStatus: 'Approved',
     isApproved: true,
     status: 'active',
-    accountStatus: 'Active',
+    accountStatus: 'ACTIVE',
   };
 
+  // 1. Primary endpoint: PATCH /api/superadmin/vendors/:id/approve
   try {
-    // 1. Primary endpoint from api_endpoints_list.md: PUT /api/vendors/approve/:id
-    const response = await api.put(`/vendors/approve/${cleanId}`, payload);
+    const response = await api.patch(`/superadmin/vendors/${cleanId}/approve`, payload);
     return response.data;
   } catch (err1) {
-    try {
-      // 2. Endpoint from APIs.md: PATCH /api/vendors/:id/approval
-      const response = await api.patch(`/vendors/${cleanId}/approval`, payload);
-      return response.data;
-    } catch (err2) {
+    // 2. Try with secondary ID (e.g. if cleanId was vendorId, try userId or vice versa)
+    if (cleanSecondary && cleanSecondary !== cleanId) {
       try {
-        // 3. PATCH /api/superadmin/vendors/:id/approve
-        const response = await api.patch(`/superadmin/vendors/${cleanId}/approve`, payload);
+        const response = await api.patch(`/superadmin/vendors/${cleanSecondary}/approve`, payload);
         return response.data;
-      } catch (err3) {
-        try {
-          // 4. PUT /api/superadmin/vendors/:id/approve
-          const response = await api.put(`/superadmin/vendors/${cleanId}/approve`, payload);
-          return response.data;
-        } catch (err4) {
-          try {
-            // 5. PATCH /api/super-admin/vendors/:id/approve
-            const response = await api.patch(`/super-admin/vendors/${cleanId}/approve`, payload);
-            return response.data;
-          } catch (err5) {
-            try {
-              // 6. PUT /api/super-admin/vendors/:id/approve
-              const response = await api.put(`/super-admin/vendors/${cleanId}/approve`, payload);
-              return response.data;
-            } catch (err6) {
-              // 7. PUT /api/vendors/status/:id
-              const response = await api.put(`/vendors/status/${cleanId}`, payload);
-              return response.data;
-            }
-          }
-        }
+      } catch (err2) {
+        console.warn('Secondary approve endpoint failed, trying fallbacks...');
+      }
+    }
+
+    // 3. Fallback: PUT /api/superadmin/vendors/:id
+    try {
+      const targetId = cleanSecondary || cleanId;
+      const response = await api.put(`/superadmin/vendors/${targetId}`, payload);
+      return response.data;
+    } catch (err3) {
+      // 4. Fallback: PUT /api/vendors/approve/:id
+      try {
+        const response = await api.put(`/vendors/approve/${cleanId}`, payload);
+        return response.data;
+      } catch (err4) {
+        // 5. Fallback: PATCH /api/vendors/:id/approval
+        const response = await api.patch(`/vendors/${cleanId}/approval`, payload);
+        return response.data;
       }
     }
   }
 };
 
-// 30. Reject Vendor (PUT /api/vendors/reject/:id & fallbacks)
-export const rejectVendor = async (id) => {
-  const cleanId = String(id).trim();
+// 30. Reject Vendor (PATCH /api/superadmin/vendors/:id/reject & fallbacks)
+// Backend controller expects vendorId: PATCH /api/superadmin/vendors/:vendorId/reject
+export const rejectVendor = async (id, secondaryId = null, reason = '') => {
+  const cleanId = String(id || '').trim();
+  const cleanSecondary = secondaryId ? String(secondaryId).trim() : null;
   const payload = {
+    rejectionReason: reason || 'Registration rejected by Super Admin',
     approval: 'rejected',
     approvalStatus: 'Rejected',
     isApproved: false,
   };
 
+  // 1. Primary endpoint: PATCH /api/superadmin/vendors/:id/reject
   try {
-    const response = await api.put(`/vendors/reject/${cleanId}`, payload);
+    const response = await api.patch(`/superadmin/vendors/${cleanId}/reject`, payload);
     return response.data;
-  } catch {
+  } catch (err1) {
+    if (cleanSecondary && cleanSecondary !== cleanId) {
+      try {
+        const response = await api.patch(`/superadmin/vendors/${cleanSecondary}/reject`, payload);
+        return response.data;
+      } catch (err2) {
+        console.warn('Secondary reject endpoint failed, trying fallbacks...');
+      }
+    }
+
     try {
-      const response = await api.patch(`/vendors/${cleanId}/approval`, payload);
+      const targetId = cleanSecondary || cleanId;
+      const response = await api.put(`/superadmin/vendors/${targetId}/reject`, payload);
       return response.data;
     } catch {
       try {
-        const response = await api.patch(`/superadmin/vendors/${cleanId}/reject`, payload);
+        const response = await api.put(`/vendors/reject/${cleanId}`, payload);
         return response.data;
       } catch {
-        try {
-          const response = await api.put(`/superadmin/vendors/${cleanId}/reject`, payload);
-          return response.data;
-        } catch {
-          try {
-            const response = await api.patch(`/super-admin/vendors/${cleanId}/reject`, payload);
-            return response.data;
-          } catch {
-            const response = await api.put(`/super-admin/vendors/${cleanId}/reject`, payload);
-            return response.data;
-          }
-        }
+        const response = await api.patch(`/vendors/${cleanId}/approval`, payload);
+        return response.data;
       }
     }
   }
 };
 
-// 31. Activate / Deactivate Vendor (PUT /api/vendors/status/:id & fallbacks)
-export const updateVendorStatus = async (id, status) => {
-  const cleanId = String(id).trim();
-  const formattedStatus = typeof status === 'boolean'
-    ? (status ? 'Active' : 'Inactive')
+// 31. Activate / Deactivate Vendor (PATCH /api/superadmin/vendors/:id/status & fallbacks)
+// Backend controller expects vendorId: PATCH /api/superadmin/vendors/:vendorId/status
+// Payload requires accountStatus: 'ACTIVE' or 'INACTIVE'
+export const updateVendorStatus = async (id, status, secondaryId = null) => {
+  const cleanId = String(id || '').trim();
+  const cleanSecondary = secondaryId ? String(secondaryId).trim() : null;
+  const isAct = typeof status === 'boolean'
+    ? status
     : (typeof status === 'string'
-      ? (status.toLowerCase() === 'active' ? 'Active' : 'Inactive')
-      : (status ? 'Active' : 'Inactive'));
+      ? status.toUpperCase() === 'ACTIVE'
+      : Boolean(status));
 
+  const formattedStatus = isAct ? 'ACTIVE' : 'INACTIVE';
   const payload = {
     accountStatus: formattedStatus,
     status: formattedStatus.toLowerCase(),
-    isActive: formattedStatus === 'Active',
+    isActive: isAct,
   };
 
+  // 1. Primary endpoint: PATCH /api/superadmin/vendors/:id/status
   try {
-    // 1. Primary from api_endpoints_list.md: PUT /api/vendors/status/:id
-    const response = await api.put(`/vendors/status/${cleanId}`, payload);
+    const response = await api.patch(`/superadmin/vendors/${cleanId}/status`, payload);
     return response.data;
-  } catch {
+  } catch (err1) {
+    if (cleanSecondary && cleanSecondary !== cleanId) {
+      try {
+        const response = await api.patch(`/superadmin/vendors/${cleanSecondary}/status`, payload);
+        return response.data;
+      } catch (err2) {
+        console.warn('Secondary status endpoint failed, trying fallbacks...');
+      }
+    }
+
     try {
-      // 2. PATCH /api/vendors/:id/status
-      const response = await api.patch(`/vendors/${cleanId}/status`, payload);
+      const targetId = cleanSecondary || cleanId;
+      const response = await api.put(`/superadmin/vendors/${targetId}/status`, payload);
       return response.data;
     } catch {
       try {
-        // 3. PATCH /api/superadmin/vendors/:id/status
-        const response = await api.patch(`/superadmin/vendors/${cleanId}/status`, payload);
+        const response = await api.put(`/vendors/status/${cleanId}`, payload);
         return response.data;
       } catch {
-        try {
-          const response = await api.put(`/superadmin/vendors/${cleanId}/status`, payload);
-          return response.data;
-        } catch {
-          const response = await api.patch(`/super-admin/vendors/${cleanId}/status`, payload);
-          return response.data;
-        }
+        const response = await api.patch(`/vendors/${cleanId}/status`, payload);
+        return response.data;
       }
     }
   }
 };
 
-// 32. Delete Vendor (DELETE /api/superadmin/vendors/:id)
-export const deleteVendor = async (id) => {
-  const response = await api.delete(`/superadmin/vendors/${id}`);
-  return response.data;
+// 32. Delete Vendor (DELETE /api/superadmin/vendors/:id & fallbacks)
+export const deleteVendor = async (id, secondaryId = null) => {
+  const cleanId = String(id || '').trim();
+  try {
+    const response = await api.delete(`/superadmin/vendors/${cleanId}`);
+    return response.data;
+  } catch (err1) {
+    if (secondaryId) {
+      const cleanSecondary = String(secondaryId).trim();
+      const response = await api.delete(`/superadmin/vendors/${cleanSecondary}`);
+      return response.data;
+    }
+    throw err1;
+  }
 };
 
 // 33. Get All Categories (GET /api/superadmin/categories)
