@@ -727,6 +727,26 @@ export const cancelOrder = async (id) => {
   return response.data;
 };
 
+// 42.1 Payment Refund (POST /api/super-admin/orders/:id/refund)
+export const refundOrderPayment = async (orderId, { amount, reason, speed = 'normal' } = {}) => {
+  const payload = {
+    amount: Number(amount),
+    reason: reason || 'Partial refund for damaged product',
+    speed: speed || 'normal',
+  };
+
+  try {
+    const response = await api.post(`/super-admin/orders/${orderId}/refund`, payload);
+    return response.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      const fb = await api.post(`/superadmin/orders/${orderId}/refund`, payload);
+      return fb.data;
+    }
+    throw err;
+  }
+};
+
 // 43. Get Orders By Customer (GET /api/superadmin/orders or /superadmin/orders/customer/:customerId)
 export const getOrdersByCustomer = async (customerId, params = {}) => {
   // 1. Try dedicated customer orders endpoint if available
@@ -1341,6 +1361,7 @@ export default {
   updateBusinessPlan,
   deleteBusinessPlan,
   updateBusinessPlanStatus,
+  refundOrderPayment,
   getCloudVendorSync,
   saveCloudVendorSync,
 };

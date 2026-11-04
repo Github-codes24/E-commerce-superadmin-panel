@@ -19,6 +19,7 @@ import {
   AlertCircle,
   X,
   RotateCw,
+  RotateCcw,
   Package,
   Layers,
   Tag,
@@ -40,7 +41,7 @@ import {
   Send,
   Truck
 } from 'lucide-react'
-import { getAllOrders, getOrderById, updateOrderStatus, cancelOrder } from '../services/superAdminService'
+import { getAllOrders, getOrderById, updateOrderStatus, cancelOrder, refundOrderPayment } from '../services/superAdminService'
 import { downloadInvoicePdf } from '../utils/invoicePdfGenerator'
 import './OrdersManagement.css'
 
@@ -381,10 +382,17 @@ const formatOrderItem = (item, index = 0) => {
   // Payment Status: 'Paid' | 'Pending' | 'Refund'
   let paymentStr = 'Paid'
   const pStatus = (item.payment || item.paymentStatus || (item.isPaid ? 'Paid' : 'Pending')).toString().toLowerCase()
-  if (pStatus.includes('paid') || pStatus.includes('success') || pStatus.includes('completed')) {
-    paymentStr = 'Paid'
-  } else if (pStatus.includes('refund')) {
+  const rawRefunds = Array.isArray(item.refunds) ? item.refunds : []
+  const latestRefund = rawRefunds.length > 0 ? rawRefunds[rawRefunds.length - 1] : (item.refundDetails || {})
+  const amountRefundedVal = item.amountRefunded !== undefined 
+    ? item.amountRefunded 
+    : (item.totalRefunded !== undefined ? item.totalRefunded : (latestRefund.amount || latestRefund.refundAmount || 0))
+  const refundStatusVal = item.refundStatus || latestRefund.status || latestRefund.refundStatus || (amountRefundedVal > 0 ? 'processed' : null)
+
+  if (pStatus.includes('refund') || (amountRefundedVal && Number(amountRefundedVal) > 0) || refundStatusVal === 'processed' || refundStatusVal === 'PROCESSED') {
     paymentStr = 'Refund'
+  } else if (pStatus.includes('paid') || pStatus.includes('success') || pStatus.includes('completed')) {
+    paymentStr = 'Paid'
   } else {
     paymentStr = 'Pending'
   }
@@ -431,6 +439,11 @@ const formatOrderItem = (item, index = 0) => {
     status: statusStr,
     paymentMethod,
     transactionId,
+    amountRefunded: amountRefundedVal,
+    refundStatus: refundStatusVal,
+    refunds: rawRefunds,
+    refundDetails: item.refundDetails || latestRefund,
+    paymentId: item.paymentId || item.paymentOrderId || null,
     complaint: item.complaint || item.refundRequest || null,
     products: formattedProducts,
     product: firstItem,
@@ -700,6 +713,8 @@ function OrderDetailView({
   cancellingOrder = false,
   onApproveRefund, 
   onRejectRefund, 
+  onProcessRefund,
+  refundingOrder = false,
   loading = false, 
   onRefresh 
 }) {
@@ -707,6 +722,71 @@ function OrderDetailView({
   const [showApproveModal, setShowApproveModal] = useState(false)
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
+
+  // Payment Refund Modal States (POST /api/super-admin/orders/:id/refund)
+  const [showRefundModal, setShowRefundModal] = useState(false)
+  const [refundAmount, setRefundAmount] = useState('')
+  const [refundReason, setRefundReason] = useState('Partial refund for damaged product')
+  const [customReason, setCustomReason] = useState('')
+  const [refundSpeed, setRefundSpeed] = useState('normal')
+  const [refundError, setRefundError] = useState('')
+  const [refundSuccessData, setRefundSuccessData] = useState(null)
+  const [isSubmittingRefund, setIsSubmittingRefund] = useState(false)
+
+  const orderTotalNum = parseFloat(String(order.amount || 0).replace(/[^\d.]/g, '')) || 0
+  const alreadyRefundedNum = Number(order.amountRefunded || order.totalRefunded || 0)
+  const remainingRefundable = Math.max(0, orderTotalNum - alreadyRefundedNum)
+  const numericMaxRefundable = remainingRefundable > 0 ? remainingRefundable : orderTotalNum
+
+  const handleOpenRefundModal = (prefill = {}) => {
+    setRefundError('')
+    setRefundSuccessData(null)
+    const initialAmount = prefill.amount !== undefined 
+      ? String(prefill.amount) 
+      : (numericMaxRefundable > 0 ? String(numericMaxRefundable) : '100')
+    setRefundAmount(initialAmount)
+    setRefundReason(prefill.reason || 'Partial refund for damaged product')
+    setCustomReason(prefill.customReason || '')
+    setRefundSpeed(prefill.speed || 'normal')
+    setShowRefundModal(true)
+  }
+
+  const handleRefundSubmit = async (e) => {
+    e.preventDefault()
+    setRefundError('')
+
+    const amtNum = parseFloat(refundAmount)
+    if (isNaN(amtNum) || amtNum <= 0) {
+      setRefundError('Please enter a valid refund amount greater than 0.')
+      return
+    }
+
+    const finalReason = refundReason === 'Other' ? (customReason.trim() || 'Partial refund for damaged product') : refundReason
+
+    try {
+      setIsSubmittingRefund(true)
+      if (onProcessRefund) {
+        const targetOrderId = order._id || order.id
+        const res = await onProcessRefund(targetOrderId, {
+          amount: amtNum,
+          reason: finalReason,
+          speed: refundSpeed
+        })
+
+        if (res && res.success) {
+          setRefundSuccessData(res.data)
+          triggerToast(res.message || 'Refund request submitted successfully!')
+        } else {
+          setRefundError(res?.error || 'Failed to submit refund request.')
+        }
+      }
+    } catch (err) {
+      console.error('handleRefundSubmit error:', err)
+      setRefundError(err?.response?.data?.message || err?.message || 'Failed to submit refund request.')
+    } finally {
+      setIsSubmittingRefund(false)
+    }
+  }
 
   // Need Help? & Complaints Portal States
   const [showNeedHelpModal, setShowNeedHelpModal] = useState(false)
@@ -998,6 +1078,242 @@ function OrderDetailView({
         </div>
       )}
 
+      {/* Payment Refund Modal (POST /api/super-admin/orders/:id/refund) */}
+      {showRefundModal && (
+        <div className="orders-modal-overlay" onClick={() => !isSubmittingRefund && setShowRefundModal(false)}>
+          <div className="orders-modal" style={{ maxWidth: '490px', width: '92%' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ backgroundColor: '#fee2e2', padding: '6px', borderRadius: '8px', color: '#b91c1c', display: 'flex' }}>
+                  <RotateCcw style={{ width: '18px', height: '18px' }} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '700', color: '#0f172a' }}>Payment Refund</h3>
+                  <span style={{ fontSize: '11.5px', color: '#64748b' }}>Order {order.id || order._id}</span>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => !isSubmittingRefund && setShowRefundModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px' }}
+                aria-label="Close"
+              >
+                <X style={{ width: '18px', height: '18px' }} />
+              </button>
+            </div>
+
+            {refundSuccessData ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '8px', padding: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#065f46', fontWeight: '600', marginBottom: '10px' }}>
+                    <CheckCircle2 style={{ width: '18px', height: '18px', flexShrink: 0 }} />
+                    <span>Refund Request Submitted Successfully!</span>
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: '#047857', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>Order ID: <strong style={{ fontFamily: 'monospace' }}>{refundSuccessData.orderId || order.id || order._id}</strong></div>
+                    <div>Refund ID: <strong style={{ fontFamily: 'monospace' }}>{refundSuccessData.refundId || 'N/A'}</strong></div>
+                    <div>Payment ID: <strong style={{ fontFamily: 'monospace' }}>{refundSuccessData.paymentId || 'N/A'}</strong></div>
+                    <div>Refund Status: <span style={{ textTransform: 'capitalize', fontWeight: '600', color: '#059669' }}>{refundSuccessData.refundStatus || 'processed'}</span></div>
+                    <div>Refund Amount: <strong style={{ fontSize: '14px' }}>₹{refundSuccessData.refundAmount}</strong></div>
+                    <div>Speed: <strong>{refundSuccessData.refundSpeed || 'normal'}</strong></div>
+                    <div>Total Refunded: <strong>₹{refundSuccessData.totalRefunded}</strong></div>
+                    <div>Remaining: <strong>₹{refundSuccessData.remainingAmount !== undefined ? refundSuccessData.remainingAmount : 0}</strong></div>
+                  </div>
+                </div>
+
+                <div className="orders-modal-buttons">
+                  <button 
+                    type="button" 
+                    className="orders-modal-btn approve" 
+                    onClick={() => {
+                      setShowRefundModal(false)
+                      setRefundSuccessData(null)
+                    }}
+                    style={{ width: '100%' }}
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleRefundSubmit}>
+                <div className="orders-modal-details" style={{ marginBottom: '14px', backgroundColor: '#f8fafc', padding: '10px 14px', borderRadius: '8px', fontSize: '12.5px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Order Total:</span>
+                    <strong>{order.amount}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Already Refunded:</span>
+                    <strong style={{ color: '#b91c1c' }}>₹{order.amountRefunded || 0}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: '#64748b' }}>Payment Method:</span>
+                    <strong>{order.paymentMethod || 'Online'}</strong>
+                  </div>
+                  {order.transactionId && order.transactionId !== 'Not available' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#64748b' }}>Transaction ID:</span>
+                      <strong style={{ fontFamily: 'monospace', fontSize: '11px' }}>{order.transactionId}</strong>
+                    </div>
+                  )}
+                </div>
+
+                {refundError && (
+                  <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px', fontSize: '12px', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <AlertCircle style={{ width: '16px', height: '16px', flexShrink: 0 }} />
+                    <span>{refundError}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#334155', marginBottom: '4px' }}>
+                      Refund Amount (₹) <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <input 
+                      type="number"
+                      step="any"
+                      min="1"
+                      required
+                      value={refundAmount}
+                      onChange={(e) => setRefundAmount(e.target.value)}
+                      placeholder="e.g. 100"
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => setRefundAmount(String(numericMaxRefundable))}
+                        style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f1f5f9', cursor: 'pointer', fontWeight: '500' }}
+                      >
+                        Full (₹{numericMaxRefundable})
+                      </button>
+                      {numericMaxRefundable > 10 && (
+                        <button
+                          type="button"
+                          onClick={() => setRefundAmount(String(Math.round(numericMaxRefundable / 2)))}
+                          style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f1f5f9', cursor: 'pointer', fontWeight: '500' }}
+                        >
+                          50% (₹{Math.round(numericMaxRefundable / 2)})
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setRefundAmount('100')}
+                        style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#f1f5f9', cursor: 'pointer', fontWeight: '500' }}
+                      >
+                        ₹100
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#334155', marginBottom: '4px' }}>
+                      Refund Reason <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <select
+                      value={refundReason}
+                      onChange={(e) => {
+                        setRefundReason(e.target.value)
+                        if (e.target.value !== 'Other') setCustomReason('')
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        outline: 'none',
+                        marginBottom: refundReason === 'Other' ? '6px' : '0',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <option value="Partial refund for damaged product">Partial refund for damaged product</option>
+                      <option value="Defective or expired product received">Defective or expired product received</option>
+                      <option value="Wrong item delivered">Wrong item delivered</option>
+                      <option value="Customer cancellation before delivery">Customer cancellation before delivery</option>
+                      <option value="Return requested and approved">Return requested and approved</option>
+                      <option value="Other">Other / Custom Reason</option>
+                    </select>
+
+                    {refundReason === 'Other' && (
+                      <input 
+                        type="text"
+                        placeholder="Please specify custom refund reason"
+                        value={customReason}
+                        onChange={(e) => setCustomReason(e.target.value)}
+                        required
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#334155', marginBottom: '4px' }}>
+                      Refund Speed
+                    </label>
+                    <select
+                      value={refundSpeed}
+                      onChange={(e) => setRefundSpeed(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <option value="normal">Normal (Standard 5-7 business days)</option>
+                      <option value="optimum">Optimum (Instant if supported)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="orders-modal-buttons">
+                  <button 
+                    type="button" 
+                    className="orders-modal-btn cancel" 
+                    onClick={() => setShowRefundModal(false)}
+                    disabled={isSubmittingRefund || refundingOrder}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="orders-modal-btn approve"
+                    disabled={isSubmittingRefund || refundingOrder}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#dc2626', borderColor: '#b91c1c' }}
+                  >
+                    {(isSubmittingRefund || refundingOrder) && (
+                      <RotateCw className="spin-animation" style={{ width: '14px', height: '14px' }} />
+                    )}
+                    <span>{(isSubmittingRefund || refundingOrder) ? 'Processing Refund...' : 'Submit Refund'}</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Approve Refund Modal */}
       {showApproveModal && (
         <div className="orders-modal-overlay" onClick={() => setShowApproveModal(false)}>
@@ -1236,6 +1552,29 @@ function OrderDetailView({
             </button>
           )}
 
+          {/* Refund Payment Action Button */}
+          {order.paymentMethod !== 'Cash on Delivery' && (
+            <button
+              type="button"
+              className="orders-refund-btn"
+              onClick={() => handleOpenRefundModal()}
+              title="Issue payment refund"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: '600',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }}
+            >
+              <RotateCcw style={{ width: '13px', height: '13px' }} />
+              Refund Payment
+            </button>
+          )}
+
           <div className="orders-action-select-group" style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }}>
             <span className="payment-label" style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)' }}>
               Method: <strong style={{ color: 'var(--text-dark)' }}>{order.paymentMethod || 'Online'}</strong>
@@ -1394,9 +1733,15 @@ function OrderDetailView({
                     </button>
                     <button 
                       className="orders-refund-btn" 
-                      onClick={() => setShowApproveModal(true)}
+                      onClick={() => {
+                        const parsedAmt = order.complaint?.requestedAmount ? parseFloat(String(order.complaint.requestedAmount).replace(/[^\d.]/g, '')) : undefined
+                        handleOpenRefundModal({
+                          amount: parsedAmt,
+                          reason: order.complaint?.reason || 'Partial refund for damaged product'
+                        })
+                      }}
                     >
-                      Approve Refund
+                      Approve & Refund
                     </button>
                   </>
                 )}
@@ -1520,6 +1865,59 @@ function OrderDetailView({
               <div className="payment-metadata-rows" style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px', width: '100%' }}>
                 <div>Payment Method: <strong style={{ color: 'var(--text-dark)' }}>{order.paymentMethod || 'Online'}</strong></div>
                 <div>Transaction ID: <strong style={{ color: 'var(--text-dark)', fontFamily: 'monospace' }}>{order.transactionId || 'Not available'}</strong></div>
+
+                {Number(order.amountRefunded || 0) > 0 && (
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '8px 12px',
+                    backgroundColor: '#fee2e2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    color: '#991b1b',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px'
+                  }}>
+                    <div style={{ fontWeight: '700', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Refund Status</span>
+                      <span style={{ fontSize: '11px', textTransform: 'uppercase', backgroundColor: '#ef4444', color: '#fff', padding: '1px 6px', borderRadius: '4px' }}>
+                        {order.refundStatus || 'Processed'}
+                      </span>
+                    </div>
+                    <div>Total Refunded: <strong>₹{order.amountRefunded}</strong></div>
+                    {order.refundDetails?.refundId && (
+                      <div style={{ fontSize: '11px', fontFamily: 'monospace' }}>
+                        Refund ID: {order.refundDetails.refundId}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {order.paymentMethod !== 'Cash on Delivery' && (
+                  <button 
+                    type="button"
+                    className="orders-refund-btn"
+                    onClick={() => handleOpenRefundModal()}
+                    title="Process Refund for this Order"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      width: '100%',
+                      marginTop: '8px',
+                      padding: '8px 14px',
+                      fontSize: '12.5px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <RotateCcw style={{ width: '14px', height: '14px' }} />
+                    <span>Process Payment Refund</span>
+                  </button>
+                )}
+
                 <button 
                   type="button"
                   className="orders-download-invoice-btn"
@@ -2936,6 +3334,95 @@ function OrdersManagement({ initialSearchQuery }) {
     }
   }
 
+  const [refundingOrderId, setRefundingOrderId] = useState(null)
+
+  // Payment Refund (POST /api/super-admin/orders/:id/refund)
+  const handleProcessRefund = async (orderId, refundPayload) => {
+    try {
+      setRefundingOrderId(orderId)
+      const res = await refundOrderPayment(orderId, refundPayload)
+      const refundData = res?.data || {}
+      const targetId = orderId
+
+      // Update state in ordersList
+      setOrdersList(prev => prev.map(o => {
+        if (o.id === targetId || o._id === targetId || o.id === viewedOrder?.id || o._id === viewedOrder?._id) {
+          const newAmountRefunded = refundData.totalRefunded !== undefined 
+            ? refundData.totalRefunded 
+            : (refundData.refundAmount !== undefined ? refundData.refundAmount : refundPayload.amount)
+          return {
+            ...o,
+            payment: 'Refund',
+            paymentStatus: (refundData.remainingAmount === 0) ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
+            amountRefunded: newAmountRefunded,
+            remainingAmount: refundData.remainingAmount !== undefined ? refundData.remainingAmount : 0,
+            refundStatus: refundData.refundStatus || 'processed',
+            refundDetails: {
+              ...(o.refundDetails || {}),
+              refundId: refundData.refundId,
+              paymentId: refundData.paymentId,
+              refundAmount: refundData.refundAmount || refundPayload.amount,
+              refundStatus: refundData.refundStatus || 'processed',
+              refundSpeed: refundData.refundSpeed || refundPayload.speed || 'normal',
+              totalRefunded: refundData.totalRefunded || newAmountRefunded,
+              remainingAmount: refundData.remainingAmount !== undefined ? refundData.remainingAmount : 0,
+              date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+            },
+            complaint: o.complaint ? {
+              ...o.complaint,
+              status: 'Approved',
+              refundStatus: 'Completed',
+              refundId: refundData.refundId
+            } : o.complaint
+          }
+        }
+        return o
+      }))
+
+      // Update viewedOrder state
+      setViewedOrder(prev => {
+        if (!prev) return null
+        const newAmountRefunded = refundData.totalRefunded !== undefined 
+          ? refundData.totalRefunded 
+          : (refundData.refundAmount !== undefined ? refundData.refundAmount : refundPayload.amount)
+        return {
+          ...prev,
+          payment: 'Refund',
+          paymentStatus: (refundData.remainingAmount === 0) ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
+          amountRefunded: newAmountRefunded,
+          remainingAmount: refundData.remainingAmount !== undefined ? refundData.remainingAmount : 0,
+          refundStatus: refundData.refundStatus || 'processed',
+          refundDetails: {
+            ...(prev.refundDetails || {}),
+            refundId: refundData.refundId,
+            paymentId: refundData.paymentId,
+            refundAmount: refundData.refundAmount || refundPayload.amount,
+            refundStatus: refundData.refundStatus || 'processed',
+            refundSpeed: refundData.refundSpeed || refundPayload.speed || 'normal',
+            totalRefunded: refundData.totalRefunded || newAmountRefunded,
+            remainingAmount: refundData.remainingAmount !== undefined ? refundData.remainingAmount : 0,
+            date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+          },
+          complaint: prev.complaint ? {
+            ...prev.complaint,
+            status: 'Approved',
+            refundStatus: 'Completed',
+            refundId: refundData.refundId
+          } : prev.complaint
+        }
+      })
+
+      showToast(res?.message || 'Refund request submitted successfully.', 'success')
+      return { success: true, data: refundData, message: res?.message || 'Refund request submitted successfully.' }
+    } catch (err) {
+      console.warn('Backend refundOrderPayment error:', err)
+      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to submit refund request.'
+      return { success: false, error: errorMsg }
+    } finally {
+      setRefundingOrderId(null)
+    }
+  }
+
   if (viewedOrder) {
     return (
       <OrderDetailView 
@@ -2947,6 +3434,8 @@ function OrdersManagement({ initialSearchQuery }) {
         onBack={() => setViewedOrder(null)} 
         onUpdateStatus={handleUpdateOrderStatus}
         onCancelOrder={handleCancelOrder}
+        onProcessRefund={handleProcessRefund}
+        refundingOrder={Boolean(refundingOrderId)}
         onApproveRefund={(refundData) => {
           setOrdersList(prev => prev.map(o => {
             if (o.id === viewedOrder.id) {
