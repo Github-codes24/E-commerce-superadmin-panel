@@ -499,11 +499,39 @@ export const updateVendor = async (id, data) => {
   return response.data;
 };
 
-// 28b. Create Vendor (POST /api/superadmin/vendors)
-export const createVendor = async (vendorData) => {
-  const response = await api.post('/superadmin/vendors', vendorData);
-  return response.data;
+// 28b. Register Vendor (POST /api/vendors/register)
+export const registerVendor = async (vendorData) => {
+  const payload = {
+    fullName: (vendorData.fullName || vendorData.name || '').trim(),
+    mobile: String(vendorData.mobile || vendorData.phone || '').trim(),
+    email: (vendorData.email || '').trim().toLowerCase(),
+    dateOfBirth: vendorData.dateOfBirth || vendorData.dob || '2000-08-15',
+    gender: (vendorData.gender || 'MALE').toUpperCase(),
+    country: vendorData.country || 'India',
+    city: vendorData.city || 'Hyderabad',
+    pincode: String(vendorData.pincode || '500001').trim(),
+    address: vendorData.address || vendorData.businessAddress || 'Main Road',
+    password: vendorData.password || '',
+    confirmPassword: vendorData.confirmPassword || vendorData.password || '',
+  };
+
+  try {
+    const response = await api.post('/vendors/register', payload);
+    return response.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      try {
+        const fb = await api.post('/superadmin/vendors', vendorData);
+        return fb.data;
+      } catch (fbErr) {
+        throw fbErr;
+      }
+    }
+    throw err;
+  }
 };
+
+export const createVendor = registerVendor;
 
 // 29. Approve Vendor (PATCH /api/superadmin/vendors/:userId/approve)
 // Backend controller expects userId: PATCH /api/superadmin/vendors/:userId/approve
@@ -1293,6 +1321,8 @@ export default {
   updateCustomer,
   updateCustomerStatus,
   deleteCustomer,
+  registerVendor,
+  createVendor,
   getAllVendors,
   getVendorById,
   updateVendor,

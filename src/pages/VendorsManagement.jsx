@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power, Briefcase, Eye, EyeOff } from 'lucide-react'
-import { getAllVendors, getVendorById, createVendor, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor, getCloudVendorSync, saveCloudVendorSync } from '../services/superAdminService'
+import { getAllVendors, getVendorById, createVendor, registerVendor, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor, getCloudVendorSync, saveCloudVendorSync } from '../services/superAdminService'
 import './VendorsManagement.css'
 
 // Helper to check if URL is an automatic default Unsplash or placeholder URL
@@ -65,14 +65,8 @@ export const validateFullName = (name) => {
   if (trimmed.length < 2) {
     return 'Full Name must be at least 2 characters long.'
   }
-  if (/^\d+$/.test(trimmed)) {
-    return 'Full Name cannot be numeric. Please enter letters and spaces only.'
-  }
-  if (/\d/.test(trimmed)) {
-    return 'Full Name cannot contain numbers. Please enter letters and spaces only.'
-  }
   if (!/^[a-zA-Z\s]+$/.test(trimmed)) {
-    return 'Full Name cannot contain special characters. Please enter letters and spaces only.'
+    return 'Full name should accept only alphabets and spaces.'
   }
   return ''
 }
@@ -451,9 +445,12 @@ function VendorsManagement({ onNavigateToPlans }) {
   const [fieldErrors, setFieldErrors] = useState({
     name: '',
     phone: '',
+    email: '',
     shopName: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    city: '',
+    pincode: ''
   })
 
   // Filter states
@@ -1112,7 +1109,10 @@ function VendorsManagement({ onNavigateToPlans }) {
     password: '',
     confirmPassword: '',
     dob: '',
-    gender: '',
+    gender: 'MALE',
+    country: 'India',
+    city: '',
+    pincode: '',
     shopName: '',
     bizType: '',
     gst: '',
@@ -1294,10 +1294,17 @@ function VendorsManagement({ onNavigateToPlans }) {
     const nameError = validateFullName(formData.name)
     // 2. Validate Mobile Number
     const phoneError = validateMobileNumber(formData.phone)
-    // 3. Validate Store / Shop Name
+    // 3. Validate Email ID
+    let emailError = ''
+    if (!formData.email || !formData.email.trim()) {
+      emailError = 'Email ID is required.'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      emailError = 'Please enter a valid email address.'
+    }
+    // 4. Validate Store / Shop Name
     const shopError = validateStoreName(formData.shopName)
 
-    // 4. Validate Password & Confirm Password
+    // 5. Validate Password & Confirm Password
     let passwordError = ''
     let confirmPasswordError = ''
     if (!editingVendor) {
@@ -1321,21 +1328,24 @@ function VendorsManagement({ onNavigateToPlans }) {
       }
     }
 
-    if (nameError || phoneError || shopError || passwordError || confirmPasswordError) {
+    if (nameError || phoneError || emailError || shopError || passwordError || confirmPasswordError) {
       setFieldErrors({
         name: nameError,
         phone: phoneError,
+        email: emailError,
         shopName: shopError,
         password: passwordError,
-        confirmPassword: confirmPasswordError
+        confirmPassword: confirmPasswordError,
+        city: '',
+        pincode: ''
       })
-      const primaryError = nameError || phoneError || shopError || passwordError || confirmPasswordError
+      const primaryError = nameError || phoneError || emailError || shopError || passwordError || confirmPasswordError
       setSubmitError(primaryError)
       showToast(primaryError, 'error')
       return
     }
 
-    setFieldErrors({ name: '', phone: '', shopName: '', password: '', confirmPassword: '' })
+    setFieldErrors({ name: '', phone: '', email: '', shopName: '', password: '', confirmPassword: '', city: '', pincode: '' })
     const updatedStatus = formData.isActive ? 'active' : 'inactive'
 
     if (editingVendor) {
@@ -1481,7 +1491,10 @@ function VendorsManagement({ onNavigateToPlans }) {
           password: '',
           confirmPassword: '',
           dob: '',
-          gender: '',
+          gender: 'MALE',
+          country: 'India',
+          city: '',
+          pincode: '',
           shopName: '',
           bizType: '',
           gst: '',
@@ -1492,6 +1505,7 @@ function VendorsManagement({ onNavigateToPlans }) {
         })
         setShowPassword(false)
         setShowConfirmPassword(false)
+        setFieldErrors({ name: '', phone: '', email: '', shopName: '', password: '', confirmPassword: '', city: '', pincode: '' })
         setEditingVendor(null)
         setIsAdding(false)
       } catch (err) {
@@ -1503,20 +1517,22 @@ function VendorsManagement({ onNavigateToPlans }) {
         setSubmitLoading(false)
       }
     } else {
-      // Add Vendor Mode (Persistent & API)
+      // 1.1 Register Vendor Mode (POST /api/vendors/register)
       setSubmitLoading(true)
       setSubmitError('')
 
-      const newVendorPayload = {
+      const registerPayload = {
         fullName: formData.name.trim(),
-        name: formData.name.trim(),
-        email: formData.email.trim(),
         mobile: formData.phone.trim(),
-        phone: formData.phone.trim(),
-        password: formData.password.trim(),
-        confirmPassword: formData.confirmPassword.trim(),
-        dob: formData.dob || '',
-        gender: formData.gender || 'Male',
+        email: formData.email.trim().toLowerCase(),
+        dateOfBirth: formData.dob || '2000-08-15',
+        gender: (formData.gender || 'MALE').toUpperCase(),
+        country: (formData.country || 'India').trim(),
+        city: (formData.city || 'Hyderabad').trim(),
+        pincode: (formData.pincode || '522601').trim(),
+        address: (formData.address || 'Main Road').trim(),
+        password: formData.password,
+        confirmPassword: formData.confirmPassword,
         storeName: formData.shopName.trim(),
         shopName: formData.shopName.trim(),
         businessType: formData.bizType || 'Retail',
@@ -1526,7 +1542,6 @@ function VendorsManagement({ onNavigateToPlans }) {
         panNumber: formData.pan.trim(),
         pan: formData.pan.trim(),
         businessAddress: formData.address.trim(),
-        address: formData.address.trim(),
         status: updatedStatus === 'active' ? 'ACTIVE' : 'INACTIVE',
         isActive: formData.isActive,
         avatar: (formData.imagePreview || '').trim(),
@@ -1537,13 +1552,39 @@ function VendorsManagement({ onNavigateToPlans }) {
 
       let createdApiVendor = null
       try {
-        const res = await createVendor(newVendorPayload)
+        const res = await registerVendor(registerPayload)
         createdApiVendor = res?.data || res?.vendor || res
+        const successMsg = res?.message || 'Registration successful. Please proceed to the next step.'
+        showToast(successMsg, 'success')
       } catch (apiErr) {
-        console.warn('Backend createVendor note (persisting locally):', apiErr?.message)
+        console.error('Registration failed:', apiErr)
+        const errData = apiErr?.response?.data
+        let errorMsg = errData?.message || apiErr?.message || 'Registration failed.'
+
+        // Handle structured validation error responses (e.g. BUG_009 or Password Mismatch):
+        if (Array.isArray(errData?.errors) && errData.errors.length > 0) {
+          const newFieldErrors = {}
+          errData.errors.forEach(e => {
+            if (e.field && e.message) {
+              const fieldKey = e.field === 'mobile' ? 'phone' : (e.field === 'fullName' ? 'name' : e.field)
+              newFieldErrors[fieldKey] = e.message
+            }
+          })
+          setFieldErrors(prev => ({ ...prev, ...newFieldErrors }))
+          errorMsg = errData.errors.map(e => e.message).join(' ')
+        } else if (errorMsg.toLowerCase().includes('mobile')) {
+          setFieldErrors(prev => ({ ...prev, phone: errorMsg }))
+        } else if (errorMsg.toLowerCase().includes('email')) {
+          setFieldErrors(prev => ({ ...prev, email: errorMsg }))
+        }
+
+        setSubmitError(errorMsg)
+        showToast(errorMsg, 'error')
+        setSubmitLoading(false)
+        return
       }
 
-      const generatedId = createdApiVendor?._id || createdApiVendor?.id || `vendor-custom-${Date.now()}`
+      const generatedId = createdApiVendor?._id || createdApiVendor?.id || createdApiVendor?.userId || `vendor-custom-${Date.now()}`
       const newVendor = {
         id: generatedId,
         _id: generatedId,
@@ -1553,8 +1594,12 @@ function VendorsManagement({ onNavigateToPlans }) {
         phone: formData.phone.trim(),
         mobile: formData.phone.trim(),
         password: formData.password.trim(),
-        dob: formData.dob || 'N/A',
-        gender: formData.gender || 'Male',
+        dob: formData.dob || '2000-08-15',
+        dateOfBirth: formData.dob || '2000-08-15',
+        gender: (formData.gender || 'MALE').toUpperCase(),
+        country: formData.country || 'India',
+        city: formData.city || 'Hyderabad',
+        pincode: formData.pincode || '522601',
         shopName: formData.shopName.trim(),
         storeName: formData.shopName.trim(),
         bizType: formData.bizType || 'Retail',
@@ -1563,8 +1608,8 @@ function VendorsManagement({ onNavigateToPlans }) {
         gstNumber: formData.gst.trim() || 'N/A',
         pan: formData.pan.trim() || 'N/A',
         panNumber: formData.pan.trim() || 'N/A',
-        address: formData.address.trim() || 'N/A',
-        businessAddress: formData.address.trim() || 'N/A',
+        address: formData.address.trim() || 'Main Road',
+        businessAddress: formData.address.trim() || 'Main Road',
         category: 'Fashion',
         products: 0,
         orders: 0,
@@ -1590,7 +1635,6 @@ function VendorsManagement({ onNavigateToPlans }) {
         ...prev,
         total: Math.max((prev.total || 0) + 1, updatedCustom.length)
       }))
-      showToast('Vendor added successfully.')
 
       // Reset Form
       setFormData({
@@ -1600,7 +1644,10 @@ function VendorsManagement({ onNavigateToPlans }) {
         password: '',
         confirmPassword: '',
         dob: '',
-        gender: '',
+        gender: 'MALE',
+        country: 'India',
+        city: '',
+        pincode: '',
         shopName: '',
         bizType: '',
         gst: '',
@@ -1611,6 +1658,7 @@ function VendorsManagement({ onNavigateToPlans }) {
       })
       setShowPassword(false)
       setShowConfirmPassword(false)
+      setFieldErrors({ name: '', phone: '', email: '', shopName: '', password: '', confirmPassword: '', city: '', pincode: '' })
       setEditingVendor(null)
       setIsAdding(false)
       setSubmitLoading(false)
@@ -1629,7 +1677,10 @@ function VendorsManagement({ onNavigateToPlans }) {
       password: '',
       confirmPassword: '',
       dob: vendor.dob && vendor.dob !== 'N/A' ? vendor.dob : '',
-      gender: vendor.gender || 'Male',
+      gender: vendor.gender || 'MALE',
+      country: vendor.country || 'India',
+      city: vendor.city || '',
+      pincode: vendor.pincode || '',
       shopName: vendor.storeName || vendor.shopName || '',
       bizType: vendor.businessType || vendor.bizType || '',
       gst: vendor.gstNumber || vendor.gst || '',
@@ -1640,7 +1691,7 @@ function VendorsManagement({ onNavigateToPlans }) {
     })
     setShowPassword(false)
     setShowConfirmPassword(false)
-    setFieldErrors({ name: '', phone: '', shopName: '', password: '', confirmPassword: '' })
+    setFieldErrors({ name: '', phone: '', email: '', shopName: '', password: '', confirmPassword: '', city: '', pincode: '' })
     setSubmitError('')
     setIsAdding(true)
   }
@@ -1742,7 +1793,7 @@ function VendorsManagement({ onNavigateToPlans }) {
               setEditingVendor(null)
               setShowPassword(false)
               setShowConfirmPassword(false)
-              setFieldErrors({ name: '', phone: '', shopName: '', password: '', confirmPassword: '' })
+              setFieldErrors({ name: '', phone: '', email: '', shopName: '', password: '', confirmPassword: '', city: '', pincode: '' })
               setSubmitError('')
             }}
           >
@@ -1854,15 +1905,39 @@ function VendorsManagement({ onNavigateToPlans }) {
 
               {/* Email ID */}
               <div className="form-field-item">
-                <label htmlFor="vendor-email">Email ID</label>
+                <label htmlFor="vendor-email">Email ID <span style={{ color: '#ef4444' }}>*</span></label>
                 <input 
                   id="vendor-email"
                   type="email" 
                   placeholder="Enter Email ID"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value })
+                    if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: '' }))
+                  }}
+                  className={fieldErrors.email ? 'input-error' : ''}
                   required
                 />
+                {fieldErrors.email && (
+                  <span className="field-validation-error">
+                    <AlertCircle style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                    {fieldErrors.email}
+                  </span>
+                )}
+              </div>
+
+              {/* Gender */}
+              <div className="form-field-item">
+                <label htmlFor="vendor-gender">Gender</label>
+                <select 
+                  id="vendor-gender"
+                  value={formData.gender ? formData.gender.toUpperCase() : 'MALE'}
+                  onChange={(e) => setFormData({ ...formData, gender: e.target.value.toUpperCase() })}
+                >
+                  <option value="MALE">Male</option>
+                  <option value="FEMALE">Female</option>
+                  <option value="OTHER">Other</option>
+                </select>
               </div>
 
               {/* Password */}
@@ -1874,7 +1949,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                   <input 
                     id="vendor-password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder={editingVendor ? "Enter New Password (optional)" : "Enter Password"}
+                    placeholder={editingVendor ? "Enter New Password (optional)" : "Enter Password (e.g. Password@123)"}
                     value={formData.password}
                     onChange={handlePasswordChange}
                     onBlur={handlePasswordBlur}
@@ -1956,19 +2031,61 @@ function VendorsManagement({ onNavigateToPlans }) {
                 </div>
               </div>
 
-              {/* Gender */}
+              {/* Country */}
               <div className="form-field-item">
-                <label htmlFor="vendor-gender">Gender</label>
-                <select 
-                  id="vendor-gender"
-                  value={formData.gender}
-                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                >
-                  <option value="">Select</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
+                <label htmlFor="vendor-country">Country</label>
+                <input 
+                  id="vendor-country"
+                  type="text" 
+                  placeholder="Enter Country (e.g. India)"
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                />
+              </div>
+
+              {/* City */}
+              <div className="form-field-item">
+                <label htmlFor="vendor-city">City</label>
+                <input 
+                  id="vendor-city"
+                  type="text" 
+                  placeholder="Enter City (e.g. Hyderabad)"
+                  value={formData.city}
+                  onChange={(e) => {
+                    setFormData({ ...formData, city: e.target.value })
+                    if (fieldErrors.city) setFieldErrors(prev => ({ ...prev, city: '' }))
+                  }}
+                  className={fieldErrors.city ? 'input-error' : ''}
+                />
+                {fieldErrors.city && (
+                  <span className="field-validation-error">
+                    <AlertCircle style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                    {fieldErrors.city}
+                  </span>
+                )}
+              </div>
+
+              {/* Pincode */}
+              <div className="form-field-item">
+                <label htmlFor="vendor-pincode">Pincode</label>
+                <input 
+                  id="vendor-pincode"
+                  type="text" 
+                  placeholder="Enter Pincode (e.g. 522601)"
+                  value={formData.pincode}
+                  onChange={(e) => {
+                    setFormData({ ...formData, pincode: e.target.value.slice(0, 6) })
+                    if (fieldErrors.pincode) setFieldErrors(prev => ({ ...prev, pincode: '' }))
+                  }}
+                  maxLength={6}
+                  className={fieldErrors.pincode ? 'input-error' : ''}
+                />
+                {fieldErrors.pincode && (
+                  <span className="field-validation-error">
+                    <AlertCircle style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                    {fieldErrors.pincode}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -2090,7 +2207,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                 setEditingVendor(null)
                 setShowPassword(false)
                 setShowConfirmPassword(false)
-                setFieldErrors({ name: '', phone: '', shopName: '', password: '', confirmPassword: '' })
+                setFieldErrors({ name: '', phone: '', email: '', shopName: '', password: '', confirmPassword: '', city: '', pincode: '' })
                 setSubmitError('')
               }}
               disabled={submitLoading}
@@ -2507,12 +2624,13 @@ function VendorsManagement({ onNavigateToPlans }) {
             onClick={() => {
               setEditingVendor(null)
               setFormData({
-                name: '', email: '', phone: '', password: '', confirmPassword: '', dob: '', gender: '',
+                name: '', email: '', phone: '', password: '', confirmPassword: '', dob: '', gender: 'MALE',
+                country: 'India', city: '', pincode: '',
                 shopName: '', bizType: '', gst: '', pan: '', address: '', isActive: true, imagePreview: ''
               })
               setShowPassword(false)
               setShowConfirmPassword(false)
-              setFieldErrors({ name: '', phone: '', shopName: '', password: '', confirmPassword: '' })
+              setFieldErrors({ name: '', phone: '', email: '', shopName: '', password: '', confirmPassword: '', city: '', pincode: '' })
               setSubmitError('')
               setIsAdding(true)
             }}
