@@ -391,8 +391,8 @@ export const getCustomerById = async (id) => {
     const listRes = await getAllCustomers({ limit: 100 });
     const customers = listRes?.data?.customers || listRes?.data || listRes?.customers || [];
     if (Array.isArray(customers)) {
-      const found = customers.find(c => 
-        (c._id && String(c._id) === String(id)) || 
+      const found = customers.find(c =>
+        (c._id && String(c._id) === String(id)) ||
         (c.id && String(c.id) === String(id))
       );
       if (found) {
@@ -796,7 +796,7 @@ export const getOrdersByCustomer = async (customerId, params = {}) => {
         const cId = c?._id || c?.id || (typeof c === 'string' ? c : null);
         const cPhone = c?.mobile || c?.phone || o.shippingAddress?.mobile || o.shippingAddress?.phone;
         return (cId && String(cId) === targetIdStr) ||
-               (cPhone && String(cPhone) === targetIdStr);
+          (cPhone && String(cPhone) === targetIdStr);
       });
       return { success: true, data: { orders: filtered }, orders: filtered };
     }
@@ -863,7 +863,7 @@ export const deleteCommission = async (id) => {
 // 50. Create Offer / Coupon (POST /api/super-admin/offers-coupons/create)
 export const createOfferCoupon = async (data = {}) => {
   const { type = 'OFFER', title, discount, status = 'Active', ...extra } = data;
-  
+
   let finalStatus = status;
   if (finalStatus === undefined || finalStatus === null) {
     finalStatus = 'Active';
@@ -994,7 +994,7 @@ export const getCouponById = (id) => getOfferCouponById(id, 'COUPON');
 // 53. Update Offer / Coupon (PUT /api/super-admin/offers-coupons/update/:id)
 export const updateOfferCoupon = async (id, data = {}) => {
   const { type = 'OFFER', title, discount, status, ...extra } = data;
-  
+
   let finalStatus = status;
   if (finalStatus !== undefined && typeof finalStatus === 'boolean') {
     finalStatus = finalStatus ? 'Active' : 'Inactive';
