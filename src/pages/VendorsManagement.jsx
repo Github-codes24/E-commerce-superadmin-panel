@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power, Briefcase } from 'lucide-react'
+import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power, Briefcase, Eye, EyeOff } from 'lucide-react'
 import { getAllVendors, getVendorById, createVendor, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor, getCloudVendorSync, saveCloudVendorSync } from '../services/superAdminService'
 import './VendorsManagement.css'
 
@@ -451,7 +451,9 @@ function VendorsManagement({ onNavigateToPlans }) {
   const [fieldErrors, setFieldErrors] = useState({
     name: '',
     phone: '',
-    shopName: ''
+    shopName: '',
+    password: '',
+    confirmPassword: ''
   })
 
   // Filter states
@@ -1107,6 +1109,8 @@ function VendorsManagement({ onNavigateToPlans }) {
     name: '',
     email: '',
     phone: '',
+    password: '',
+    confirmPassword: '',
     dob: '',
     gender: '',
     shopName: '',
@@ -1117,6 +1121,9 @@ function VendorsManagement({ onNavigateToPlans }) {
     isActive: true,
     imagePreview: ''
   })
+
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const fileInputRef = useRef(null)
 
@@ -1215,6 +1222,69 @@ function VendorsManagement({ onNavigateToPlans }) {
     setFieldErrors(prev => ({ ...prev, shopName: validateStoreName(formData.shopName) }))
   }
 
+  const handlePasswordChange = (e) => {
+    const val = e.target.value
+    setFormData(prev => ({ ...prev, password: val }))
+    if (fieldErrors.password) {
+      if (!val) {
+        setFieldErrors(prev => ({ ...prev, password: editingVendor ? '' : 'Password is required.' }))
+      } else if (val.length < 6) {
+        setFieldErrors(prev => ({ ...prev, password: 'Password must be at least 6 characters.' }))
+      } else {
+        setFieldErrors(prev => ({ ...prev, password: '' }))
+      }
+    }
+    if (formData.confirmPassword && val !== formData.confirmPassword) {
+      setFieldErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match.' }))
+    } else if (fieldErrors.confirmPassword && val === formData.confirmPassword) {
+      setFieldErrors(prev => ({ ...prev, confirmPassword: '' }))
+    }
+    if (submitError) setSubmitError('')
+  }
+
+  const handlePasswordBlur = () => {
+    if (!editingVendor) {
+      if (!formData.password || !formData.password.trim()) {
+        setFieldErrors(prev => ({ ...prev, password: 'Password is required.' }))
+      } else if (formData.password.length < 6) {
+        setFieldErrors(prev => ({ ...prev, password: 'Password must be at least 6 characters.' }))
+      } else {
+        setFieldErrors(prev => ({ ...prev, password: '' }))
+      }
+    } else if (formData.password && formData.password.length < 6) {
+      setFieldErrors(prev => ({ ...prev, password: 'Password must be at least 6 characters.' }))
+    } else {
+      setFieldErrors(prev => ({ ...prev, password: '' }))
+    }
+  }
+
+  const handleConfirmPasswordChange = (e) => {
+    const val = e.target.value
+    setFormData(prev => ({ ...prev, confirmPassword: val }))
+    if (formData.password && val !== formData.password) {
+      setFieldErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match.' }))
+    } else {
+      setFieldErrors(prev => ({ ...prev, confirmPassword: '' }))
+    }
+    if (submitError) setSubmitError('')
+  }
+
+  const handleConfirmPasswordBlur = () => {
+    if (!editingVendor) {
+      if (!formData.confirmPassword || !formData.confirmPassword.trim()) {
+        setFieldErrors(prev => ({ ...prev, confirmPassword: 'Please confirm your password.' }))
+      } else if (formData.password !== formData.confirmPassword) {
+        setFieldErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match.' }))
+      } else {
+        setFieldErrors(prev => ({ ...prev, confirmPassword: '' }))
+      }
+    } else if (formData.password && formData.password !== formData.confirmPassword) {
+      setFieldErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match.' }))
+    } else {
+      setFieldErrors(prev => ({ ...prev, confirmPassword: '' }))
+    }
+  }
+
   // Handle Form Submit (Add or Edit with PUT /api/superadmin/vendors/:id)
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -1227,19 +1297,45 @@ function VendorsManagement({ onNavigateToPlans }) {
     // 3. Validate Store / Shop Name
     const shopError = validateStoreName(formData.shopName)
 
-    if (nameError || phoneError || shopError) {
+    // 4. Validate Password & Confirm Password
+    let passwordError = ''
+    let confirmPasswordError = ''
+    if (!editingVendor) {
+      if (!formData.password || !formData.password.trim()) {
+        passwordError = 'Password is required.'
+      } else if (formData.password.length < 6) {
+        passwordError = 'Password must be at least 6 characters.'
+      }
+
+      if (!formData.confirmPassword || !formData.confirmPassword.trim()) {
+        confirmPasswordError = 'Please confirm your password.'
+      } else if (formData.password !== formData.confirmPassword) {
+        confirmPasswordError = 'Passwords do not match.'
+      }
+    } else {
+      if (formData.password && formData.password.length < 6) {
+        passwordError = 'Password must be at least 6 characters.'
+      }
+      if (formData.password && formData.password !== formData.confirmPassword) {
+        confirmPasswordError = 'Passwords do not match.'
+      }
+    }
+
+    if (nameError || phoneError || shopError || passwordError || confirmPasswordError) {
       setFieldErrors({
         name: nameError,
         phone: phoneError,
-        shopName: shopError
+        shopName: shopError,
+        password: passwordError,
+        confirmPassword: confirmPasswordError
       })
-      const primaryError = nameError || phoneError || shopError
+      const primaryError = nameError || phoneError || shopError || passwordError || confirmPasswordError
       setSubmitError(primaryError)
       showToast(primaryError, 'error')
       return
     }
 
-    setFieldErrors({ name: '', phone: '', shopName: '' })
+    setFieldErrors({ name: '', phone: '', shopName: '', password: '', confirmPassword: '' })
     const updatedStatus = formData.isActive ? 'active' : 'inactive'
 
     if (editingVendor) {
@@ -1267,6 +1363,10 @@ function VendorsManagement({ onNavigateToPlans }) {
         avatar: (formData.imagePreview || '').trim(),
         image: (formData.imagePreview || '').trim(),
         logo: (formData.imagePreview || '').trim()
+      }
+
+      if (formData.password && formData.password.trim()) {
+        updatePayload.password = formData.password.trim()
       }
 
       try {
@@ -1378,6 +1478,8 @@ function VendorsManagement({ onNavigateToPlans }) {
           name: '',
           email: '',
           phone: '',
+          password: '',
+          confirmPassword: '',
           dob: '',
           gender: '',
           shopName: '',
@@ -1388,6 +1490,8 @@ function VendorsManagement({ onNavigateToPlans }) {
           isActive: true,
           imagePreview: ''
         })
+        setShowPassword(false)
+        setShowConfirmPassword(false)
         setEditingVendor(null)
         setIsAdding(false)
       } catch (err) {
@@ -1409,6 +1513,8 @@ function VendorsManagement({ onNavigateToPlans }) {
         email: formData.email.trim(),
         mobile: formData.phone.trim(),
         phone: formData.phone.trim(),
+        password: formData.password.trim(),
+        confirmPassword: formData.confirmPassword.trim(),
         dob: formData.dob || '',
         gender: formData.gender || 'Male',
         storeName: formData.shopName.trim(),
@@ -1446,6 +1552,7 @@ function VendorsManagement({ onNavigateToPlans }) {
         email: formData.email.trim(),
         phone: formData.phone.trim(),
         mobile: formData.phone.trim(),
+        password: formData.password.trim(),
         dob: formData.dob || 'N/A',
         gender: formData.gender || 'Male',
         shopName: formData.shopName.trim(),
@@ -1490,6 +1597,8 @@ function VendorsManagement({ onNavigateToPlans }) {
         name: '',
         email: '',
         phone: '',
+        password: '',
+        confirmPassword: '',
         dob: '',
         gender: '',
         shopName: '',
@@ -1500,6 +1609,8 @@ function VendorsManagement({ onNavigateToPlans }) {
         isActive: true,
         imagePreview: ''
       })
+      setShowPassword(false)
+      setShowConfirmPassword(false)
       setEditingVendor(null)
       setIsAdding(false)
       setSubmitLoading(false)
@@ -1515,6 +1626,8 @@ function VendorsManagement({ onNavigateToPlans }) {
       name: vendor.fullName || vendor.name || '',
       email: vendor.email || '',
       phone: cleanPhone.length === 10 ? cleanPhone : rawPhone,
+      password: '',
+      confirmPassword: '',
       dob: vendor.dob && vendor.dob !== 'N/A' ? vendor.dob : '',
       gender: vendor.gender || 'Male',
       shopName: vendor.storeName || vendor.shopName || '',
@@ -1525,7 +1638,9 @@ function VendorsManagement({ onNavigateToPlans }) {
       isActive: vendor.status === 'active',
       imagePreview: isDefaultAvatarUrl(vendor.avatar) ? '' : (vendor.avatar || '')
     })
-    setFieldErrors({ name: '', phone: '', shopName: '' })
+    setShowPassword(false)
+    setShowConfirmPassword(false)
+    setFieldErrors({ name: '', phone: '', shopName: '', password: '', confirmPassword: '' })
     setSubmitError('')
     setIsAdding(true)
   }
@@ -1625,7 +1740,9 @@ function VendorsManagement({ onNavigateToPlans }) {
             onClick={() => {
               setIsAdding(false)
               setEditingVendor(null)
-              setFieldErrors({ name: '', phone: '', shopName: '' })
+              setShowPassword(false)
+              setShowConfirmPassword(false)
+              setFieldErrors({ name: '', phone: '', shopName: '', password: '', confirmPassword: '' })
               setSubmitError('')
             }}
           >
@@ -1746,6 +1863,82 @@ function VendorsManagement({ onNavigateToPlans }) {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
                 />
+              </div>
+
+              {/* Password */}
+              <div className="form-field-item">
+                <label htmlFor="vendor-password">
+                  {editingVendor ? 'Password (Leave blank to keep unchanged)' : <>Password <span style={{ color: '#ef4444' }}>*</span></>}
+                </label>
+                <div className="password-input-wrapper">
+                  <input 
+                    id="vendor-password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder={editingVendor ? "Enter New Password (optional)" : "Enter Password"}
+                    value={formData.password}
+                    onChange={handlePasswordChange}
+                    onBlur={handlePasswordBlur}
+                    autoComplete="new-password"
+                    className={fieldErrors.password ? 'input-error' : ''}
+                  />
+                  <button
+                    type="button"
+                    className="password-input-toggle"
+                    onClick={() => setShowPassword(prev => !prev)}
+                    tabIndex="-1"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <EyeOff style={{ width: '16px', height: '16px' }} />
+                    ) : (
+                      <Eye style={{ width: '16px', height: '16px' }} />
+                    )}
+                  </button>
+                </div>
+                {fieldErrors.password && (
+                  <span className="field-validation-error">
+                    <AlertCircle style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                    {fieldErrors.password}
+                  </span>
+                )}
+              </div>
+
+              {/* Confirm Password */}
+              <div className="form-field-item">
+                <label htmlFor="vendor-confirm-password">
+                  {editingVendor ? 'Confirm Password' : <>Confirm Password <span style={{ color: '#ef4444' }}>*</span></>}
+                </label>
+                <div className="password-input-wrapper">
+                  <input 
+                    id="vendor-confirm-password"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder={editingVendor ? "Confirm New Password" : "Confirm Password"}
+                    value={formData.confirmPassword}
+                    onChange={handleConfirmPasswordChange}
+                    onBlur={handleConfirmPasswordBlur}
+                    autoComplete="new-password"
+                    className={fieldErrors.confirmPassword ? 'input-error' : ''}
+                  />
+                  <button
+                    type="button"
+                    className="password-input-toggle"
+                    onClick={() => setShowConfirmPassword(prev => !prev)}
+                    tabIndex="-1"
+                    aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff style={{ width: '16px', height: '16px' }} />
+                    ) : (
+                      <Eye style={{ width: '16px', height: '16px' }} />
+                    )}
+                  </button>
+                </div>
+                {fieldErrors.confirmPassword && (
+                  <span className="field-validation-error">
+                    <AlertCircle style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                    {fieldErrors.confirmPassword}
+                  </span>
+                )}
               </div>
 
               {/* Date Of Birth */}
@@ -1895,6 +2088,9 @@ function VendorsManagement({ onNavigateToPlans }) {
               onClick={() => {
                 setIsAdding(false)
                 setEditingVendor(null)
+                setShowPassword(false)
+                setShowConfirmPassword(false)
+                setFieldErrors({ name: '', phone: '', shopName: '', password: '', confirmPassword: '' })
                 setSubmitError('')
               }}
               disabled={submitLoading}
@@ -2311,10 +2507,12 @@ function VendorsManagement({ onNavigateToPlans }) {
             onClick={() => {
               setEditingVendor(null)
               setFormData({
-                name: '', email: '', phone: '', dob: '', gender: '',
+                name: '', email: '', phone: '', password: '', confirmPassword: '', dob: '', gender: '',
                 shopName: '', bizType: '', gst: '', pan: '', address: '', isActive: true, imagePreview: ''
               })
-              setFieldErrors({ name: '', phone: '', shopName: '' })
+              setShowPassword(false)
+              setShowConfirmPassword(false)
+              setFieldErrors({ name: '', phone: '', shopName: '', password: '', confirmPassword: '' })
               setSubmitError('')
               setIsAdding(true)
             }}
