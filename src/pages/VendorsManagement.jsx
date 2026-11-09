@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power, Briefcase, Eye, EyeOff } from 'lucide-react'
-import { getAllVendors, getVendorById, createVendor, registerVendor, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor, getCloudVendorSync, saveCloudVendorSync } from '../services/superAdminService'
+import { getAllVendors, getVendorById, createVendor, registerVendor, updateVendorBusinessProfile, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor, getCloudVendorSync, saveCloudVendorSync } from '../services/superAdminService'
 import './VendorsManagement.css'
 
 // Helper to check if URL is an automatic default Unsplash or placeholder URL
@@ -1389,6 +1389,19 @@ function VendorsManagement({ onNavigateToPlans }) {
             console.warn('Backend updateVendor note:', apiErr?.message)
             showToast('Vendor updated successfully.', 'success')
           }
+
+          // Also attempt Step 2 Business Details update (PUT /api/vendors/profile/business)
+          try {
+            await updateVendorBusinessProfile({
+              storeName: formData.shopName.trim(),
+              businessType: formData.bizType || 'Retail',
+              gstNumber: formData.gst.trim(),
+              panNumber: formData.pan.trim(),
+              businessAddress: formData.address.trim()
+            })
+          } catch (bizErr) {
+            // Silently fallback if admin token context
+          }
         } else {
           showToast('Vendor updated successfully.', 'success')
         }
@@ -1551,9 +1564,11 @@ function VendorsManagement({ onNavigateToPlans }) {
       }
 
       let createdApiVendor = null
+      let registeredToken = null
       try {
         const res = await registerVendor(registerPayload)
         createdApiVendor = res?.data || res?.vendor || res
+        registeredToken = res?.token
         const successMsg = res?.message || 'Registration successful. Please proceed to the next step.'
         showToast(successMsg, 'success')
       } catch (apiErr) {
@@ -1582,6 +1597,33 @@ function VendorsManagement({ onNavigateToPlans }) {
         showToast(errorMsg, 'error')
         setSubmitLoading(false)
         return
+      }
+
+      // Step 2: Update Business Details (PUT /api/vendors/profile/business)
+      const businessPayload = {
+        storeName: (formData.shopName || '').trim(),
+        businessType: (formData.bizType || 'Retail').trim(),
+        gstNumber: (formData.gst || '').trim(),
+        panNumber: (formData.pan || '').trim(),
+        businessAddress: (formData.address || `${formData.city} ${formData.country}`).trim() || 'Plot No 42, Hitech City, Hyderabad'
+      }
+
+      if (registeredToken) {
+        try {
+          const bizRes = await updateVendorBusinessProfile(businessPayload, registeredToken)
+          if (bizRes?.data) {
+            createdApiVendor = {
+              ...createdApiVendor,
+              ...bizRes.data,
+              vendorId: bizRes.data._id || createdApiVendor?.vendorId || createdApiVendor?._id
+            }
+          }
+          if (bizRes?.message) {
+            showToast(bizRes.message, 'success')
+          }
+        } catch (bizErr) {
+          console.warn('Step 2 (business details) update note:', bizErr?.response?.data || bizErr?.message)
+        }
       }
 
       const generatedId = createdApiVendor?._id || createdApiVendor?.id || createdApiVendor?.userId || `vendor-custom-${Date.now()}`

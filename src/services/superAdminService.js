@@ -533,6 +533,29 @@ export const registerVendor = async (vendorData) => {
 
 export const createVendor = registerVendor;
 
+// 28c. Update Vendor Business Details / Step 2 (PUT /api/vendors/profile/business)
+export const updateVendorBusinessProfile = async (businessData, token = null) => {
+  const payload = {
+    storeName: (businessData.storeName || businessData.shopName || '').trim(),
+    businessType: (businessData.businessType || businessData.bizType || 'Retail').trim(),
+    gstNumber: (businessData.gstNumber || businessData.gst || '').trim(),
+    panNumber: (businessData.panNumber || businessData.pan || '').trim(),
+    businessAddress: (businessData.businessAddress || businessData.address || '').trim(),
+  };
+
+  const config = {};
+  if (token) {
+    config.headers = {
+      Authorization: `Bearer ${token}`,
+    };
+  }
+
+  const response = await api.put('/vendors/profile/business', payload, config);
+  return response.data;
+};
+
+export const updateBusinessDetails = updateVendorBusinessProfile;
+
 // 29. Approve Vendor (PATCH /api/superadmin/vendors/:userId/approve)
 // Backend controller expects userId: PATCH /api/superadmin/vendors/:userId/approve
 export const approveVendor = async (id, secondaryId = null) => {
@@ -1323,6 +1346,8 @@ export default {
   deleteCustomer,
   registerVendor,
   createVendor,
+  updateVendorBusinessProfile,
+  updateBusinessDetails,
   getAllVendors,
   getVendorById,
   updateVendor,
