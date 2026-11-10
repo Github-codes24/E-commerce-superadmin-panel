@@ -1389,19 +1389,6 @@ function VendorsManagement({ onNavigateToPlans }) {
             console.warn('Backend updateVendor note:', apiErr?.message)
             showToast('Vendor updated successfully.', 'success')
           }
-
-          // Also attempt Step 2 Business Details update (PUT /api/vendors/profile/business)
-          try {
-            await updateVendorBusinessProfile({
-              storeName: formData.shopName.trim(),
-              businessType: formData.bizType || 'Retail',
-              gstNumber: formData.gst.trim(),
-              panNumber: formData.pan.trim(),
-              businessAddress: formData.address.trim()
-            })
-          } catch (bizErr) {
-            // Silently fallback if admin token context
-          }
         } else {
           showToast('Vendor updated successfully.', 'success')
         }
@@ -1568,7 +1555,7 @@ function VendorsManagement({ onNavigateToPlans }) {
       try {
         const res = await registerVendor(registerPayload)
         createdApiVendor = res?.data || res?.vendor || res
-        registeredToken = res?.token
+        registeredToken = res?.token || res?.data?.token || res?.data?.accessToken
         const successMsg = res?.message || 'Registration successful. Please proceed to the next step.'
         showToast(successMsg, 'success')
       } catch (apiErr) {

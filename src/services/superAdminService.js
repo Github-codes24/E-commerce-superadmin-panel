@@ -535,6 +535,12 @@ export const createVendor = registerVendor;
 
 // 28c. Update Vendor Business Details / Step 2 (PUT /api/vendors/profile/business)
 export const updateVendorBusinessProfile = async (businessData, token = null) => {
+  const cleanToken = (token || '').trim();
+  if (!cleanToken) {
+    console.warn('updateVendorBusinessProfile skipped: vendor token is required for /vendors/profile/business');
+    return { success: false, message: 'Vendor token is required for business profile update.' };
+  }
+
   const payload = {
     storeName: (businessData.storeName || businessData.shopName || '').trim(),
     businessType: (businessData.businessType || businessData.bizType || 'Retail').trim(),
@@ -543,14 +549,11 @@ export const updateVendorBusinessProfile = async (businessData, token = null) =>
     businessAddress: (businessData.businessAddress || businessData.address || '').trim(),
   };
 
-  const config = {};
-  if (token) {
-    config.headers = {
-      Authorization: `Bearer ${token}`,
-    };
-  }
-
-  const response = await api.put('/vendors/profile/business', payload, config);
+  const response = await api.put('/vendors/profile/business', payload, {
+    headers: {
+      Authorization: `Bearer ${cleanToken}`,
+    },
+  });
   return response.data;
 };
 

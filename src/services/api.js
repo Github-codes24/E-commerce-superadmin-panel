@@ -11,9 +11,18 @@ const api = axios.create({
 // Request Interceptor to attach Bearer token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Preserve custom Authorization header if explicitly provided (e.g., Vendor token for vendor endpoints)
+    const existingAuth =
+      config.headers?.Authorization ||
+      config.headers?.authorization ||
+      (typeof config.headers?.get === 'function' &&
+        (config.headers.get('Authorization') || config.headers.get('authorization')));
+
+    if (!existingAuth) {
+      const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },
