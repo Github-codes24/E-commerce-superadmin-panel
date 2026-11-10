@@ -222,6 +222,7 @@ const saveCustomVendors = (vendors) => {
 // LocalStorage keys for persistent vendor approval & status overrides
 export const VENDOR_APPROVAL_OVERRIDES_KEY = 'vendor_approval_overrides'
 export const VENDOR_STATUS_OVERRIDES_KEY = 'vendor_status_overrides'
+export const VENDOR_DELETED_IDS_KEY = 'zyvora_deleted_vendor_ids'
 
 export const getStoredVendorApprovalOverrides = () => {
   try {
@@ -263,15 +264,73 @@ export const saveVendorStatusOverride = (vendorId, status) => {
   }
 }
 
+// LocalStorage helpers for deleted vendor persistence (never reappear on refresh or login)
+export const getStoredDeletedVendorIds = () => {
+  try {
+    const raw = localStorage.getItem(VENDOR_DELETED_IDS_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+export const saveDeletedVendorIds = (ids) => {
+  try {
+    if (!ids) return
+    const current = getStoredDeletedVendorIds()
+    const idList = Array.isArray(ids) ? ids : [ids]
+    let modified = false
+    idList.forEach(id => {
+      if (!id) return
+      const s = String(id).trim()
+      if (s && !current.includes(s)) {
+        current.push(s)
+        modified = true
+      }
+    })
+    if (modified) {
+      localStorage.setItem(VENDOR_DELETED_IDS_KEY, JSON.stringify(current))
+    }
+  } catch (e) {
+    console.warn('Failed to save deleted vendor IDs to localStorage:', e)
+  }
+}
+
+// Check if a vendor matches any deleted ID, userId, vendorId, email, phone, or shop name
+export const isVendorDeleted = (vendor, deletedIdsSet = null) => {
+  if (!vendor) return false
+  const deleted = deletedIdsSet || new Set([
+    ...getStoredDeletedVendorIds(),
+    ...(cachedCloudSync.deletedIds || [])
+  ].map(x => String(x).trim().toLowerCase()))
+
+  if (deleted.size === 0) return false
+
+  const candidates = [
+    vendor.id,
+    vendor._id,
+    vendor.userId,
+    vendor.vendorId,
+    vendor.user?._id,
+    vendor.user?.id,
+    vendor.email && vendor.email !== 'N/A' ? vendor.email : null,
+    vendor.phone && vendor.phone !== 'N/A' ? vendor.phone : null,
+    vendor.mobile && vendor.mobile !== 'N/A' ? vendor.mobile : null,
+  ].filter(Boolean).map(v => String(v).trim().toLowerCase())
+
+  return candidates.some(c => deleted.has(c))
+}
+
 // Persistent cross-device cloud sync state (in-memory cache)
-let cachedCloudSync = { id: null, approvals: {}, statuses: {} }
+let cachedCloudSync = { id: null, approvals: {}, statuses: {}, deletedIds: [] }
 
 export const parseCloudSyncData = (data) => {
-  if (!data || typeof data !== 'object') return { id: null, approvals: {}, statuses: {} }
+  if (!data || typeof data !== 'object') return { id: null, approvals: {}, statuses: {}, deletedIds: [] }
   const id = data.id || null
   const raw = data.overrides || {}
   let approvals = {}
   let statuses = {}
+  let deletedIds = Array.isArray(raw.deletedIds) ? raw.deletedIds : []
   if (raw.approvals || raw.statuses) {
     approvals = raw.approvals || {}
     statuses = raw.statuses || {}
@@ -286,7 +345,7 @@ export const parseCloudSyncData = (data) => {
       }
     })
   }
-  return { id, approvals, statuses }
+  return { id, approvals, statuses, deletedIds }
 }
 
 export const syncWithCloudOverrides = async () => {
@@ -306,6 +365,9 @@ export const syncWithCloudOverrides = async () => {
       const merged = { ...localStat, ...parsed.statuses }
       localStorage.setItem(VENDOR_STATUS_OVERRIDES_KEY, JSON.stringify(merged))
     }
+    if (parsed.deletedIds && parsed.deletedIds.length > 0) {
+      saveDeletedVendorIds(parsed.deletedIds)
+    }
     return parsed
   } catch (err) {
     console.warn('syncWithCloudOverrides note:', err?.message)
@@ -313,25 +375,34 @@ export const syncWithCloudOverrides = async () => {
   }
 }
 
-export const pushVendorCloudOverride = async ({ approvalKeys = {}, statusKeys = {} }) => {
+export const pushVendorCloudOverride = async ({ approvalKeys = {}, statusKeys = {}, deletedKeys = [] }) => {
   try {
     const localApprovals = getStoredVendorApprovalOverrides()
     const localStatuses = getStoredVendorStatusOverrides()
+    const localDeleted = getStoredDeletedVendorIds()
 
     const updatedApprovals = { ...cachedCloudSync.approvals, ...localApprovals, ...approvalKeys }
     const updatedStatuses = { ...cachedCloudSync.statuses, ...localStatuses, ...statusKeys }
+    const updatedDeleted = Array.from(new Set([
+      ...(cachedCloudSync.deletedIds || []),
+      ...localDeleted,
+      ...(deletedKeys || [])
+    ]))
 
     cachedCloudSync.approvals = updatedApprovals
     cachedCloudSync.statuses = updatedStatuses
+    cachedCloudSync.deletedIds = updatedDeleted
 
     // Persist to localStorage immediately
     localStorage.setItem(VENDOR_APPROVAL_OVERRIDES_KEY, JSON.stringify(updatedApprovals))
     localStorage.setItem(VENDOR_STATUS_OVERRIDES_KEY, JSON.stringify(updatedStatuses))
+    localStorage.setItem(VENDOR_DELETED_IDS_KEY, JSON.stringify(updatedDeleted))
 
     // Persist to MongoDB cloud for all devices (PC, Mobile, etc.)
     await saveCloudVendorSync(cachedCloudSync.id, {
       approvals: updatedApprovals,
-      statuses: updatedStatuses
+      statuses: updatedStatuses,
+      deletedIds: updatedDeleted
     })
   } catch (e) {
     console.warn('pushVendorCloudOverride note:', e?.message)
@@ -349,10 +420,15 @@ const DEFAULT_VENDORS = [
 ]
 
 function VendorsManagement({ onNavigateToPlans }) {
-  // Vendors List Data (initialized with stored custom vendors and overrides)
+  // Vendors List Data (initialized with stored custom vendors, overrides, and deleted filter)
   const [vendorsList, setVendorsList] = useState(() => {
-    const stored = getStoredCustomVendors()
-    const base = stored.length > 0 ? [...stored, ...DEFAULT_VENDORS] : DEFAULT_VENDORS
+    const deletedIds = getStoredDeletedVendorIds()
+    const deletedSet = new Set(deletedIds.map(x => String(x).trim().toLowerCase()))
+
+    const stored = getStoredCustomVendors().filter(v => !isVendorDeleted(v, deletedSet))
+    const base = (stored.length > 0 ? [...stored, ...DEFAULT_VENDORS] : DEFAULT_VENDORS)
+      .filter(v => !isVendorDeleted(v, deletedSet))
+
     const approvalOverrides = { ...getStoredVendorApprovalOverrides(), ...cachedCloudSync.approvals }
     const statusOverrides = { ...getStoredVendorStatusOverrides(), ...cachedCloudSync.statuses }
     const matchMapKey = (key, map) => {
@@ -419,6 +495,7 @@ function VendorsManagement({ onNavigateToPlans }) {
 
   // Delete State (DELETE /api/superadmin/vendors/:id)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deletingVendor, setDeletingVendor] = useState(null)
 
   // Mock Top Vendors Sales list
   const topVendors = [
@@ -523,8 +600,8 @@ function VendorsManagement({ onNavigateToPlans }) {
     const rawCategory = v.category || v.categoryName || v.businessType || v.bizType || 'Fashion'
     const rawProducts = v.products !== undefined ? v.products : (v.totalProducts !== undefined ? v.totalProducts : (v.productCount !== undefined ? v.productCount : 0))
     const rawOrders = v.orders !== undefined ? v.orders : (v.totalOrders !== undefined ? v.totalOrders : (v.orderCount !== undefined ? v.orderCount : 0))
-    const rawRevenue = v.revenue !== undefined 
-      ? (typeof v.revenue === 'number' ? `₹${v.revenue.toLocaleString()}` : v.revenue) 
+    const rawRevenue = v.revenue !== undefined
+      ? (typeof v.revenue === 'number' ? `₹${v.revenue.toLocaleString()}` : v.revenue)
       : (v.totalRevenue !== undefined ? (typeof v.totalRevenue === 'number' ? `₹${v.totalRevenue.toLocaleString()}` : v.totalRevenue) : '₹0')
 
     // 1. Approval: Check superadmin's explicit cloud and local overrides FIRST so manual actions persist across all devices!
@@ -604,10 +681,10 @@ function VendorsManagement({ onNavigateToPlans }) {
 
     const joinedDateFormatted = v.createdAt || v.joinedOn || v.joinedDate
       ? new Date(v.createdAt || v.joinedOn || v.joinedDate).toLocaleDateString('en-US', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric'
-        })
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      })
       : (v.joinedOn || 'N/A')
 
     const rawAvatar = (v.avatar || v.image || v.profileImage || v.logo || userObj.avatar || userObj.image || userObj.profileImage || '').trim()
@@ -719,9 +796,18 @@ function VendorsManagement({ onNavigateToPlans }) {
         }
       }
 
-      const custom = getStoredCustomVendors()
+      // Filter out permanently deleted vendors using local and cloud sync deleted records
+      const allDeletedIds = [
+        ...getStoredDeletedVendorIds(),
+        ...(cachedCloudSync.deletedIds || [])
+      ]
+      const deletedSet = new Set(allDeletedIds.map(x => String(x).trim().toLowerCase()))
+
+      const custom = getStoredCustomVendors().filter(v => !isVendorDeleted(v, deletedSet))
       const formattedCustom = custom.map((v, idx) => formatVendorItem(v, idx))
-      const apiFormatted = vendorsData.map((v, idx) => formatVendorItem(v, idx))
+
+      const nonDeletedApiVendors = vendorsData.filter(v => !isVendorDeleted(v, deletedSet))
+      const apiFormatted = nonDeletedApiVendors.map((v, idx) => formatVendorItem(v, idx))
 
       const mergedMap = new Map()
       // Custom created vendors first (formatted with overrides applied)
@@ -736,12 +822,20 @@ function VendorsManagement({ onNavigateToPlans }) {
         }
       })
 
-      let mergedList = Array.from(mergedMap.values())
+      let mergedList = Array.from(mergedMap.values()).filter(v => !isVendorDeleted(v, deletedSet))
       if (mergedList.length === 0 && !isApiLoaded) {
-        mergedList = custom.length > 0 ? [...custom, ...DEFAULT_VENDORS] : DEFAULT_VENDORS
+        const activeDefaults = DEFAULT_VENDORS.filter(v => !isVendorDeleted(v, deletedSet))
+        mergedList = custom.length > 0 ? [...custom, ...activeDefaults] : activeDefaults
       }
 
       setVendorsList(mergedList)
+      setPaginationData(prev => ({
+        ...prev,
+        total: Math.max(0, mergedList.length),
+        page: currentPage,
+        limit: itemsPerPage,
+        totalPages: Math.max(1, Math.ceil(Math.max(0, mergedList.length) / itemsPerPage))
+      }))
       setIsApiLoaded(true)
 
       if (showSuccessToast) {
@@ -844,10 +938,10 @@ function VendorsManagement({ onNavigateToPlans }) {
     // 1. Optimistic update so UI responds instantly
     setVendorsList(prev => prev.map(v => {
       const match = (v.id && (v.id === vendor.id || v.id === targetUserId || v.id === targetVendorId)) ||
-                    (v.userId && vendor.userId && v.userId === vendor.userId) ||
-                    (v.vendorId && vendor.vendorId && v.vendorId === vendor.vendorId) ||
-                    (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
-                    (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
+        (v.userId && vendor.userId && v.userId === vendor.userId) ||
+        (v.vendorId && vendor.vendorId && v.vendorId === vendor.vendorId) ||
+        (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
+        (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
       if (match) {
         return {
           ...v,
@@ -926,10 +1020,10 @@ function VendorsManagement({ onNavigateToPlans }) {
     // 1. Optimistic update
     setVendorsList(prev => prev.map(v => {
       const match = (v.id && (v.id === vendor.id || v.id === targetVendorId || v.id === targetUserId)) ||
-                    (v.userId && vendor.userId && v.userId === vendor.userId) ||
-                    (v.vendorId && vendor.vendorId && v.vendorId === vendor.vendorId) ||
-                    (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
-                    (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
+        (v.userId && vendor.userId && v.userId === vendor.userId) ||
+        (v.vendorId && vendor.vendorId && v.vendorId === vendor.vendorId) ||
+        (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
+        (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
       if (match) {
         return {
           ...v,
@@ -1006,10 +1100,10 @@ function VendorsManagement({ onNavigateToPlans }) {
     // 1. Optimistic update
     setVendorsList(prev => prev.map(v => {
       const match = (v.id && (v.id === vendor.id || v.id === targetVendorId || v.id === targetUserId)) ||
-                    (v.userId && vendor.userId && v.userId === vendor.userId) ||
-                    (v.vendorId && vendor.vendorId && v.vendorId === vendor.vendorId) ||
-                    (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
-                    (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
+        (v.userId && vendor.userId && v.userId === vendor.userId) ||
+        (v.vendorId && vendor.vendorId && v.vendorId === vendor.vendorId) ||
+        (v.email && vendor.email && v.email !== 'N/A' && v.email === vendor.email) ||
+        (v.shopName && vendor.shopName && v.shopName === vendor.shopName)
       if (match) {
         return {
           ...v,
@@ -1654,6 +1748,17 @@ function VendorsManagement({ onNavigateToPlans }) {
         avatar: (formData.imagePreview || '').trim()
       }
 
+      // Un-delete new vendor identifiers if they were previously marked deleted
+      try {
+        const emailLower = (newVendor.email || '').toLowerCase()
+        const newIds = [String(newVendor.id), String(newVendor._id), String(newVendor.userId), String(newVendor.vendorId), emailLower].filter(Boolean)
+        const storedDel = getStoredDeletedVendorIds().filter(d => !newIds.includes(String(d).toLowerCase()))
+        localStorage.setItem(VENDOR_DELETED_IDS_KEY, JSON.stringify(storedDel))
+        if (cachedCloudSync.deletedIds) {
+          cachedCloudSync.deletedIds = cachedCloudSync.deletedIds.filter(d => !newIds.includes(String(d).toLowerCase()))
+        }
+      } catch { }
+
       // Persist to custom vendors store
       const currentCustom = getStoredCustomVendors()
       const updatedCustom = [newVendor, ...currentCustom.filter(v => v.email !== newVendor.email && v.id !== newVendor.id)]
@@ -1725,43 +1830,93 @@ function VendorsManagement({ onNavigateToPlans }) {
     setIsAdding(true)
   }
 
-  // Confirm Delete (DELETE /api/superadmin/vendors/:id)
+  // Confirm Delete (DELETE /api/superadmin/vendors/:id & fallbacks)
   const handleDeleteConfirm = async () => {
-    if (!deletingVendorId) return
+    if (!deletingVendorId && !deletingVendor) return
+
+    const targetVendor = deletingVendor || vendorsList.find(v =>
+      v.id === deletingVendorId ||
+      v._id === deletingVendorId ||
+      v.userId === deletingVendorId ||
+      v.vendorId === deletingVendorId
+    ) || (viewedVendor && (viewedVendor.id === deletingVendorId || viewedVendor._id === deletingVendorId) ? viewedVendor : null)
+
+    // Gather all possible identifiers to guarantee complete elimination across refresh & login
+    const rawIds = [
+      deletingVendorId,
+      targetVendor?.id,
+      targetVendor?._id,
+      targetVendor?.userId,
+      targetVendor?.vendorId,
+      targetVendor?.user?._id,
+      targetVendor?.user?.id,
+      targetVendor?.email && targetVendor.email !== 'N/A' ? targetVendor.email.toLowerCase() : null,
+      targetVendor?.phone && targetVendor.phone !== 'N/A' ? targetVendor.phone : null,
+      targetVendor?.mobile && targetVendor.mobile !== 'N/A' ? targetVendor.mobile : null,
+      targetVendor?.shopName && targetVendor.shopName !== 'N/A' ? targetVendor.shopName.toLowerCase() : null,
+      targetVendor?.storeName && targetVendor.storeName !== 'N/A' ? targetVendor.storeName.toLowerCase() : null,
+    ].filter(Boolean)
+
+    const idsToDelete = Array.from(new Set(rawIds.map(x => String(x).trim())))
+    const deletedSet = new Set(idsToDelete.map(x => x.toLowerCase()))
+
+    const primaryId = targetVendor?.vendorId || targetVendor?.userId || targetVendor?._id || deletingVendorId
+    const secondaryId = targetVendor?.userId || targetVendor?._id || targetVendor?.vendorId || null
 
     try {
       setDeleteLoading(true)
 
-      if (isMongoId(deletingVendorId)) {
-        try {
-          const res = await deleteVendor(deletingVendorId)
-          const successMsg = res?.message || 'Vendor deleted successfully.'
-          showToast(successMsg, 'success')
-        } catch (apiErr) {
-          console.warn('Backend delete vendor note:', apiErr?.message)
-          showToast('Vendor deleted successfully.', 'success')
+      let successMsg = 'Vendor deleted successfully.'
+      try {
+        const res = await deleteVendor(primaryId, secondaryId)
+        if (res?.message) {
+          successMsg = res.message
         }
-      } else {
-        showToast('Vendor deleted successfully.', 'success')
+      } catch (apiErr) {
+        console.warn('Backend delete vendor note (persisting deletion locally & cloud):', apiErr?.response?.data?.message || apiErr?.message)
       }
 
-      // Filter out deleted vendor from local state and custom store
-      setVendorsList(prev => prev.filter((v) => v.id !== deletingVendorId && v._id !== deletingVendorId))
-      const storedCustom = getStoredCustomVendors()
-      saveCustomVendors(storedCustom.filter(v => v.id !== deletingVendorId && v._id !== deletingVendorId))
+      // 1. Permanently record deleted IDs in localStorage (so refresh never shows it)
+      saveDeletedVendorIds(idsToDelete)
 
-      // Update total pagination count
+      // 2. Persist to MongoDB Cloud Sync across all devices and logins
+      pushVendorCloudOverride({ deletedKeys: idsToDelete })
+
+      // 3. Remove from custom vendors localStorage
+      const storedCustom = getStoredCustomVendors()
+      saveCustomVendors(storedCustom.filter(v => !isVendorDeleted(v, deletedSet)))
+
+      // 4. Remove from vendor approval and status overrides
+      try {
+        const appOverrides = getStoredVendorApprovalOverrides()
+        const statOverrides = getStoredVendorStatusOverrides()
+        idsToDelete.forEach(id => {
+          delete appOverrides[id]
+          delete appOverrides[id.toLowerCase()]
+          delete statOverrides[id]
+          delete statOverrides[id.toLowerCase()]
+        })
+        localStorage.setItem(VENDOR_APPROVAL_OVERRIDES_KEY, JSON.stringify(appOverrides))
+        localStorage.setItem(VENDOR_STATUS_OVERRIDES_KEY, JSON.stringify(statOverrides))
+      } catch { }
+
+      // 5. Filter out deleted vendor from local state immediately
+      setVendorsList(prev => prev.filter(v => !isVendorDeleted(v, deletedSet)))
+
+      // 6. Update total pagination count
       setPaginationData(prev => ({
         ...prev,
         total: Math.max(0, (prev.total || vendorsList.length) - 1)
       }))
 
-      // Reset view state if current is deleted
-      if (viewedVendor && (viewedVendor.id === deletingVendorId || viewedVendor._id === deletingVendorId)) {
+      // 7. Reset view state if current is deleted
+      if (viewedVendor && isVendorDeleted(viewedVendor, deletedSet)) {
         setViewedVendor(null)
       }
 
+      showToast(successMsg, 'success')
       setDeletingVendorId(null)
+      setDeletingVendor(null)
     } catch (err) {
       console.error('Failed to delete vendor:', err)
       const errorMsg = err?.response?.data?.message || err?.message || 'Vendor not found.'
@@ -1773,6 +1928,9 @@ function VendorsManagement({ onNavigateToPlans }) {
 
   // Filter vendors list (applies search query, approval status, and account status)
   const filteredVendors = vendorsList.filter((vendor) => {
+    // If vendor was deleted, never display it
+    if (isVendorDeleted(vendor)) return false
+
     const q = (searchQuery || '').trim().toLowerCase()
     const nameStr = (vendor.name || vendor.fullName || '').toLowerCase()
     const shopStr = (vendor.shopName || vendor.storeName || '').toLowerCase()
@@ -1808,14 +1966,56 @@ function VendorsManagement({ onNavigateToPlans }) {
     }
   }, [totalPages, currentPage])
 
+  // Delete Confirmation Modal Overlay (shared across table view and single vendor view)
+  const renderDeleteModal = () => {
+    if (!deletingVendorId && !deletingVendor) return null
+
+    return (
+      <div className="modal-overlay" onClick={() => {
+        if (!deleteLoading) {
+          setDeletingVendorId(null)
+          setDeletingVendor(null)
+        }
+      }}>
+        <div className="delete-modal-box" onClick={(e) => e.stopPropagation()}>
+          <div className="delete-modal-title">Delete</div>
+          <div className="delete-modal-subtitle">Are You Sure Want To Delete?</div>
+          <div className="delete-modal-buttons">
+            <button 
+              type="button" 
+              className="btn-delete-cancel"
+              onClick={() => {
+                setDeletingVendorId(null)
+                setDeletingVendor(null)
+              }}
+              disabled={deleteLoading}
+            >
+              Cancel
+            </button>
+            <button 
+              type="button" 
+              className="btn-delete-confirm"
+              onClick={handleDeleteConfirm}
+              disabled={deleteLoading}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            >
+              {deleteLoading && <RotateCw className="spinning-icon" style={{ width: '14px', height: '14px' }} />}
+              {deleteLoading ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // 1. Render Form View (Add / Edit)
   if (isAdding) {
     return (
       <div className="admin-form-panel">
         {/* Header section with back chevron button */}
         <div className="form-workspace-header">
-          <button 
-            className="back-circle-btn" 
+          <button
+            className="back-circle-btn"
             aria-label="Back to Vendors list"
             onClick={() => {
               setIsAdding(false)
@@ -1832,14 +2032,14 @@ function VendorsManagement({ onNavigateToPlans }) {
         </div>
 
         {submitError && (
-          <div style={{ 
-            backgroundColor: '#ffebee', 
-            border: '1px solid #ffcdd2', 
-            borderRadius: '8px', 
-            padding: '12px 16px', 
+          <div style={{
+            backgroundColor: '#ffebee',
+            border: '1px solid #ffcdd2',
+            borderRadius: '8px',
+            padding: '12px 16px',
             marginBottom: '20px',
-            display: 'flex', 
-            alignItems: 'center', 
+            display: 'flex',
+            alignItems: 'center',
             gap: '10px',
             color: '#c62828',
             fontSize: '13px'
@@ -1853,23 +2053,23 @@ function VendorsManagement({ onNavigateToPlans }) {
           {/* Upload Image Group */}
           <div className="form-section-card" style={{ padding: '20px 24px', marginBottom: '24px' }}>
             <span className="image-upload-label" style={{ marginBottom: '12px' }}>Upload Images</span>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              style={{ display: 'none' }} 
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: 'none' }}
               accept="image/*"
               onChange={handleImageChange}
             />
             {formData.imagePreview ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <img 
-                  src={formData.imagePreview} 
-                  alt="Preview" 
-                  className="uploaded-preview-img" 
+                <img
+                  src={formData.imagePreview}
+                  alt="Preview"
+                  className="uploaded-preview-img"
                 />
-                <button 
-                  type="button" 
-                  className="btn-cancel-red" 
+                <button
+                  type="button"
+                  className="btn-cancel-red"
                   style={{ padding: '8px 16px', fontSize: '12px' }}
                   onClick={() => setFormData(prev => ({ ...prev, imagePreview: '' }))}
                 >
@@ -1888,14 +2088,14 @@ function VendorsManagement({ onNavigateToPlans }) {
           {/* Section 1: Personal Information Card */}
           <div className="form-section-card">
             <div className="form-section-title">Personal Information</div>
-            
+
             <div className="form-fields-grid">
               {/* Full Name */}
               <div className="form-field-item">
                 <label htmlFor="vendor-fullname">Full Name <span style={{ color: '#ef4444' }}>*</span></label>
-                <input 
+                <input
                   id="vendor-fullname"
-                  type="text" 
+                  type="text"
                   placeholder="Enter Full Name"
                   value={formData.name}
                   onChange={handleNameChange}
@@ -1914,9 +2114,9 @@ function VendorsManagement({ onNavigateToPlans }) {
               {/* Mobile Number */}
               <div className="form-field-item">
                 <label htmlFor="vendor-phone">Mobile Number <span style={{ color: '#ef4444' }}>*</span></label>
-                <input 
+                <input
                   id="vendor-phone"
-                  type="tel" 
+                  type="tel"
                   placeholder="Enter 10-digit Mobile Number"
                   value={formData.phone}
                   onChange={handlePhoneChange}
@@ -1935,9 +2135,9 @@ function VendorsManagement({ onNavigateToPlans }) {
               {/* Email ID */}
               <div className="form-field-item">
                 <label htmlFor="vendor-email">Email ID <span style={{ color: '#ef4444' }}>*</span></label>
-                <input 
+                <input
                   id="vendor-email"
-                  type="email" 
+                  type="email"
                   placeholder="Enter Email ID"
                   value={formData.email}
                   onChange={(e) => {
@@ -1958,7 +2158,7 @@ function VendorsManagement({ onNavigateToPlans }) {
               {/* Gender */}
               <div className="form-field-item">
                 <label htmlFor="vendor-gender">Gender</label>
-                <select 
+                <select
                   id="vendor-gender"
                   value={formData.gender ? formData.gender.toUpperCase() : 'MALE'}
                   onChange={(e) => setFormData({ ...formData, gender: e.target.value.toUpperCase() })}
@@ -1975,7 +2175,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                   {editingVendor ? 'Password (Leave blank to keep unchanged)' : <>Password <span style={{ color: '#ef4444' }}>*</span></>}
                 </label>
                 <div className="password-input-wrapper">
-                  <input 
+                  <input
                     id="vendor-password"
                     type={showPassword ? 'text' : 'password'}
                     placeholder={editingVendor ? "Enter New Password (optional)" : "Enter Password (e.g. Password@123)"}
@@ -2013,7 +2213,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                   {editingVendor ? 'Confirm Password' : <>Confirm Password <span style={{ color: '#ef4444' }}>*</span></>}
                 </label>
                 <div className="password-input-wrapper">
-                  <input 
+                  <input
                     id="vendor-confirm-password"
                     type={showConfirmPassword ? 'text' : 'password'}
                     placeholder={editingVendor ? "Confirm New Password" : "Confirm Password"}
@@ -2049,9 +2249,9 @@ function VendorsManagement({ onNavigateToPlans }) {
               <div className="form-field-item">
                 <label htmlFor="vendor-dob">Date Of Birth</label>
                 <div className="date-input-wrapper">
-                  <input 
+                  <input
                     id="vendor-dob"
-                    type="date" 
+                    type="date"
                     placeholder="Enter Date Of Birth"
                     value={formData.dob}
                     onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
@@ -2063,9 +2263,9 @@ function VendorsManagement({ onNavigateToPlans }) {
               {/* Country */}
               <div className="form-field-item">
                 <label htmlFor="vendor-country">Country</label>
-                <input 
+                <input
                   id="vendor-country"
-                  type="text" 
+                  type="text"
                   placeholder="Enter Country (e.g. India)"
                   value={formData.country}
                   onChange={(e) => setFormData({ ...formData, country: e.target.value })}
@@ -2075,9 +2275,9 @@ function VendorsManagement({ onNavigateToPlans }) {
               {/* City */}
               <div className="form-field-item">
                 <label htmlFor="vendor-city">City</label>
-                <input 
+                <input
                   id="vendor-city"
-                  type="text" 
+                  type="text"
                   placeholder="Enter City (e.g. Hyderabad)"
                   value={formData.city}
                   onChange={(e) => {
@@ -2097,9 +2297,9 @@ function VendorsManagement({ onNavigateToPlans }) {
               {/* Pincode */}
               <div className="form-field-item">
                 <label htmlFor="vendor-pincode">Pincode</label>
-                <input 
+                <input
                   id="vendor-pincode"
-                  type="text" 
+                  type="text"
                   placeholder="Enter Pincode (e.g. 522601)"
                   value={formData.pincode}
                   onChange={(e) => {
@@ -2127,9 +2327,9 @@ function VendorsManagement({ onNavigateToPlans }) {
               {/* Store Name / Shop Name */}
               <div className="form-field-item">
                 <label htmlFor="vendor-shopname">Store Name <span style={{ color: '#ef4444' }}>*</span></label>
-                <input 
+                <input
                   id="vendor-shopname"
-                  type="text" 
+                  type="text"
                   placeholder="Enter Store Name"
                   value={formData.shopName}
                   onChange={handleShopNameChange}
@@ -2148,7 +2348,7 @@ function VendorsManagement({ onNavigateToPlans }) {
               {/* Business Type */}
               <div className="form-field-item">
                 <label htmlFor="vendor-biztype">Business Type</label>
-                <select 
+                <select
                   id="vendor-biztype"
                   value={formData.bizType}
                   onChange={(e) => setFormData({ ...formData, bizType: e.target.value })}
@@ -2163,9 +2363,9 @@ function VendorsManagement({ onNavigateToPlans }) {
               {/* GST Number */}
               <div className="form-field-item">
                 <label htmlFor="vendor-gst">GST Number</label>
-                <input 
+                <input
                   id="vendor-gst"
-                  type="text" 
+                  type="text"
                   placeholder="Enter GST Number"
                   value={formData.gst}
                   onChange={(e) => setFormData({ ...formData, gst: e.target.value })}
@@ -2175,9 +2375,9 @@ function VendorsManagement({ onNavigateToPlans }) {
               {/* PAN Number */}
               <div className="form-field-item">
                 <label htmlFor="vendor-pan">PAN Number</label>
-                <input 
+                <input
                   id="vendor-pan"
-                  type="text" 
+                  type="text"
                   placeholder="Enter PAN Number (e.g. ABCDE1234F)"
                   value={formData.pan}
                   onChange={(e) => setFormData({ ...formData, pan: e.target.value })}
@@ -2187,9 +2387,9 @@ function VendorsManagement({ onNavigateToPlans }) {
               {/* Business Address */}
               <div className="form-field-item" style={{ gridColumn: 'span 2' }}>
                 <label htmlFor="vendor-address">Business Address</label>
-                <input 
+                <input
                   id="vendor-address"
-                  type="text" 
+                  type="text"
                   placeholder="Enter Business Address"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
@@ -2198,8 +2398,8 @@ function VendorsManagement({ onNavigateToPlans }) {
 
               {/* Link button '+ Add Another address' */}
               <div className="form-field-full" style={{ marginTop: '8px' }}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn-link-action"
                   onClick={() => alert('Additional address feature is enabled.')}
                 >
@@ -2213,7 +2413,7 @@ function VendorsManagement({ onNavigateToPlans }) {
           <div className="form-section-card">
             <div className="form-section-title">Account Status</div>
             <div className="status-toggle-wrapper">
-              <div 
+              <div
                 className={`status-toggle-container ${formData.isActive ? 'active' : ''}`}
                 onClick={() => setFormData(prev => ({ ...prev, isActive: !prev.isActive }))}
               >
@@ -2228,9 +2428,9 @@ function VendorsManagement({ onNavigateToPlans }) {
 
           {/* Action Buttons Row */}
           <div className="form-actions-row">
-            <button 
-              type="button" 
-              className="btn-cancel-red" 
+            <button
+              type="button"
+              className="btn-cancel-red"
               onClick={() => {
                 setIsAdding(false)
                 setEditingVendor(null)
@@ -2243,8 +2443,8 @@ function VendorsManagement({ onNavigateToPlans }) {
             >
               Cancel
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="btn-add-green"
               disabled={submitLoading}
               style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
@@ -2273,8 +2473,8 @@ function VendorsManagement({ onNavigateToPlans }) {
         {/* Header section with back chevron button */}
         <div className="form-workspace-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <button 
-              className="back-circle-btn" 
+            <button
+              className="back-circle-btn"
               aria-label="Back to Vendors list"
               onClick={() => {
                 setViewedVendor(null)
@@ -2287,13 +2487,13 @@ function VendorsManagement({ onNavigateToPlans }) {
           </div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
             {viewedVendor.approval !== 'approved' && (
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="edit-profile-btn"
-                style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '6px', 
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
                   padding: '8px 16px',
                   backgroundColor: '#2ecc71',
                   borderColor: '#2ecc71',
@@ -2311,13 +2511,13 @@ function VendorsManagement({ onNavigateToPlans }) {
               </button>
             )}
             {viewedVendor.approval !== 'rejected' && (
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn-cancel-red"
-                style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '6px', 
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
                   padding: '8px 16px',
                   backgroundColor: '#e74c3c',
                   borderColor: '#e74c3c',
@@ -2335,8 +2535,8 @@ function VendorsManagement({ onNavigateToPlans }) {
                 {rejectingVendorId === (viewedVendor._id || viewedVendor.id) ? 'Rejecting...' : 'Reject Vendor'}
               </button>
             )}
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="edit-profile-btn"
               style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}
               onClick={() => handleOpenEdit(viewedVendor)}
@@ -2344,27 +2544,30 @@ function VendorsManagement({ onNavigateToPlans }) {
               <Edit2 style={{ width: '14px', height: '14px' }} />
               Edit Vendor
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="btn-link-action"
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px', 
-                background: '#fee2e2', 
-                border: '1px solid #fca5a5', 
-                padding: '8px 14px', 
-                borderRadius: '8px', 
-                color: '#dc2626' 
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#fee2e2',
+                border: '1px solid #fca5a5',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                color: '#dc2626'
               }}
-              onClick={() => setDeletingVendorId(viewedVendor._id || viewedVendor.id)}
+              onClick={() => {
+                setDeletingVendor(viewedVendor)
+                setDeletingVendorId(viewedVendor._id || viewedVendor.id || viewedVendor.userId || viewedVendor.vendorId)
+              }}
               title="Delete Vendor"
             >
               <Trash2 style={{ width: '14px', height: '14px' }} />
               Delete
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="vendor-refresh-btn"
               onClick={async () => {
                 await handleViewVendor(viewedVendor)
@@ -2381,13 +2584,13 @@ function VendorsManagement({ onNavigateToPlans }) {
 
         {/* Error banner if single vendor fetch failed */}
         {viewError && (
-          <div style={{ 
-            backgroundColor: '#ffebee', 
-            border: '1px solid #ffcdd2', 
-            borderRadius: '8px', 
-            padding: '12px 16px', 
-            display: 'flex', 
-            alignItems: 'center', 
+          <div style={{
+            backgroundColor: '#ffebee',
+            border: '1px solid #ffcdd2',
+            borderRadius: '8px',
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'space-between',
             color: '#c62828',
             fontSize: '13px'
@@ -2396,8 +2599,8 @@ function VendorsManagement({ onNavigateToPlans }) {
               <AlertCircle style={{ width: '18px', height: '18px', flexShrink: 0 }} />
               <span>{viewError}</span>
             </div>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => handleViewVendor(viewedVendor)}
               style={{
                 background: '#c62828',
@@ -2419,9 +2622,9 @@ function VendorsManagement({ onNavigateToPlans }) {
         <div className="admin-profile-card">
           <div className="admin-profile-row" style={{ borderBottom: 'none', paddingBottom: 0, marginBottom: 0 }}>
             <div className="admin-profile-left">
-              <VendorAvatar 
-                vendor={viewedVendor} 
-                size="profile" 
+              <VendorAvatar
+                vendor={viewedVendor}
+                size="profile"
               />
               <div className="admin-profile-info" style={{ gap: '6px' }}>
                 <h3 style={{ fontSize: '18px', fontWeight: '700', textTransform: 'capitalize' }}>
@@ -2437,7 +2640,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                 </div>
               </div>
             </div>
-            
+
             <span className={`vendor-badge ${viewedVendor.approval}`} style={{ padding: '6px 16px', fontSize: '12px' }}>
               {viewedVendor.approval}
             </span>
@@ -2449,13 +2652,13 @@ function VendorsManagement({ onNavigateToPlans }) {
           {miniStats.map((stat) => {
             const Icon = stat.icon
             return (
-              <div 
-                key={stat.id} 
-                className="stat-card" 
+              <div
+                key={stat.id}
+                className="stat-card"
                 style={{ backgroundColor: stat.background, padding: '16px 20px', flexDirection: 'row', alignItems: 'center', gap: '16px' }}
               >
-                <div 
-                  className="stat-icon-wrapper" 
+                <div
+                  className="stat-icon-wrapper"
                   style={{ backgroundColor: 'rgba(255,255,255,0.75)', color: stat.color, width: '40px', height: '40px' }}
                 >
                   <Icon style={{ width: '20px', height: '20px' }} />
@@ -2485,14 +2688,14 @@ function VendorsManagement({ onNavigateToPlans }) {
                 <button
                   type="button"
                   className="btn-link-action"
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '6px', 
-                    background: '#ffffff', 
-                    border: '1px solid var(--border-light)', 
-                    padding: '6px 14px', 
-                    borderRadius: '8px', 
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: '#ffffff',
+                    border: '1px solid var(--border-light)',
+                    padding: '6px 14px',
+                    borderRadius: '8px',
                     color: viewedVendor.status === 'active' ? '#e74c3c' : '#2ecc71',
                     fontSize: '12px'
                   }}
@@ -2570,10 +2773,10 @@ function VendorsManagement({ onNavigateToPlans }) {
               <div className="vendor-audit-card approved">
                 <span className="vendor-audit-title">Approved By</span>
                 <div className="audit-user-row">
-                  <img 
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=64&h=64" 
-                    alt="Super Admin" 
-                    className="audit-avatar" 
+                  <img
+                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=64&h=64"
+                    alt="Super Admin"
+                    className="audit-avatar"
                   />
                   <div className="audit-user-details">
                     <span className="audit-user-name">Super Admin</span>
@@ -2587,10 +2790,10 @@ function VendorsManagement({ onNavigateToPlans }) {
               <div className="vendor-audit-card rejected">
                 <span className="vendor-audit-title">Rejected By</span>
                 <div className="audit-user-row">
-                  <img 
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=64&h=64" 
-                    alt="Super Admin" 
-                    className="audit-avatar" 
+                  <img
+                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=64&h=64"
+                    alt="Super Admin"
+                    className="audit-avatar"
                   />
                   <div className="audit-user-details">
                     <span className="audit-user-name">Super Admin</span>
@@ -2601,6 +2804,9 @@ function VendorsManagement({ onNavigateToPlans }) {
             )}
           </div>
         </div>
+
+        {/* Delete Confirmation Modal Overlay in View Vendor */}
+        {renderDeleteModal()}
       </div>
     )
   }
@@ -2626,8 +2832,8 @@ function VendorsManagement({ onNavigateToPlans }) {
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           {onNavigateToPlans && (
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="vendor-refresh-btn"
               style={{ backgroundColor: '#f1f8e9', borderColor: '#c8e6c9', color: '#2e7d32' }}
               onClick={onNavigateToPlans}
@@ -2637,8 +2843,8 @@ function VendorsManagement({ onNavigateToPlans }) {
               <span>Business Plans</span>
             </button>
           )}
-          <button 
-            type="button" 
+          <button
+            type="button"
             className="vendor-refresh-btn"
             onClick={handleRefresh}
             disabled={loading}
@@ -2647,8 +2853,8 @@ function VendorsManagement({ onNavigateToPlans }) {
             <RotateCw className={loading ? 'spin-animation' : ''} style={{ width: '15px', height: '15px' }} />
             <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
           </button>
-          <button 
-            className="edit-profile-btn" 
+          <button
+            className="edit-profile-btn"
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
             onClick={() => {
               setEditingVendor(null)
@@ -2672,13 +2878,13 @@ function VendorsManagement({ onNavigateToPlans }) {
 
       {/* Fetch Error Banner if any */}
       {fetchError && (
-        <div style={{ 
-          backgroundColor: '#ffebee', 
-          border: '1px solid #ffcdd2', 
-          borderRadius: '8px', 
-          padding: '12px 16px', 
-          display: 'flex', 
-          alignItems: 'center', 
+        <div style={{
+          backgroundColor: '#ffebee',
+          border: '1px solid #ffcdd2',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'space-between',
           color: '#c62828',
           fontSize: '13px'
@@ -2687,8 +2893,8 @@ function VendorsManagement({ onNavigateToPlans }) {
             <AlertCircle style={{ width: '18px', height: '18px', flexShrink: 0 }} />
             <span>{fetchError}</span>
           </div>
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={fetchVendors}
             style={{
               background: '#c62828',
@@ -2712,15 +2918,15 @@ function VendorsManagement({ onNavigateToPlans }) {
           const Icon = stat.icon
           const isActive = accountFilter === stat.filterVal
           return (
-            <div 
-              key={stat.id} 
-              className={`stat-card clickable ${isActive ? 'active-filter' : ''}`} 
+            <div
+              key={stat.id}
+              className={`stat-card clickable ${isActive ? 'active-filter' : ''}`}
               style={{ backgroundColor: stat.background, borderColor: stat.color, color: stat.color }}
               onClick={() => setAccountFilter(stat.filterVal)}
               title={`Click to filter by ${stat.label}`}
             >
-              <div 
-                className="stat-icon-wrapper" 
+              <div
+                className="stat-icon-wrapper"
                 style={{ backgroundColor: 'rgba(255,255,255,0.7)', color: stat.color }}
               >
                 <Icon />
@@ -2775,16 +2981,16 @@ function VendorsManagement({ onNavigateToPlans }) {
         <div className="table-filter-bar">
           <div className="table-search-wrapper">
             <Search />
-            <input 
-              type="text" 
-              placeholder="Search Vendor..." 
+            <input
+              type="text"
+              placeholder="Search Vendor..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
           <div style={{ display: 'flex', gap: '12px' }}>
-            <select 
+            <select
               className="status-select"
               value={approvalFilter}
               onChange={(e) => setApprovalFilter(e.target.value)}
@@ -2795,7 +3001,7 @@ function VendorsManagement({ onNavigateToPlans }) {
               <option value="rejected">Rejected</option>
             </select>
 
-            <select 
+            <select
               className="status-select"
               value={accountFilter}
               onChange={(e) => setAccountFilter(e.target.value)}
@@ -2850,8 +3056,8 @@ function VendorsManagement({ onNavigateToPlans }) {
                       <td>
                         <div className="vendor-name-row">
                           <VendorAvatar vendor={vendor} size="table" />
-                          <span 
-                            className="table-link-name" 
+                          <span
+                            className="table-link-name"
                             onClick={() => handleViewVendor(vendor)}
                             style={{ cursor: 'pointer', fontWeight: '600' }}
                           >
@@ -2870,7 +3076,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                         </span>
                       </td>
                       <td>
-                        <span 
+                        <span
                           className={`vendor-badge ${vendor.status}`}
                           style={{ cursor: 'pointer' }}
                           title="Click to toggle status"
@@ -2882,8 +3088,8 @@ function VendorsManagement({ onNavigateToPlans }) {
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'flex', justifyContent: 'center' }}>
                           <div className="action-menu-wrapper">
-                            <button 
-                              className="table-action-btn" 
+                            <button
+                              className="table-action-btn"
                               aria-label="Open Actions"
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -2892,11 +3098,11 @@ function VendorsManagement({ onNavigateToPlans }) {
                             >
                               <MoreVertical style={{ width: '16px', height: '16px' }} />
                             </button>
-                            
+
                             {activeActionMenuId === vendor.id && (
                               <div className="action-menu-dropdown" onClick={(e) => e.stopPropagation()}>
                                 {vendor.approval !== 'approved' && (
-                                  <button 
+                                  <button
                                     className="action-dropdown-item"
                                     style={{ color: '#2ecc71' }}
                                     onClick={() => {
@@ -2910,7 +3116,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                                   </button>
                                 )}
                                 {vendor.approval !== 'rejected' && (
-                                  <button 
+                                  <button
                                     className="action-dropdown-item"
                                     style={{ color: '#e74c3c' }}
                                     onClick={() => {
@@ -2923,7 +3129,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                                     {rejectingVendorId === (vendor._id || vendor.id) ? 'Rejecting...' : 'Reject'}
                                   </button>
                                 )}
-                                <button 
+                                <button
                                   className="action-dropdown-item"
                                   onClick={() => {
                                     handleToggleVendorStatus(vendor)
@@ -2943,7 +3149,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                                     </>
                                   )}
                                 </button>
-                                <button 
+                                <button
                                   className="action-dropdown-item"
                                   onClick={() => {
                                     handleOpenEdit(vendor)
@@ -2953,10 +3159,11 @@ function VendorsManagement({ onNavigateToPlans }) {
                                   <Edit2 style={{ width: '14px', height: '14px' }} />
                                   Edit
                                 </button>
-                                <button 
+                                <button
                                   className="action-dropdown-item delete"
                                   onClick={() => {
-                                    setDeletingVendorId(vendor._id || vendor.id)
+                                    setDeletingVendor(vendor)
+                                    setDeletingVendorId(vendor._id || vendor.id || vendor.userId || vendor.vendorId)
                                     setActiveActionMenuId(null)
                                   }}
                                 >
@@ -2988,8 +3195,8 @@ function VendorsManagement({ onNavigateToPlans }) {
             Showing {paginatedVendors.length === 0 ? 0 : startIndex + 1} to {Math.min(startIndex + itemsPerPage, totalItems)} of {totalItems} Entries
           </div>
           <div className="offers-pagination">
-            <button 
-              className="pag-btn" 
+            <button
+              className="pag-btn"
               onClick={() => currentPage > 1 && setCurrentPage(currentPage - 1)}
               disabled={currentPage === 1}
               style={{ opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
@@ -2997,7 +3204,7 @@ function VendorsManagement({ onNavigateToPlans }) {
               &lt;
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-              <button 
+              <button
                 key={pageNum}
                 className={`pag-btn ${currentPage === pageNum ? 'active' : ''}`}
                 onClick={() => setCurrentPage(pageNum)}
@@ -3005,8 +3212,8 @@ function VendorsManagement({ onNavigateToPlans }) {
                 {pageNum}
               </button>
             ))}
-            <button 
-              className="pag-btn" 
+            <button
+              className="pag-btn"
               onClick={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
               disabled={currentPage === totalPages}
               style={{ opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
@@ -3018,34 +3225,7 @@ function VendorsManagement({ onNavigateToPlans }) {
       </div>
 
       {/* Delete Confirmation Modal Overlay */}
-      {deletingVendorId && (
-        <div className="modal-overlay" onClick={() => !deleteLoading && setDeletingVendorId(null)}>
-          <div className="delete-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="delete-modal-title">Delete</div>
-            <div className="delete-modal-subtitle">Are You Sure Want To Delete?</div>
-            <div className="delete-modal-buttons">
-              <button 
-                type="button" 
-                className="btn-delete-cancel"
-                onClick={() => setDeletingVendorId(null)}
-                disabled={deleteLoading}
-              >
-                Cancel
-              </button>
-              <button 
-                type="button" 
-                className="btn-delete-confirm"
-                onClick={handleDeleteConfirm}
-                disabled={deleteLoading}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-              >
-                {deleteLoading && <RotateCw className="spinning-icon" style={{ width: '14px', height: '14px' }} />}
-                {deleteLoading ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {renderDeleteModal()}
     </div>
   )
 }

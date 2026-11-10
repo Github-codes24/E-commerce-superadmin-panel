@@ -195,32 +195,30 @@ const QUICK_FEATURE_PRESETS = [
 ]
 
 const DEFAULT_FORM_STATE = {
-  planKey: 'PREMIUM',
+  planKey: 'STARTER',
   name: '',
-  billingCycle: 'YEARLY',
-  price: 3999,
+  billingCycle: 'MONTHLY',
+  price: 299,
   currency: 'INR',
-  durationDays: 365,
-  registrationCharges: 35,
-  commissionPercent: 5,
-  payoutCycleDays: 5,
-  deliveryDiscountPercent: 45,
+  durationDays: 30,
+  registrationCharges: 0,
+  commissionPercent: 10,
+  payoutCycleDays: 7,
+  deliveryDiscountPercent: 20,
   adsCredit: 0,
   premiumBadge: false,
   analyticsDashboard: true,
-  unlimitedListings: true,
-  priorityPlacement: true,
+  unlimitedListings: false,
+  priorityPlacement: false,
   dedicatedAccountManager: false,
   vendorSupport: '24x7 vendor support',
   description: '',
   features: [
-    'Unlimited listings',
-    'Low 5% commission',
-    'Advanced analytics dashboard',
-    '5-day payout cycle',
-    '24x7 vendor support',
-    '45% off delivery charges',
-    'Priority product placement'
+    'Unlimited product listings',
+    'Low commission rate',
+    'Analytics dashboard',
+    'Regular payout cycle',
+    '24x7 vendor support'
   ],
   isActive: true
 }
@@ -383,9 +381,11 @@ export default function BusinessPlansManagement({ onNavigate }) {
     setEditingPlan(null)
     setFormData({
       ...DEFAULT_FORM_STATE,
-      planKey: 'PREMIUM',
+      planKey: 'STARTER',
       name: '',
-      price: 3999,
+      billingCycle: 'MONTHLY',
+      price: 299,
+      durationDays: 30,
       features: [...DEFAULT_FORM_STATE.features]
     })
     setNewFeatureInput('')
@@ -508,10 +508,6 @@ export default function BusinessPlansManagement({ onNavigate }) {
       setFormError('Plan Name is required.')
       return
     }
-    if (!formData.planKey.trim()) {
-      setFormError('Plan Key is required (e.g., PREMIUM, STANDARD, BASIC).')
-      return
-    }
     if (formData.price < 0) {
       setFormError('Price cannot be negative.')
       return
@@ -519,16 +515,30 @@ export default function BusinessPlansManagement({ onNavigate }) {
 
     setFormSubmitting(true)
 
+    // Ensure planKey is strictly one of STARTER, PREMIUM, ENTERPRISE
+    let validPlanKey = (formData.planKey || 'STARTER').trim().toUpperCase()
+    if (!['STARTER', 'PREMIUM', 'ENTERPRISE'].includes(validPlanKey)) {
+      if (validPlanKey.includes('START') || validPlanKey.includes('BASIC') || validPlanKey.includes('FREE')) validPlanKey = 'STARTER'
+      else if (validPlanKey.includes('ENTERPRISE') || validPlanKey.includes('PRO') || validPlanKey.includes('BUSINESS')) validPlanKey = 'ENTERPRISE'
+      else validPlanKey = 'PREMIUM'
+    }
+
+    // Ensure billingCycle is strictly MONTHLY or YEARLY
+    let validBillingCycle = (formData.billingCycle || 'MONTHLY').trim().toUpperCase()
+    if (!['MONTHLY', 'YEARLY'].includes(validBillingCycle)) {
+      validBillingCycle = validBillingCycle.includes('YEAR') ? 'YEARLY' : 'MONTHLY'
+    }
+
     const payload = {
-      planKey: formData.planKey.trim().toUpperCase(),
+      planKey: validPlanKey,
       name: formData.name.trim(),
-      billingCycle: formData.billingCycle.toUpperCase(),
+      billingCycle: validBillingCycle,
       price: Number(formData.price) || 0,
       currency: formData.currency || 'INR',
-      durationDays: Number(formData.durationDays) || 30,
+      durationDays: Number(formData.durationDays) || (validBillingCycle === 'YEARLY' ? 365 : 30),
       registrationCharges: Number(formData.registrationCharges) || 0,
-      commissionPercent: Number(formData.commissionPercent) || 0,
-      payoutCycleDays: Number(formData.payoutCycleDays) || 5,
+      commissionPercent: Number(formData.commissionPercent) !== undefined && !isNaN(Number(formData.commissionPercent)) ? Number(formData.commissionPercent) : 5,
+      payoutCycleDays: Number(formData.payoutCycleDays) !== undefined && !isNaN(Number(formData.payoutCycleDays)) ? Number(formData.payoutCycleDays) : 5,
       deliveryDiscountPercent: Number(formData.deliveryDiscountPercent) || 0,
       adsCredit: Number(formData.adsCredit) || 0,
       premiumBadge: Boolean(formData.premiumBadge),
@@ -545,14 +555,12 @@ export default function BusinessPlansManagement({ onNavigate }) {
     try {
       if (editingPlan) {
         // UPDATE Existing Plan
+        const res = await updateVendorBusinessPlan(editingPlan._id || editingPlan.id, payload)
         let updatedRecord = null
-        try {
-          const res = await updateVendorBusinessPlan(editingPlan._id || editingPlan.id, payload)
-          if (res?.data && typeof res.data === 'object') {
-            updatedRecord = Array.isArray(res.data) ? res.data[0] : res.data
-          }
-        } catch (apiErr) {
-          console.warn('API update failed; proceeding with local update:', apiErr.message)
+        if (res?.data && typeof res.data === 'object') {
+          updatedRecord = Array.isArray(res.data) ? res.data[0] : res.data
+        } else if (res?.plan && typeof res.plan === 'object') {
+          updatedRecord = res.plan
         }
 
         const finalPlan = {
@@ -563,34 +571,35 @@ export default function BusinessPlansManagement({ onNavigate }) {
         }
 
         setPlans(prev => prev.map(p => (p._id === editingPlan._id || p.id === editingPlan.id ? finalPlan : p)))
-        showAlert('Vendor business plan updated successfully.', 'success')
+        showAlert('Vendor business plan updated successfully and synced with live database.', 'success')
       } else {
-        // CREATE New Plan
+        // CREATE New Plan on Live Server
+        const res = await createVendorBusinessPlan(payload)
         let createdRecord = null
-        try {
-          const res = await createVendorBusinessPlan(payload)
-          if (res?.data && typeof res.data === 'object') {
-            createdRecord = Array.isArray(res.data) ? res.data[0] : res.data
-          }
-        } catch (apiErr) {
-          console.warn('API create failed; proceeding with local creation:', apiErr.message)
+        if (res?.data && typeof res.data === 'object') {
+          createdRecord = Array.isArray(res.data) ? res.data[0] : res.data
+        } else if (res?.plan && typeof res.plan === 'object') {
+          createdRecord = res.plan
         }
 
         const newPlan = {
-          _id: createdRecord?._id || `plan_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          _id: createdRecord?._id || `plan_${Date.now()}`,
           ...payload,
           ...(createdRecord || {}),
           createdAt: createdRecord?.createdAt || new Date().toISOString(),
           updatedAt: createdRecord?.updatedAt || new Date().toISOString()
         }
 
-        setPlans(prev => [newPlan, ...prev])
-        showAlert(`Business Plan "${newPlan.name}" created successfully.`, 'success')
+        setPlans(prev => [newPlan, ...prev.filter(p => p._id !== newPlan._id)])
+        showAlert(`Business Plan "${newPlan.name}" created successfully and live on customer website.`, 'success')
       }
 
       setIsCreateModalOpen(false)
     } catch (err) {
-      setFormError(err.message || 'Failed to save business plan. Please check inputs.')
+      console.error('Plan save error:', err)
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to save business plan.'
+      setFormError(errorMsg)
+      showAlert(errorMsg, 'error')
     } finally {
       setFormSubmitting(false)
     }
@@ -758,9 +767,7 @@ export default function BusinessPlansManagement({ onNavigate }) {
             <option value="ALL">All Billing Cycles</option>
             <option value="YEARLY">Yearly</option>
             <option value="MONTHLY">Monthly</option>
-            <option value="QUARTERLY">Quarterly</option>
-            <option value="HALF_YEARLY">Half Yearly</option>
-            <option value="ONE_TIME">One Time</option>
+           
           </select>
 
           <select
@@ -1041,20 +1048,22 @@ export default function BusinessPlansManagement({ onNavigate }) {
                 <div className="form-section-heading">1. General Plan Details</div>
                 <div className="form-grid-2">
                   <div className="form-field">
-                    <label>Plan Key *</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. PREMIUM, STANDARD, BASIC"
+                    <label>Plan Key / Tier *</label>
+                    <select
                       value={formData.planKey}
-                      onChange={(e) => setFormData({ ...formData, planKey: e.target.value.toUpperCase() })}
+                      onChange={(e) => setFormData({ ...formData, planKey: e.target.value })}
                       required
-                    />
+                    >
+                      <option value="STARTER">STARTER</option>
+                      <option value="PREMIUM">PREMIUM</option>
+                      <option value="ENTERPRISE">ENTERPRISE</option>
+                    </select>
                   </div>
                   <div className="form-field">
                     <label>Plan Name *</label>
                     <input
                       type="text"
-                      placeholder="e.g. Premium Annual Plan"
+                      placeholder="e.g. Starter Growth Plan, Premium Annual Plan"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       required
@@ -1064,16 +1073,21 @@ export default function BusinessPlansManagement({ onNavigate }) {
 
                 <div className="form-grid-3">
                   <div className="form-field">
-                    <label>Billing Cycle</label>
+                    <label>Billing Cycle *</label>
                     <select
                       value={formData.billingCycle}
-                      onChange={(e) => setFormData({ ...formData, billingCycle: e.target.value })}
+                      onChange={(e) => {
+                        const cycle = e.target.value
+                        setFormData({
+                          ...formData,
+                          billingCycle: cycle,
+                          durationDays: cycle === 'YEARLY' ? 365 : 30
+                        })
+                      }}
+                      required
                     >
-                      <option value="YEARLY">YEARLY</option>
-                      <option value="MONTHLY">MONTHLY</option>
-                      <option value="QUARTERLY">QUARTERLY</option>
-                      <option value="HALF_YEARLY">HALF_YEARLY</option>
-                      <option value="ONE_TIME">ONE_TIME</option>
+                      <option value="MONTHLY">MONTHLY (30 Days)</option>
+                      <option value="YEARLY">YEARLY (365 Days)</option>
                     </select>
                   </div>
                   <div className="form-field">
