@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { LayoutGrid, Package, CheckSquare, AlertTriangle, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, ChevronDown, Check, X, ChevronRight, ChevronLeft, Loader2, RefreshCw, AlertCircle, Maximize2, ZoomIn, ZoomOut, CheckCircle2 } from 'lucide-react'
 import { getAllCategories, createCategory, getCategoryById, updateCategory, deleteCategory, updateCategoryStatus, getAllProducts } from '../services/superAdminService'
+import { uploadFileToS3 } from '../services/s3Service'
 import './CategoryManagement.css'
 
 // Helper for local persistence of custom created / edited categories
@@ -733,6 +734,7 @@ function CategoryManagement() {
       reader.onloadend = () => {
         setFormData(prev => ({ 
           ...prev, 
+          imageFile: file,
           imagePreview: reader.result,
           imageName: file.name
         }))
@@ -746,6 +748,7 @@ function CategoryManagement() {
       name: '',
       description: '',
       isVisible: true,
+      imageFile: null,
       imagePreview: '',
       imageName: ''
     })
@@ -767,16 +770,36 @@ function CategoryManagement() {
     if (editingCategory) {
       // Edit mode: Call PUT /api/superadmin/categories/:id
       const catId = editingCategory.rawId || editingCategory._id || editingCategory.id
-      const finalImage = formData.imagePreview || editingCategory.image || uploadedImage
-      const payload = {
-        name: formData.name.trim(),
-        description: formData.description ? formData.description.trim() : `${formData.name.trim()} products`,
-        image: finalImage,
-        isActive: formData.isVisible
-      }
+      let finalImage = formData.imagePreview || editingCategory.image || uploadedImage
 
       try {
         setFormLoading(true)
+
+        // Upload new image to S3 if user selected a new file
+        if (formData.imageFile || (formData.imagePreview && formData.imagePreview.startsWith('data:'))) {
+          try {
+            const s3Res = await uploadFileToS3(formData.imageFile || formData.imagePreview, 'categories')
+            if (s3Res?.url) {
+              finalImage = s3Res.url
+            }
+          } catch (s3Err) {
+            console.warn('S3 upload note during category edit:', s3Err?.message)
+          }
+        }
+
+        const payload = {
+          name: formData.name.trim(),
+          categoryName: formData.name.trim(),
+          title: formData.name.trim(),
+          slug: formData.name.trim().toLowerCase().replace(/\s+/g, '-'),
+          description: formData.description ? formData.description.trim() : `${formData.name.trim()} products`,
+          image: finalImage,
+          imageUrl: finalImage,
+          categoryImage: finalImage,
+          isActive: formData.isVisible,
+          status: targetStatus
+        }
+
         if (catId && typeof catId !== 'number' && !catId.toString().startsWith('cat-')) {
           try {
             await updateCategory(catId, payload)
@@ -825,6 +848,11 @@ function CategoryManagement() {
         handleResetForm()
         setEditingCategory(null)
         setIsAdding(false)
+
+        // Refresh live from database
+        try {
+          await fetchCategories()
+        } catch {}
       } catch (err) {
         console.error('Failed to update category:', err)
         const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update category.'
@@ -836,35 +864,63 @@ function CategoryManagement() {
       // Add mode: Call POST /api/superadmin/categories
       try {
         setFormLoading(true)
-        const finalImage = formData.imagePreview || uploadedImage
+        let finalImage = formData.imagePreview || uploadedImage
+
+        // 1. Direct high-speed upload to S3 for clean, persistent URL
+        if (formData.imageFile || (formData.imagePreview && formData.imagePreview.startsWith('data:'))) {
+          try {
+            const s3Res = await uploadFileToS3(formData.imageFile || formData.imagePreview, 'categories')
+            if (s3Res?.url) {
+              finalImage = s3Res.url
+            }
+          } catch (s3Err) {
+            console.warn('S3 upload note during category add:', s3Err?.message)
+          }
+        }
+
         const payload = {
           name: formData.name.trim(),
+          categoryName: formData.name.trim(),
+          title: formData.name.trim(),
+          slug: formData.name.trim().toLowerCase().replace(/\s+/g, '-'),
           description: formData.description ? formData.description.trim() : `${formData.name.trim()} products`,
           image: finalImage,
-          isActive: formData.isVisible
+          imageUrl: finalImage,
+          categoryImage: finalImage,
+          isActive: formData.isVisible,
+          status: targetStatus
         }
 
         let createdRes = null
         try {
           createdRes = await createCategory(payload)
         } catch (apiErr) {
-          console.warn('Backend createCategory note (persisting locally):', apiErr?.message)
+          console.error('Backend createCategory error:', apiErr)
+          const errorMsg = apiErr?.response?.data?.message || apiErr?.response?.data?.error || apiErr?.message || 'Failed to save category in database.'
+          setFormError(errorMsg)
+          setFormLoading(false)
+          return
         }
 
-        const generatedId = createdRes?.data?._id || createdRes?.data?.id || `cat-custom-${Date.now()}`
+        const backendItem = createdRes?.data || createdRes?.category || createdRes?.message?.category || createdRes?.result || createdRes
+        const generatedId = backendItem?._id || backendItem?.id || `cat-custom-${Date.now()}`
+        const finalName = backendItem?.name || backendItem?.categoryName || payload.name
+        const finalSlug = backendItem?.slug || payload.slug
+
         const newCat = {
           id: generatedId,
           rawId: generatedId,
           _id: generatedId,
-          name: formData.name.trim(),
-          slug: formData.name.trim().toLowerCase().replace(/\s+/g, '-'),
-          description: payload.description,
+          name: finalName,
+          slug: finalSlug,
+          description: backendItem?.description || payload.description,
           subcatsCount: 0,
           productsCount: 0,
           status: targetStatus,
           isActive: formData.isVisible,
           image: finalImage,
-          checked: false
+          checked: false,
+          rawData: backendItem
         }
 
         // Persist to custom categories
@@ -887,12 +943,17 @@ function CategoryManagement() {
           window.dispatchEvent(new CustomEvent('zyvora_categories_updated', { detail: newCat }))
         } catch (e) {}
 
-        setSuccessToast('Category created successfully.')
+        setSuccessToast('Category created and saved to database successfully.')
         setTimeout(() => setSuccessToast(''), 4000)
 
         handleResetForm()
         setEditingCategory(null)
         setIsAdding(false)
+
+        // Live refresh from MongoDB database
+        try {
+          await fetchCategories()
+        } catch {}
       } catch (err) {
         console.error('Failed to create category:', err)
         const errorMsg = err?.response?.data?.message || err?.message || 'Failed to create category.'

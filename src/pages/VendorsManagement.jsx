@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power, Briefcase, Eye, EyeOff } from 'lucide-react'
-import { getAllVendors, getVendorById, createVendor, registerVendor, updateVendorBusinessProfile, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor, getCloudVendorSync, saveCloudVendorSync } from '../services/superAdminService'
+import { getAllVendors, getVendorById, createVendor, registerVendor, updateVendorBusinessProfile, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor, getProductsByVendor, getAllProducts, getAllOrders, getCloudVendorSync, saveCloudVendorSync } from '../services/superAdminService'
 import './VendorsManagement.css'
 
 // Helper to check if URL is an automatic default Unsplash or placeholder URL
@@ -409,14 +409,151 @@ export const pushVendorCloudOverride = async ({ approvalKeys = {}, statusKeys = 
   }
 }
 
+// Helper to extract list from API responses
+const extractApiList = (res, keys = []) => {
+  if (!res) return []
+  if (Array.isArray(res)) return res
+  for (const k of keys) {
+    if (Array.isArray(res[k])) return res[k]
+    if (Array.isArray(res?.data?.[k])) return res.data[k]
+    if (Array.isArray(res?.message?.[k])) return res.message[k]
+  }
+  if (Array.isArray(res?.data)) return res.data
+  if (Array.isArray(res?.message)) return res.message
+  return []
+}
+
+// Helper to calculate numeric price from an order
+export const calculateOrderAmount = (order) => {
+  if (!order) return 0
+  const raw = order.totalAmount ?? order.amount ?? order.total ?? order.price ?? 0
+  if (typeof raw === 'number') return isNaN(raw) ? 0 : raw
+  const cleaned = String(raw).replace(/[^0-9.]/g, '')
+  const parsed = parseFloat(cleaned)
+  return isNaN(parsed) ? 0 : parsed
+}
+
+// Helper to determine if a product belongs to a specific vendor
+export const matchProductToVendor = (product, vendor) => {
+  if (!product || !vendor) return false
+
+  const vendorUserIds = [
+    vendor.userId,
+    vendor.vendorId,
+    vendor._id,
+    vendor.id,
+    vendor.rawId
+  ].filter(Boolean).map(x => String(x).toLowerCase().trim())
+
+  const productVendorIds = [
+    product.vendorId?._id,
+    product.vendorId?.id,
+    typeof product.vendorId === 'string' ? product.vendorId : null,
+    product.userId,
+    product.sellerId,
+    product.createdBy
+  ].filter(Boolean).map(x => String(x).toLowerCase().trim())
+
+  for (const pId of productVendorIds) {
+    if (vendorUserIds.includes(pId)) return true
+  }
+
+  if (vendor.email && vendor.email !== 'N/A') {
+    const vEmail = String(vendor.email).toLowerCase().trim()
+    if (product.vendorId?.email && String(product.vendorId.email).toLowerCase().trim() === vEmail) return true
+    if (product.email && String(product.email).toLowerCase().trim() === vEmail) return true
+  }
+
+  const vendorNames = [
+    vendor.shopName,
+    vendor.storeName,
+    vendor.businessName,
+    vendor.name,
+    vendor.fullName
+  ].filter(Boolean).map(x => String(x).toLowerCase().trim()).filter(x => x.length > 1 && x !== 'vendor' && x !== 'n/a')
+
+  const productVendors = [
+    typeof product.vendor === 'string' ? product.vendor : product.vendor?.name || product.vendor?.storeName,
+    product.vendorName,
+    product.brand,
+    product.brandName
+  ].filter(Boolean).map(x => String(x).toLowerCase().trim()).filter(x => x.length > 1 && x !== 'super admin' && x !== 'vendor')
+
+  for (const pName of productVendors) {
+    for (const vName of vendorNames) {
+      if (pName === vName || pName.includes(vName) || vName.includes(pName)) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+// Helper to determine if an order belongs to a specific vendor
+export const matchOrderToVendor = (order, vendor, vendorProductIds = new Set()) => {
+  if (!order || !vendor) return false
+
+  const vendorUserIds = [
+    vendor.userId,
+    vendor.vendorId,
+    vendor._id,
+    vendor.id,
+    vendor.rawId
+  ].filter(Boolean).map(x => String(x).toLowerCase().trim())
+
+  const orderVendorIds = [
+    order.vendorId?._id,
+    order.vendorId?.id,
+    typeof order.vendorId === 'string' ? order.vendorId : null,
+    order.sellerId
+  ].filter(Boolean).map(x => String(x).toLowerCase().trim())
+
+  for (const oId of orderVendorIds) {
+    if (vendorUserIds.includes(oId)) return true
+  }
+
+  const vendorNames = [
+    vendor.shopName,
+    vendor.storeName,
+    vendor.name,
+    vendor.fullName
+  ].filter(Boolean).map(x => String(x).toLowerCase().trim()).filter(x => x.length > 1 && x !== 'vendor')
+
+  const orderVendorNames = [
+    typeof order.vendor === 'string' ? order.vendor : order.vendor?.name || order.vendor?.storeName,
+    order.vendorName,
+    order.seller
+  ].filter(Boolean).map(x => String(x).toLowerCase().trim()).filter(x => x.length > 1 && x !== 'vendor')
+
+  for (const oName of orderVendorNames) {
+    for (const vName of vendorNames) {
+      if (oName === vName || oName.includes(vName) || vName.includes(oName)) {
+        return true
+      }
+    }
+  }
+
+  const orderItems = Array.isArray(order.products) ? order.products : (Array.isArray(order.items) ? order.items : [])
+  for (const item of orderItems) {
+    const itemVendorId = String(item.vendorId?._id || item.vendorId?.id || item.vendorId || '').toLowerCase().trim()
+    if (itemVendorId && vendorUserIds.includes(itemVendorId)) return true
+
+    const itemProdId = String(item.productId?._id || item.productId?.id || item.productId || item._id || item.id || '').toLowerCase().trim()
+    if (itemProdId && vendorProductIds.has(itemProdId)) return true
+  }
+
+  return false
+}
+
 // Default mock data to ensure immediate UI rendering while API loads
 const DEFAULT_VENDORS = [
-  { id: 1, name: 'Sameer sharma', shopName: 'Sameer Shop', category: 'Fashion', products: 540, orders: 540, joinedOn: '22 May 2026', approval: 'approved', status: 'active', checked: false, email: 'sameer@gmail.com', phone: '+91 9876543258', dob: '11/09/2003', gender: 'Male', bizType: 'Individual seller', gst: '22AAAAA0000A1Z5', pan: 'ABCDE1234F', address: '456, Business Bay, T. Nagar, Pune', revenue: '₹96,780' },
-  { id: 2, name: 'Trendy Fashion', shopName: 'Trendy Store', category: 'Clothes', products: 42, orders: 98, joinedOn: '18 May 2026', approval: 'pending', status: 'active', checked: false, email: 'trendy@shop.com', phone: '+91 9876543202', dob: '20/04/1992', gender: 'Female', bizType: 'Wholesale', gst: '22BBBBB0000B1Z2', pan: 'BCDEF2345G', address: 'Fashion Hub, Room 102', revenue: '₹4,20,000' },
-  { id: 3, name: 'Beauty Palace', shopName: 'Beauty Salon', category: 'Cosmetics', products: 18, orders: 24, joinedOn: '28 Apr 2026', approval: 'rejected', status: 'inactive', checked: false, email: 'beauty@shop.com', phone: '+91 9876543203', dob: '05/11/1990', gender: 'Female', bizType: 'Retail', gst: '22CCCCC0000C1Z3', pan: 'CDEFG3456H', address: 'Cosmo Boulevard 15', revenue: '₹1,20,000' },
-  { id: 4, name: 'Sport Plus', shopName: 'Sport Store', category: 'Equipments', products: 8, orders: 15, joinedOn: '12 Apr 2026', approval: 'approved', status: 'active', checked: false, email: 'sports@shop.com', phone: '+91 9876543204', dob: '18/02/1988', gender: 'Male', bizType: 'Retail', gst: '22DDDDD0000D1Z4', pan: 'DEFGH4567I', address: 'Arena Complex Gate 2', revenue: '₹8,20,000' },
-  { id: 5, name: 'Wooden Bliss', shopName: 'Wooden Store', category: 'Furniture', products: 24, orders: 60, joinedOn: '02 Mar 2026', approval: 'approved', status: 'active', checked: false, email: 'wooden@shop.com', phone: '+91 9876543205', dob: '30/09/1985', gender: 'Male', bizType: 'Manufacturer', gst: '22EEEEE0000E1Z5', pan: 'EFGHI5678J', address: 'Industrial Zone Alley 5', revenue: '₹10,70,000' },
-  { id: 6, name: 'Home Needs', shopName: 'Home Shop', category: 'Groceries', products: 5, orders: 8, joinedOn: '10 Jan 2026', approval: 'pending', status: 'inactive', checked: false, email: 'home@shop.com', phone: '+91 9876543206', dob: '25/06/1994', gender: 'Female', bizType: 'Retail', gst: '22FFFFF0000F1Z6', pan: 'FGHIJ6789K', address: 'Residential Sector B', revenue: '₹8,000' },
+  { id: 1, name: 'Sameer sharma', shopName: 'Sameer Shop', category: 'Fashion', products: 0, orders: 0, joinedOn: '22 May 2026', approval: 'approved', status: 'active', checked: false, email: 'sameer@gmail.com', phone: '+91 9876543258', dob: '11/09/2003', gender: 'Male', bizType: 'Individual seller', gst: '22AAAAA0000A1Z5', pan: 'ABCDE1234F', address: '456, Business Bay, T. Nagar, Pune', revenue: '₹0' },
+  { id: 2, name: 'Trendy Fashion', shopName: 'Trendy Store', category: 'Clothes', products: 0, orders: 0, joinedOn: '18 May 2026', approval: 'pending', status: 'active', checked: false, email: 'trendy@shop.com', phone: '+91 9876543202', dob: '20/04/1992', gender: 'Female', bizType: 'Wholesale', gst: '22BBBBB0000B1Z2', pan: 'BCDEF2345G', address: 'Fashion Hub, Room 102', revenue: '₹0' },
+  { id: 3, name: 'Beauty Palace', shopName: 'Beauty Salon', category: 'Cosmetics', products: 0, orders: 0, joinedOn: '28 Apr 2026', approval: 'rejected', status: 'inactive', checked: false, email: 'beauty@shop.com', phone: '+91 9876543203', dob: '05/11/1990', gender: 'Female', bizType: 'Retail', gst: '22CCCCC0000C1Z3', pan: 'CDEFG3456H', address: 'Cosmo Boulevard 15', revenue: '₹0' },
+  { id: 4, name: 'Sport Plus', shopName: 'Sport Store', category: 'Equipments', products: 0, orders: 0, joinedOn: '12 Apr 2026', approval: 'approved', status: 'active', checked: false, email: 'sports@shop.com', phone: '+91 9876543204', dob: '18/02/1988', gender: 'Male', bizType: 'Retail', gst: '22DDDDD0000D1Z4', pan: 'DEFGH4567I', address: 'Arena Complex Gate 2', revenue: '₹0' },
+  { id: 5, name: 'Wooden Bliss', shopName: 'Wooden Store', category: 'Furniture', products: 0, orders: 0, joinedOn: '02 Mar 2026', approval: 'approved', status: 'active', checked: false, email: 'wooden@shop.com', phone: '+91 9876543205', dob: '30/09/1985', gender: 'Male', bizType: 'Manufacturer', gst: '22EEEEE0000E1Z5', pan: 'EFGHI5678J', address: 'Industrial Zone Alley 5', revenue: '₹0' },
+  { id: 6, name: 'Home Needs', shopName: 'Home Shop', category: 'Groceries', products: 0, orders: 0, joinedOn: '10 Jan 2026', approval: 'pending', status: 'inactive', checked: false, email: 'home@shop.com', phone: '+91 9876543206', dob: '25/06/1994', gender: 'Female', bizType: 'Retail', gst: '22FFFFF0000F1Z6', pan: 'FGHIJ6789K', address: 'Residential Sector B', revenue: '₹0' },
 ]
 
 function VendorsManagement({ onNavigateToPlans }) {
@@ -597,7 +734,10 @@ function VendorsManagement({ onNavigateToPlans }) {
     const userObj = v.userId && typeof v.userId === 'object' ? v.userId : (v.user || {})
     const rawName = v.fullName || v.name || v.vendorName || userObj.fullName || userObj.name || 'Vendor'
     const rawShopName = v.storeName || v.shopName || v.businessName || v.store?.name || rawName
-    const rawCategory = v.category || v.categoryName || v.businessType || v.bizType || 'Fashion'
+    const resolvedCat = typeof v.category === 'object' && v.category !== null
+      ? (v.category.name || v.category.title || v.category.slug || '')
+      : (typeof v.categoryName === 'string' ? v.categoryName : (typeof v.category === 'string' ? v.category : ''))
+    const rawCategory = resolvedCat || (typeof v.businessType === 'string' ? v.businessType : '') || (typeof v.bizType === 'string' ? v.bizType : '') || 'Fashion'
     const rawProducts = v.products !== undefined ? v.products : (v.totalProducts !== undefined ? v.totalProducts : (v.productCount !== undefined ? v.productCount : 0))
     const rawOrders = v.orders !== undefined ? v.orders : (v.totalOrders !== undefined ? v.totalOrders : (v.orderCount !== undefined ? v.orderCount : 0))
     const rawRevenue = v.revenue !== undefined
@@ -738,31 +878,46 @@ function VendorsManagement({ onNavigateToPlans }) {
       // 1. Pull latest cross-device cloud overrides from MongoDB
       await syncWithCloudOverrides()
 
-      // 2. Fetch full list of vendors from backend
-      // Do NOT send params.approvalStatus or params.status to backend:
-      // a) Backend database lacks approvalStatus on User collection and returns 0 items for 'Rejected'
-      // b) Client-side filteredVendors handles Instant, 100% accurate filtering without page wipeouts
+      // 2. Fetch vendors, all products, and all orders in parallel for 100% accurate metrics
       const params = {
         page: 1,
         limit: 100,
       }
 
       let vendorsData = []
-      try {
-        const res = await getAllVendors(params)
+      let allProductsList = []
+      let allOrdersList = []
 
-        if (res?.data?.vendors && Array.isArray(res.data.vendors)) {
-          vendorsData = res.data.vendors
-        } else if (res?.vendors && Array.isArray(res.vendors)) {
-          vendorsData = res.vendors
-        } else if (res?.data && Array.isArray(res.data)) {
-          vendorsData = res.data
-        } else if (Array.isArray(res)) {
-          vendorsData = res
+      try {
+        const [res, prodRes, ordRes] = await Promise.allSettled([
+          getAllVendors(params),
+          getAllProducts({ page: 1, limit: 1000 }),
+          getAllOrders({ page: 1, limit: 1000 })
+        ])
+
+        if (res?.status === 'fulfilled' && res.value) {
+          const val = res.value
+          if (val?.data?.vendors && Array.isArray(val.data.vendors)) {
+            vendorsData = val.data.vendors
+          } else if (val?.vendors && Array.isArray(val.vendors)) {
+            vendorsData = val.vendors
+          } else if (val?.data && Array.isArray(val.data)) {
+            vendorsData = val.data
+          } else if (Array.isArray(val)) {
+            vendorsData = val
+          }
+        }
+
+        if (prodRes?.status === 'fulfilled' && prodRes.value) {
+          allProductsList = extractApiList(prodRes.value, ['products', 'items'])
+        }
+
+        if (ordRes?.status === 'fulfilled' && ordRes.value) {
+          allOrdersList = extractApiList(ordRes.value, ['orders', 'items'])
         }
 
         // If backend paginates across multiple pages, fetch remaining pages in parallel
-        const pagination = res?.pagination || res?.data?.pagination
+        const pagination = res?.status === 'fulfilled' ? (res.value?.pagination || res.value?.data?.pagination) : null
         const totalPages = pagination?.totalPages || 1
         if (totalPages > 1) {
           try {
@@ -828,6 +983,43 @@ function VendorsManagement({ onNavigateToPlans }) {
         mergedList = custom.length > 0 ? [...custom, ...activeDefaults] : activeDefaults
       }
 
+      // Cross-reference with live products and orders to compute 100% accurate metrics per vendor
+      mergedList = mergedList.map(v => {
+        const vProds = allProductsList.filter(p => matchProductToVendor(p, v))
+        const vProdIds = new Set(vProds.map(p => String(p._id || p.id).toLowerCase().trim()))
+        const vOrders = allOrdersList.filter(o => matchOrderToVendor(o, v, vProdIds))
+
+        const computedRevenue = vOrders
+          .filter(o => !String(o.status || '').toLowerCase().includes('cancel'))
+          .reduce((sum, o) => sum + calculateOrderAmount(o), 0)
+
+        // Accurate product count (fallback to backend number only if non-zero)
+        const finalProductsCount = (v.products !== undefined && v.products !== null && Number(v.products) > 0)
+          ? Number(v.products)
+          : (v.totalProducts !== undefined && Number(v.totalProducts) > 0 ? Number(v.totalProducts) : vProds.length)
+
+        // Accurate order count (fallback to backend number only if non-zero)
+        const finalOrdersCount = (v.orders !== undefined && v.orders !== null && Number(v.orders) > 0)
+          ? Number(v.orders)
+          : (v.totalOrders !== undefined && Number(v.totalOrders) > 0 ? Number(v.totalOrders) : vOrders.length)
+
+        // Accurate revenue calculation
+        const finalRevenueStr = computedRevenue > 0
+          ? `₹${computedRevenue.toLocaleString('en-IN')}`
+          : (v.revenue && !v.revenue.includes('96,780') && !v.revenue.includes('4,20,000') ? v.revenue : '₹0')
+
+        return {
+          ...v,
+          products: finalProductsCount,
+          totalProducts: finalProductsCount,
+          orders: finalOrdersCount,
+          totalOrders: finalOrdersCount,
+          revenue: finalRevenueStr,
+          productsList: vProds,
+          ordersList: vOrders
+        }
+      })
+
       setVendorsList(mergedList)
       setPaginationData(prev => ({
         ...prev,
@@ -861,65 +1053,156 @@ function VendorsManagement({ onNavigateToPlans }) {
   // Helper to test if a string is a valid 24-char hex MongoDB ObjectId
   const isMongoId = (id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id.trim())
 
-  // Fetch Single Vendor By ID and Vendor Orders (GET /api/superadmin/vendors/:id)
+  // Fetch Single Vendor By ID, Products, and Orders (GET /api/superadmin/vendors/:id)
   const handleViewVendor = async (vendor) => {
     setViewedVendor(vendor)
     setViewError(null)
 
     const targetUserId = isMongoId(vendor.userId) ? vendor.userId : (isMongoId(vendor._id) ? vendor._id : (isMongoId(vendor.id) ? vendor.id : null))
     const targetVendorId = isMongoId(vendor.vendorId) ? vendor.vendorId : null
-
-    if (!targetUserId && !targetVendorId) {
-      return
-    }
+    const primaryId = targetUserId || targetVendorId
 
     try {
       setViewLoading(true)
-      const requests = []
-      if (targetUserId) {
-        requests.push(getVendorById(targetUserId, targetVendorId))
-        requests.push(getOrdersByVendor(targetUserId))
-      } else {
-        requests.push(getVendorById(targetVendorId))
-        requests.push(getOrdersByVendor(targetVendorId))
-      }
+      const requests = [
+        getVendorById(primaryId, targetVendorId),
+        getOrdersByVendor(primaryId, vendor),
+        getProductsByVendor(primaryId, vendor),
+        getAllProducts({ page: 1, limit: 1000 }),
+        getAllOrders({ page: 1, limit: 1000 })
+      ]
 
-      const [vendorRes, ordersRes] = await Promise.allSettled(requests)
+      const [vendorRes, ordersRes, prodsRes, allProdsRes, allOrdersRes] = await Promise.allSettled(requests)
 
       const data = vendorRes?.status === 'fulfilled' ? (vendorRes.value?.data || vendorRes.value?.vendor || vendorRes.value) : null
-      const vendorOrders = ordersRes?.status === 'fulfilled' ? (ordersRes.value?.data?.orders || ordersRes.value?.orders || []) : []
+      const directOrders = ordersRes?.status === 'fulfilled' ? extractApiList(ordersRes.value, ['orders']) : []
+      const directProducts = prodsRes?.status === 'fulfilled' ? extractApiList(prodsRes.value, ['products']) : []
 
-      if (data || vendorOrders.length > 0) {
-        const formatted = data ? formatVendorItem(data, 0) : formatVendorItem(vendor, 0)
-        setViewedVendor(prev => ({
-          ...(prev || {}),
-          ...formatted,
-          ...(data || {}),
-          id: data?.vendorId || data?.userId || data?._id || data?.id || formatted.id,
-          _id: data?.vendorId || data?.userId || data?._id || data?.id || formatted._id,
-          userId: data?.userId || formatted.userId,
-          vendorId: data?.vendorId || formatted.vendorId,
-          name: formatted.name,
-          shopName: formatted.shopName,
-          email: formatted.email,
-          phone: formatted.phone,
-          category: formatted.category,
-          products: formatted.products,
-          orders: vendorOrders.length > 0 ? vendorOrders.length : formatted.orders,
-          ordersList: vendorOrders,
-          revenue: formatted.revenue,
-          approval: formatted.approval,
-          status: formatted.status,
-          joinedOn: formatted.joinedOn,
-          address: formatted.address,
-          gst: formatted.gst,
-          pan: formatted.pan,
-          bizType: formatted.bizType,
-          avatar: formatted.avatar
-        }))
-      }
+      const allProds = allProdsRes?.status === 'fulfilled' ? extractApiList(allProdsRes.value, ['products', 'items']) : []
+      const allOrds = allOrdersRes?.status === 'fulfilled' ? extractApiList(allOrdersRes.value, ['orders', 'items']) : []
+
+      // Match products specifically for this vendor
+      const matchedProducts = Array.isArray(allProds) ? allProds.filter(p => matchProductToVendor(p, vendor)) : []
+      const combinedProducts = Array.isArray(directProducts) && directProducts.length > 0 ? directProducts : matchedProducts
+      const productIdsSet = new Set(combinedProducts.map(p => String(p._id || p.id).toLowerCase().trim()))
+
+      // Match orders specifically for this vendor
+      const matchedOrders = Array.isArray(allOrds) ? allOrds.filter(o => matchOrderToVendor(o, vendor, productIdsSet)) : []
+      const combinedOrders = Array.isArray(directOrders) && directOrders.length > 0 ? directOrders : matchedOrders
+
+      // Sum actual revenue from non-cancelled orders
+      const realRevenue = combinedOrders
+        .filter(o => !String(o.status || '').toLowerCase().includes('cancel'))
+        .reduce((sum, o) => sum + calculateOrderAmount(o), 0)
+
+      const finalProductCount = combinedProducts.length > 0
+        ? combinedProducts.length
+        : (typeof data?.totalProducts === 'number' && data.totalProducts > 0
+          ? data.totalProducts
+          : (typeof data?.products === 'number' && data.products > 0
+            ? data.products
+            : (typeof vendor.products === 'number' && vendor.products > 0 ? vendor.products : 0)))
+
+      const finalOrderCount = combinedOrders.length > 0
+        ? combinedOrders.length
+        : (typeof data?.totalOrders === 'number' && data.totalOrders > 0
+          ? data.totalOrders
+          : (typeof data?.orders === 'number' && data.orders > 0
+            ? data.orders
+            : (typeof vendor.orders === 'number' && vendor.orders > 0 ? vendor.orders : 0)))
+
+      const finalRevenueStr = realRevenue > 0
+        ? `₹${realRevenue.toLocaleString('en-IN')}`
+        : (data?.revenue && !data.revenue.includes('96,780')
+          ? data.revenue
+          : (vendor.revenue && !vendor.revenue.includes('96,780') ? vendor.revenue : '₹0'))
+
+      const formatted = data ? formatVendorItem(data, 0) : formatVendorItem(vendor, 0)
+
+      // Sanitize products so that category, name, price, stock, status are guaranteed strings/primitives
+      const sanitizedProducts = combinedProducts.map((p, idx) => {
+        const catName = typeof p.category === 'object' && p.category !== null
+          ? (p.category.name || p.category.title || p.category.slug || 'General')
+          : (typeof p.categoryId === 'object' && p.categoryId !== null
+              ? (p.categoryId.name || p.categoryId.title || p.categoryId.slug || 'General')
+              : (typeof p.category === 'string' ? p.category : (typeof p.categoryName === 'string' ? p.categoryName : 'General')))
+        const pName = typeof p.name === 'object' && p.name !== null
+          ? (p.name.name || p.name.title || 'Product')
+          : (typeof p.name === 'string' ? p.name : (typeof p.productName === 'string' ? p.productName : 'Product'))
+        const pPrice = typeof p.price === 'object' && p.price !== null
+          ? (p.price.current || p.price.amount || 0)
+          : (typeof p.price === 'number' || typeof p.price === 'string' ? p.price : 0)
+        const pStock = typeof p.stock === 'object' && p.stock !== null
+          ? (p.stock.quantity ?? 'N/A')
+          : (p.stock !== undefined ? p.stock : 'N/A')
+        const pStatus = typeof p.status === 'object' && p.status !== null
+          ? (p.status.name || 'active')
+          : (typeof p.status === 'string' ? p.status : 'active')
+
+        return {
+          ...p,
+          id: p._id || p.id || `prod-${idx}`,
+          name: pName,
+          productName: pName,
+          category: catName,
+          price: pPrice,
+          stock: pStock,
+          status: pStatus
+        }
+      })
+
+      const sanitizedOrders = combinedOrders.map((o, idx) => {
+        const oId = typeof o.orderNo === 'string'
+          ? o.orderNo
+          : (typeof o.orderId === 'string'
+              ? o.orderId
+              : (typeof o._id === 'string'
+                  ? o._id
+                  : (typeof o.id === 'string'
+                      ? o.id
+                      : `#ORD-${idx + 1}`)))
+        const oStatus = typeof o.status === 'object' && o.status !== null
+          ? (o.status.name || o.status.title || 'Pending')
+          : (typeof o.status === 'string' ? o.status : 'Pending')
+
+        return {
+          ...o,
+          orderNo: oId,
+          status: oStatus
+        }
+      })
+
+      setViewedVendor(prev => ({
+        ...(prev || {}),
+        ...formatted,
+        ...(data || {}),
+        id: data?.vendorId || data?.userId || data?._id || data?.id || formatted.id,
+        _id: data?.vendorId || data?.userId || data?._id || data?.id || formatted._id,
+        userId: data?.userId || formatted.userId,
+        vendorId: data?.vendorId || formatted.vendorId,
+        name: formatted.name,
+        shopName: formatted.shopName,
+        email: formatted.email,
+        phone: formatted.phone,
+        category: typeof formatted.category === 'string' ? formatted.category : (formatted.category?.name || 'Fashion'),
+        products: finalProductCount,
+        totalProducts: finalProductCount,
+        orders: finalOrderCount,
+        totalOrders: finalOrderCount,
+        ordersList: sanitizedOrders,
+        productsList: sanitizedProducts,
+        revenue: finalRevenueStr,
+        approval: formatted.approval,
+        status: formatted.status,
+        joinedOn: formatted.joinedOn,
+        address: typeof formatted.address === 'string' ? formatted.address : (formatted.address?.fullAddress || '456, Business Bay, T. Nagar, Pune'),
+        gst: typeof formatted.gst === 'string' ? formatted.gst : 'N/A',
+        pan: typeof formatted.pan === 'string' ? formatted.pan : 'N/A',
+        bizType: typeof formatted.bizType === 'string' ? formatted.bizType : 'Retail',
+        avatar: formatted.avatar
+      }))
     } catch (err) {
-      console.warn('Failed to fetch vendor by ID / orders:', err?.message)
+      console.warn('Failed to fetch vendor details / products / orders:', err?.message)
     } finally {
       setViewLoading(false)
     }
@@ -2460,10 +2743,16 @@ function VendorsManagement({ onNavigateToPlans }) {
 
   // 2. Render Viewed Vendor Profile View Details (GET /api/superadmin/vendors/:id)
   if (viewedVendor) {
+    const revenueDisplay = (viewedVendor.revenue && !viewedVendor.revenue.includes('96,780'))
+      ? viewedVendor.revenue
+      : '₹0'
+    const productsDisplay = Number(viewedVendor.products ?? viewedVendor.totalProducts ?? 0)
+    const ordersDisplay = Number(viewedVendor.orders ?? viewedVendor.totalOrders ?? 0)
+
     const miniStats = [
-      { id: 'revenue', label: 'Total Revenue', value: viewedVendor.revenue || '₹96,780', icon: DollarSign, background: '#b3e5fc', color: '#1565c0' },
-      { id: 'products', label: 'Total Products', value: viewedVendor.products || '540', icon: Box, background: '#ffe082', color: '#ef6c00' },
-      { id: 'orders', label: 'Total Orders', value: viewedVendor.orders || '540', icon: Package, background: '#f8bbd0', color: '#c2185b' }
+      { id: 'revenue', label: 'Total Revenue', value: revenueDisplay, icon: DollarSign, background: '#b3e5fc', color: '#1565c0' },
+      { id: 'products', label: 'Total Products', value: productsDisplay, icon: Box, background: '#ffe082', color: '#ef6c00' },
+      { id: 'orders', label: 'Total Orders', value: ordersDisplay, icon: Package, background: '#f8bbd0', color: '#c2185b' }
     ]
 
     return (
@@ -2761,9 +3050,159 @@ function VendorsManagement({ onNavigateToPlans }) {
                 </div>
                 <div className="admin-detail-item" style={{ gridColumn: 'span 2' }}>
                   <span className="label">Business Address</span>
-                  <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.address || '456, Business Bay, T. Nagar, Pune'}</span>
+                  <span className="value" style={{ fontSize: '13px' }}>
+                    {typeof viewedVendor.address === 'object' && viewedVendor.address !== null
+                      ? (viewedVendor.address.fullAddress || [viewedVendor.address.street, viewedVendor.address.city, viewedVendor.address.state].filter(Boolean).join(', ') || 'Pune')
+                      : (viewedVendor.address || '456, Business Bay, T. Nagar, Pune')}
+                  </span>
                 </div>
               </div>
+            </div>
+
+            {/* Vendor Products Section */}
+            <div className="dashboard-card-panel">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div className="form-section-title" style={{ fontSize: '14px', margin: 0 }}>
+                  Products ({viewedVendor.products || 0})
+                </div>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>
+                  {viewedVendor.productsList && viewedVendor.productsList.length > 0
+                    ? `Showing ${viewedVendor.productsList.length} products`
+                    : '0 products listed'}
+                </span>
+              </div>
+              {viewedVendor.productsList && viewedVendor.productsList.length > 0 ? (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="admin-table" style={{ fontSize: '12px' }}>
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th>Price</th>
+                        <th>Stock</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewedVendor.productsList.slice(0, 10).map((prod, pIdx) => {
+                        const prodName = typeof prod.name === 'object' && prod.name !== null
+                          ? (prod.name.name || prod.name.title || 'Product')
+                          : (typeof prod.name === 'string' ? prod.name : (typeof prod.productName === 'string' ? prod.productName : 'Product'))
+                        const catDisplay = typeof prod.category === 'object' && prod.category !== null
+                          ? (prod.category.name || prod.category.title || prod.category.slug || 'General')
+                          : (typeof prod.categoryId === 'object' && prod.categoryId !== null
+                              ? (prod.categoryId.name || prod.categoryId.title || prod.categoryId.slug || 'General')
+                              : (typeof prod.category === 'string' ? prod.category : (typeof prod.categoryName === 'string' ? prod.categoryName : 'General')))
+                        const priceDisplay = typeof prod.price === 'object' && prod.price !== null
+                          ? (prod.price.current || prod.price.amount || 0)
+                          : (typeof prod.price === 'number' || typeof prod.price === 'string' ? prod.price : 0)
+                        const stockDisplay = typeof prod.stock === 'object' && prod.stock !== null
+                          ? (prod.stock.quantity ?? 'N/A')
+                          : (prod.stock !== undefined ? prod.stock : 'N/A')
+                        const statusDisplay = typeof prod.status === 'object' && prod.status !== null
+                          ? (prod.status.name || 'active')
+                          : (typeof prod.status === 'string' ? prod.status : 'active')
+
+                        return (
+                          <tr key={prod._id || prod.id || pIdx}>
+                            <td style={{ fontWeight: '600', color: '#1e293b' }}>
+                              {prodName}
+                            </td>
+                            <td>{catDisplay}</td>
+                            <td style={{ fontWeight: '600' }}>₹{priceDisplay}</td>
+                            <td>{stockDisplay}</td>
+                            <td>
+                              <span className={`vendor-badge ${String(statusDisplay).toLowerCase()}`} style={{ textTransform: 'capitalize' }}>
+                                {String(statusDisplay)}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '24px 16px', color: '#94a3b8', fontSize: '13px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
+                  <Box style={{ width: '28px', height: '28px', margin: '0 auto 8px', color: '#cbd5e1' }} />
+                  <div>No products listed by this vendor yet.</div>
+                </div>
+              )}
+            </div>
+
+            {/* Vendor Orders Section */}
+            <div className="dashboard-card-panel">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div className="form-section-title" style={{ fontSize: '14px', margin: 0 }}>
+                  Orders ({viewedVendor.orders || 0})
+                </div>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>
+                  {viewedVendor.ordersList && viewedVendor.ordersList.length > 0
+                    ? `Showing ${viewedVendor.ordersList.length} orders`
+                    : '0 orders placed'}
+                </span>
+              </div>
+              {viewedVendor.ordersList && viewedVendor.ordersList.length > 0 ? (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="admin-table" style={{ fontSize: '12px' }}>
+                    <thead>
+                      <tr>
+                        <th>Order ID</th>
+                        <th>Date</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewedVendor.ordersList.slice(0, 10).map((ord, oIdx) => {
+                        const ordNoDisplay = typeof ord.orderNo === 'string'
+                          ? ord.orderNo
+                          : (typeof ord.orderId === 'string'
+                              ? ord.orderId
+                              : (typeof ord._id === 'string'
+                                  ? ord._id
+                                  : (typeof ord.id === 'string'
+                                      ? ord.id
+                                      : `#ORD-${oIdx + 1}`)))
+                        const ordDate = ord.createdAt || ord.date || ord.orderDate
+                        const ordDateDisplay = ordDate ? new Date(ordDate).toLocaleDateString() : 'N/A'
+                        const ordAmountDisplay = typeof ord.totalAmount === 'number'
+                          ? `₹${ord.totalAmount.toLocaleString('en-IN')}`
+                          : (typeof ord.amount === 'number'
+                              ? `₹${ord.amount.toLocaleString('en-IN')}`
+                              : (typeof ord.amount === 'string'
+                                  ? ord.amount
+                                  : `₹${calculateOrderAmount(ord)}`))
+                        const ordStatusDisplay = typeof ord.status === 'object' && ord.status !== null
+                          ? (ord.status.name || ord.status.title || 'Pending')
+                          : (typeof ord.status === 'string' ? ord.status : 'Pending')
+
+                        return (
+                          <tr key={ord._id || ord.id || ord.orderNo || oIdx}>
+                            <td style={{ fontWeight: '600', color: '#1e293b' }}>
+                              {ordNoDisplay}
+                            </td>
+                            <td>{ordDateDisplay}</td>
+                            <td style={{ fontWeight: '600', color: '#16a34a' }}>
+                              {ordAmountDisplay}
+                            </td>
+                            <td>
+                              <span className={`vendor-badge ${String(ordStatusDisplay).toLowerCase()}`} style={{ textTransform: 'capitalize' }}>
+                                {String(ordStatusDisplay)}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '24px 16px', color: '#94a3b8', fontSize: '13px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
+                  <Package style={{ width: '28px', height: '28px', margin: '0 auto 8px', color: '#cbd5e1' }} />
+                  <div>No orders placed for this vendor yet.</div>
+                </div>
+              )}
             </div>
           </div>
 

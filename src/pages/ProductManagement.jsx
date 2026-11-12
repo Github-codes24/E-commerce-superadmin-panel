@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { LayoutGrid, Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, X, ChevronLeft, ChevronRight, ChevronDown, Palette, Calendar, Layers, Tag, Package, CheckCircle2, RotateCw, Mail, Phone, AlertCircle, ToggleLeft, ToggleRight, Check, Maximize2, ZoomIn, ZoomOut, Star, ThumbsUp, MessageSquare, Filter, Sparkles, PackageX, Truck, Clock } from 'lucide-react'
-import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, updateProductStatus, getAllCategories, getAllVendors } from '../services/superAdminService'
+import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, updateProductStatus, getAllCategories, createCategory, getAllVendors } from '../services/superAdminService'
+import { uploadFileToS3 } from '../services/s3Service'
 import './ProductManagement.css'
 
 // Helper for local persistence of custom created / edited products
@@ -1066,7 +1067,7 @@ export const getStoredProductReviews = (productId, product) => {
             r.userCreated === true || (typeof r.id === 'string' && r.id.startsWith('rev_') && Number(r.id.replace('rev_', '')) > 1000000000)
           )
         }
-      } catch {}
+      } catch { }
     }
 
     // 3. Generate fresh category-specific default reviews
@@ -1077,7 +1078,7 @@ export const getStoredProductReviews = (productId, product) => {
       localStorage.setItem(v4Key, JSON.stringify(combinedList))
       // Clean legacy key to avoid old data lingering
       localStorage.removeItem(legacyKey)
-    } catch {}
+    } catch { }
 
     return combinedList
   } catch (e) {
@@ -1425,6 +1426,7 @@ const DEFAULT_PRODUCTS = [
     status: 'active',
     price: '12000',
     stock: 48,
+    sku: 'WHP-101',
     brand: 'SoundPro',
     brandName: 'SoundPro',
     color: 'White & Blue',
@@ -1451,6 +1453,7 @@ const DEFAULT_PRODUCTS = [
     status: 'out-of-stock',
     price: '6999',
     stock: 0,
+    sku: 'LHB-202',
     brand: 'Chanel Classic',
     brandName: 'Chanel Classic',
     color: 'Brown',
@@ -1477,6 +1480,7 @@ const DEFAULT_PRODUCTS = [
     status: 'active',
     price: '2499',
     stock: 85,
+    sku: 'MFS-303',
     brand: 'A.K.Fashion',
     brandName: 'A.K.Fashion',
     color: 'White',
@@ -1503,6 +1507,7 @@ const DEFAULT_PRODUCTS = [
     status: 'inactive',
     price: '2999',
     stock: 50,
+    sku: 'TSW-404',
     brand: 'Tommy Hilfiger',
     brandName: 'Tommy Hilfiger',
     color: 'Blue',
@@ -1529,6 +1534,7 @@ const DEFAULT_PRODUCTS = [
     status: 'active',
     price: '1899',
     stock: 40,
+    sku: 'LMP-505',
     brand: 'City Lights',
     brandName: 'City Lights',
     color: 'Golden',
@@ -1555,6 +1561,7 @@ const DEFAULT_PRODUCTS = [
     status: 'active',
     price: '95000',
     stock: 8,
+    sku: 'NCK-606',
     brand: 'Dass Jewellers',
     brandName: 'Dass Jewellers',
     color: 'Golden Black',
@@ -1581,6 +1588,7 @@ const DEFAULT_PRODUCTS = [
     status: 'out-of-stock',
     price: '35000',
     stock: 0,
+    sku: 'STV-707',
     brand: 'Sony',
     brandName: 'Sony',
     color: 'Black',
@@ -1607,6 +1615,7 @@ const DEFAULT_PRODUCTS = [
     status: 'active',
     price: '7499',
     stock: 26,
+    sku: 'TWC-808',
     brand: 'Wooden Store',
     brandName: 'Wooden Store',
     color: 'Walnut Finish',
@@ -1709,88 +1718,12 @@ function ProductManagement() {
       .map(img => (typeof img === 'string' ? getFullImageUrl(img) : (img?.url ? getFullImageUrl(img.url) : '')))
       .filter(img => typeof img === 'string' && img.trim().length > 0 && !img.includes('via.placeholder.com'))
 
-    if (cleanList.length > 1) {
+    // If product has its own image(s), show ONLY the exact uploaded image(s) without any mock or default images
+    if (cleanList.length > 0) {
       return cleanList
     }
 
-    const mainImg = cleanList[0] || smartFallback
-
-    if (name.includes('headphone') || name.includes('earphone') || name.includes('sound') || name.includes('audio')) {
-      return [
-        mainImg,
-        'https://images.unsplash.com/photo-1546435770-a3e426bf472b?auto=format&fit=crop&q=80&w=350&h=350',
-        'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&q=80&w=350&h=350'
-      ]
-    }
-    if (name.includes('bag') || cat.includes('bag')) {
-      return [
-        mainImg,
-        'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&q=80&w=350&h=350',
-        'https://images.unsplash.com/photo-1566150905458-1bf1fc15a690?auto=format&fit=crop&q=80&w=350&h=350'
-      ]
-    }
-    if (name.includes('shirt') || name.includes('formal') || cat.includes('fashion') || cat.includes('cloth')) {
-      return [
-        mainImg,
-        'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&q=80&w=350&h=350',
-        'https://images.unsplash.com/photo-1620012253295-c05cb3e65df4?auto=format&fit=crop&q=80&w=350&h=350'
-      ]
-    }
-    if (name.includes('chair') || name.includes('furniture') || name.includes('sofa') || name.includes('table') || name.includes('bed')) {
-      return [
-        mainImg,
-        'https://images.unsplash.com/photo-1580481077195-c990b79374e2?auto=format&fit=crop&q=80&w=350&h=350',
-        'https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?auto=format&fit=crop&q=80&w=350&h=350'
-      ]
-    }
-    if (name.includes('lamp') || name.includes('light') || cat.includes('home')) {
-      return [
-        mainImg,
-        'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&q=80&w=350&h=350',
-        'https://images.unsplash.com/photo-1534073828943-f801091bb18c?auto=format&fit=crop&q=80&w=350&h=350'
-      ]
-    }
-    if (name.includes('jewel') || name.includes('neckless') || name.includes('ring')) {
-      return [
-        mainImg,
-        'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&q=80&w=350&h=350',
-        'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?auto=format&fit=crop&q=80&w=350&h=350'
-      ]
-    }
-    if (name.includes('tv') || name.includes('screen') || cat.includes('electronics')) {
-      return [
-        mainImg,
-        'https://images.unsplash.com/photo-1461151351977-2244026b8f83?auto=format&fit=crop&q=80&w=350&h=350',
-        'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?auto=format&fit=crop&q=80&w=350&h=350'
-      ]
-    }
-    if (name.includes('shoe') || name.includes('sneaker') || cat.includes('footwear')) {
-      return [
-        mainImg,
-        'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&q=80&w=350&h=350',
-        'https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?auto=format&fit=crop&q=80&w=350&h=350'
-      ]
-    }
-    if (name.includes('watch') || cat.includes('watch')) {
-      return [
-        mainImg,
-        'https://images.unsplash.com/photo-1542496658-e33a6d0d50f6?auto=format&fit=crop&q=80&w=350&h=350',
-        'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&q=80&w=350&h=350'
-      ]
-    }
-    if (name.includes('phone') || name.includes('mobile')) {
-      return [
-        mainImg,
-        'https://images.unsplash.com/photo-1580910051074-3eb694886505?auto=format&fit=crop&q=80&w=350&h=350',
-        'https://images.unsplash.com/photo-1565849904461-04a58ad377e0?auto=format&fit=crop&q=80&w=350&h=350'
-      ]
-    }
-
-    return [
-      mainImg,
-      'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=350&h=350',
-      'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&q=80&w=350&h=350'
-    ]
+    return smartFallback ? [smartFallback] : ['https://via.placeholder.com/350']
   }
 
   // Universal response extractor for products API responses
@@ -1825,7 +1758,28 @@ function ProductManagement() {
     const rawPrice = p.price !== undefined ? p.price : (p.regularPrice !== undefined ? p.regularPrice : (p.originalPrice !== undefined ? p.originalPrice : 0))
     const rawDiscountPrice = p.discountPrice !== undefined ? p.discountPrice : (p.discountedPrice !== undefined ? p.discountedPrice : (p.salePrice !== undefined ? p.salePrice : (p.offerPrice !== undefined ? p.offerPrice : null)))
     const rawStock = p.stock !== undefined ? Number(p.stock) : (p.quantity !== undefined ? Number(p.quantity) : (p.countInStock !== undefined ? Number(p.countInStock) : 0))
-    const rawSku = p.sku || p.productSku || p.code || 'N/A'
+
+    // Robust SKU resolution: prioritize actual SKU, then custom saved SKU, then smart deterministic SKU (never 'N/A')
+    let rawSku = (p.sku && p.sku !== 'N/A' && p.sku !== 'NA')
+      ? p.sku
+      : ((p.productSku && p.productSku !== 'N/A' && p.productSku !== 'NA')
+        ? p.productSku
+        : ((p.code && p.code !== 'N/A' && p.code !== 'NA') ? p.code : ''))
+
+    if (!rawSku) {
+      const stored = getStoredCustomProducts()
+      const match = stored.find(cp => (cp._id && String(cp._id) === String(rawId)) || (cp.id && String(cp.id) === String(rawId)))
+      if (match?.sku && match.sku !== 'N/A' && match.sku !== 'NA') {
+        rawSku = match.sku
+      }
+    }
+
+    if (!rawSku) {
+      const cleanBrand = (rawBrand && rawBrand !== 'N/A' ? rawBrand : rawName).replace(/[^a-zA-Z0-9]/g, '').slice(0, 3).toUpperCase() || 'SKU'
+      const cleanSuffix = String(rawId).replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase() || `${index + 101}`
+      rawSku = `${cleanBrand}-${cleanSuffix}`
+    }
+
     const rawColor = p.color || p.colour || 'N/A'
 
     // Category resolution
@@ -2047,6 +2001,19 @@ function ProductManagement() {
     fetchProducts()
     fetchCategories()
     fetchVendorsList()
+
+    const handleCatsUpdated = () => {
+      fetchCategories()
+    }
+    const handleProductsUpdated = () => {
+      fetchProducts()
+    }
+    window.addEventListener('zyvora_categories_updated', handleCatsUpdated)
+    window.addEventListener('zyvora_products_updated', handleProductsUpdated)
+    return () => {
+      window.removeEventListener('zyvora_categories_updated', handleCatsUpdated)
+      window.removeEventListener('zyvora_products_updated', handleProductsUpdated)
+    }
   }, [])
 
 
@@ -2310,6 +2277,7 @@ function ProductManagement() {
   const [formLoading, setFormLoading] = useState(false)
   const [formError, setFormError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({
+    image: '',
     name: '',
     brand: '',
     color: '',
@@ -2411,6 +2379,8 @@ function ProductManagement() {
   const handleImageChange = (e) => {
     const files = Array.from(e.target.files)
     if (files.length > 0) {
+      setFieldErrors(prev => ({ ...prev, image: '' }))
+      setFormError('')
       setFormData(prev => ({
         ...prev,
         imageFiles: [...(prev.imageFiles || []), ...files]
@@ -2452,6 +2422,7 @@ function ProductManagement() {
     })
     setFormError('')
     setFieldErrors({
+      image: '',
       name: '',
       brand: '',
       color: '',
@@ -2549,11 +2520,16 @@ function ProductManagement() {
 
   const handleCategoryChange = (e) => {
     const selectedName = e.target.value
-    const matched = categoriesList.find(c => c.name === selectedName)
+    const matched = categoriesList.find(c => (c.name || '').toLowerCase() === (selectedName || '').toLowerCase())
+    const matchedBackend = backendCategories.find(c =>
+      (c.name && c.name.toLowerCase() === (selectedName || '').toLowerCase()) ||
+      (c.categoryName && c.categoryName.toLowerCase() === (selectedName || '').toLowerCase())
+    )
+    const effectiveCatId = (matchedBackend?._id || matchedBackend?.id || (matched?.id && typeof matched.id === 'string' && /^[0-9a-fA-F]{24}$/.test(matched.id) ? matched.id : ''))
     setFormData(prev => ({
       ...prev,
       category: selectedName,
-      categoryId: matched?.id && typeof matched.id === 'string' && !matched.id.startsWith('cat-') ? matched.id : ''
+      categoryId: effectiveCatId || ''
     }))
     if (fieldErrors.category) {
       setFieldErrors(prev => ({ ...prev, category: validateCategory(selectedName) }))
@@ -2617,8 +2593,12 @@ function ProductManagement() {
     const tagErr = validateTags(formData.tag)
     const returnErr = validateReturnPolicy(formData.returnPolicy)
     const descErr = validateDescription(formData.desc)
+    const imageErr = (!formData.imagePreviews || formData.imagePreviews.length === 0)
+      ? 'Product image is required. Please upload at least one image.'
+      : ''
 
     const newErrors = {
+      image: imageErr,
       name: nameErr,
       brand: brandErr,
       sku: skuErr,
@@ -2648,14 +2628,11 @@ function ProductManagement() {
       nextStatus = 'inactive'
     }
 
-    const defaultImages = [
-      'https://via.placeholder.com/350',
-      'https://via.placeholder.com/350',
-      'https://via.placeholder.com/350'
-    ]
-
-    const imagesToSave = formData.imagePreviews.length > 0 ? formData.imagePreviews : defaultImages
-    const primaryImage = imagesToSave[0]
+    // Only save the exact uploaded images - never add fake or default placeholder images
+    const imagesToSave = (formData.imagePreviews && formData.imagePreviews.length > 0)
+      ? formData.imagePreviews
+      : []
+    const primaryImage = imagesToSave[0] || ''
 
     try {
       setFormLoading(true)
@@ -2666,6 +2643,9 @@ function ProductManagement() {
           productName: formData.name.trim(),
           price: Number(formData.price),
           stock: Number(formData.stock) || 0,
+        }
+        if (formData.sku) {
+          updatePayload.sku = formData.sku.trim()
         }
         if (formData.discountPrice) {
           updatePayload.discountPrice = Number(formData.discountPrice)
@@ -2694,6 +2674,7 @@ function ProductManagement() {
         }
 
         // Update local products state
+        let targetUpdatedProduct = null
         const updatedProducts = productsList.map(p => {
           if (p.id === editingProduct.id || p._id === prodId) {
             const updatedProduct = {
@@ -2718,6 +2699,7 @@ function ProductManagement() {
               image: primaryImage,
               images: imagesToSave
             }
+            targetUpdatedProduct = updatedProduct
             if (viewedProduct && (viewedProduct.id === editingProduct.id || viewedProduct._id === prodId)) {
               setViewedProduct(updatedProduct)
             }
@@ -2727,90 +2709,249 @@ function ProductManagement() {
         })
         setProductsList(updatedProducts)
 
-        // Save in custom products storage
+        // Save in custom products storage (guaranteeing that SKU and custom product details are always persisted)
         const storedCustom = getStoredCustomProducts()
-        const updatedCustom = storedCustom.map(p => (p.id === editingProduct.id || p._id === prodId) ? {
-          ...p,
-          name: formData.name.trim(),
-          productName: formData.name.trim(),
-          brand: formData.brand.trim(),
-          brandName: formData.brand.trim(),
-          color: formData.color.trim() || 'N/A',
-          price: formData.price,
-          discountPrice: formData.discountPrice ? Number(formData.discountPrice) : null,
-          stock: parseInt(formData.stock) || 0,
-          sku: formData.sku.trim() || p.sku,
-          category: formData.category,
-          vendor: formData.vendor || p.vendor,
-          desc: formData.desc.trim(),
-          description: formData.desc.trim(),
-          tag: formData.tag.trim(),
-          returnPolicy: formData.returnPolicy.trim() || '7 Days Replacement',
-          deliveryTime: formData.deliveryTime ? formData.deliveryTime.trim() : (p.deliveryTime || 'Delivery within 3–5 business days'),
-          status: nextStatus,
-          image: primaryImage,
-          images: imagesToSave
-        } : p)
+        const existsInCustom = storedCustom.some(p => p.id === editingProduct.id || p._id === prodId)
+        let updatedCustom = []
+        if (existsInCustom) {
+          updatedCustom = storedCustom.map(p => (p.id === editingProduct.id || p._id === prodId) ? (targetUpdatedProduct || {
+            ...p,
+            name: formData.name.trim(),
+            productName: formData.name.trim(),
+            brand: formData.brand.trim(),
+            brandName: formData.brand.trim(),
+            color: formData.color.trim() || 'N/A',
+            price: formData.price,
+            discountPrice: formData.discountPrice ? Number(formData.discountPrice) : null,
+            stock: parseInt(formData.stock) || 0,
+            sku: formData.sku.trim() || p.sku,
+            category: formData.category,
+            vendor: formData.vendor || p.vendor,
+            desc: formData.desc.trim(),
+            description: formData.desc.trim(),
+            tag: formData.tag.trim(),
+            returnPolicy: formData.returnPolicy.trim() || '7 Days Replacement',
+            deliveryTime: formData.deliveryTime ? formData.deliveryTime.trim() : (p.deliveryTime || 'Delivery within 3–5 business days'),
+            status: nextStatus,
+            image: primaryImage,
+            images: imagesToSave
+          }) : p)
+        } else if (targetUpdatedProduct) {
+          updatedCustom = [targetUpdatedProduct, ...storedCustom]
+        } else {
+          updatedCustom = storedCustom
+        }
         saveCustomProducts(updatedCustom)
         showToast('Product updated successfully.', 'success')
       } else {
-        // 1. Prepare Multipart FormData for Backend API (POST /api/superadmin/products)
-        const fd = new FormData()
-        fd.append('productName', formData.name.trim())
-        fd.append('brandName', formData.brand.trim())
-        fd.append('price', formData.price)
-        if (formData.discountPrice) {
-          fd.append('discountPrice', formData.discountPrice)
+        // =========================================================================
+        // ADD PRODUCT MODE: SAVE LIVE TO BACKEND MONGODB DATABASE
+        // =========================================================================
+
+        // 1. Direct high-speed upload of all product images to S3
+        let uploadedS3Urls = []
+        if (formData.imageFiles && formData.imageFiles.length > 0) {
+          for (const file of formData.imageFiles) {
+            try {
+              const s3Res = await uploadFileToS3(file, 'products')
+              if (s3Res?.url) {
+                uploadedS3Urls.push(s3Res.url)
+              }
+            } catch (s3Err) {
+              console.warn('S3 product image upload warning (will also attach file):', s3Err?.message)
+            }
+          }
         }
-        fd.append('stock', formData.stock || 0)
+
+        const effectiveImages = uploadedS3Urls.length > 0 ? uploadedS3Urls : imagesToSave
+        const effectivePrimaryImage = effectiveImages[0] || primaryImage
+
+        // 2. Resolve valid MongoDB Category ObjectId
+        let targetCategoryId = formData.categoryId && /^[0-9a-fA-F]{24}$/.test(formData.categoryId) ? formData.categoryId : ''
+        if (!targetCategoryId) {
+          const matchBackendCat = backendCategories.find(c =>
+            (c.name && c.name.toLowerCase() === (formData.category || '').toLowerCase()) ||
+            (c.categoryName && c.categoryName.toLowerCase() === (formData.category || '').toLowerCase())
+          )
+          if (matchBackendCat && (matchBackendCat._id || matchBackendCat.id)) {
+            const rawCId = matchBackendCat._id || matchBackendCat.id
+            if (/^[0-9a-fA-F]{24}$/.test(rawCId)) {
+              targetCategoryId = rawCId
+            }
+          }
+        }
+
+        // If category is not in MongoDB yet, automatically create it in MongoDB so it gets a valid ObjectId!
+        if (!targetCategoryId && formData.category && formData.category.trim()) {
+          try {
+            const newCatRes = await createCategory({
+              name: formData.category.trim(),
+              description: `${formData.category.trim()} products`,
+              isActive: true,
+              image: effectivePrimaryImage
+            })
+            const createdCatObj = newCatRes?.data || newCatRes?.category || newCatRes?.result || newCatRes
+            if (createdCatObj?._id && /^[0-9a-fA-F]{24}$/.test(createdCatObj._id)) {
+              targetCategoryId = createdCatObj._id
+              setBackendCategories(prev => [createdCatObj, ...prev])
+            }
+          } catch (autoCatErr) {
+            console.warn('Auto-create category in MongoDB warning:', autoCatErr?.message)
+          }
+        }
+
+        // 3. Resolve valid MongoDB Vendor ObjectId
+        let targetVendorId = formData.vendorId && /^[0-9a-fA-F]{24}$/.test(formData.vendorId) ? formData.vendorId : ''
+        if (!targetVendorId && formData.vendor) {
+          const matchV = backendVendors.find(v =>
+            (v.storeName && v.storeName.toLowerCase() === formData.vendor.toLowerCase()) ||
+            (v.shopName && v.shopName.toLowerCase() === formData.vendor.toLowerCase()) ||
+            (v.fullName && v.fullName.toLowerCase() === formData.vendor.toLowerCase()) ||
+            (v.name && v.name.toLowerCase() === formData.vendor.toLowerCase())
+          )
+          if (matchV && (matchV._id || matchV.id)) {
+            const rawVId = matchV._id || matchV.id
+            if (/^[0-9a-fA-F]{24}$/.test(rawVId)) {
+              targetVendorId = rawVId
+            }
+          }
+        }
+
+        // 4. Build comprehensive Multipart FormData
+        const fd = new FormData()
+        // Name
+        fd.append('name', formData.name.trim())
+        fd.append('productName', formData.name.trim())
+        fd.append('title', formData.name.trim())
+        // Brand
+        fd.append('brand', formData.brand.trim())
+        fd.append('brandName', formData.brand.trim())
+        // Price
+        fd.append('price', String(formData.price))
+        if (formData.discountPrice) {
+          fd.append('discountPrice', String(formData.discountPrice))
+        }
+        // Stock
+        fd.append('stock', String(formData.stock || 0))
+        fd.append('quantity', String(formData.stock || 0))
+        fd.append('countInStock', String(formData.stock || 0))
+        // SKU
         if (formData.sku) {
           fd.append('sku', formData.sku.trim())
         }
+        // Color
         if (formData.color) {
           fd.append('color', formData.color.trim())
         }
+        // Return Policy & Delivery
         if (formData.returnPolicy) {
           fd.append('returnPolicy', formData.returnPolicy.trim())
         }
         if (formData.deliveryTime) {
           fd.append('deliveryTime', formData.deliveryTime.trim())
         }
+        // Description
         if (formData.desc) {
           fd.append('description', formData.desc.trim())
+          fd.append('desc', formData.desc.trim())
         }
-        if (formData.categoryId) {
-          fd.append('categoryId', formData.categoryId.trim())
+        // Category
+        if (targetCategoryId) {
+          fd.append('category', targetCategoryId)
+          fd.append('categoryId', targetCategoryId)
         }
-        if (formData.vendorId) {
-          fd.append('vendorId', formData.vendorId.trim())
+        if (formData.category) {
+          fd.append('categoryName', formData.category.trim())
         }
-
+        // Vendor
+        if (targetVendorId) {
+          fd.append('vendor', targetVendorId)
+          fd.append('vendorId', targetVendorId)
+        }
+        if (formData.vendor) {
+          fd.append('vendorName', formData.vendor.trim())
+        }
+        // Images (files + S3 URLs)
         if (formData.imageFiles && formData.imageFiles.length > 0) {
           formData.imageFiles.forEach(file => {
             fd.append('images', file)
+            fd.append('image', file)
           })
         }
-
-        let createdNewProduct = null
-        try {
-          const res = await createProduct(fd)
-          const createdData = res?.data || res?.product || res
-          if (createdData) {
-            createdNewProduct = formatProductItem(createdData, 0)
-          }
-        } catch (apiErr) {
-          console.warn('Backend createProduct note (persisting product locally):', apiErr?.message)
+        if (effectiveImages.length > 0) {
+          fd.append('imageUrls', JSON.stringify(effectiveImages))
+          fd.append('imageUrl', effectivePrimaryImage)
         }
 
-        if (!createdNewProduct) {
-          const generatedId = `prod-custom-${Date.now()}`
+        // 5. Build comprehensive JSON payload for endpoints expecting application/json
+        const jsonPayload = {
+          name: formData.name.trim(),
+          productName: formData.name.trim(),
+          title: formData.name.trim(),
+          brand: formData.brand.trim(),
+          brandName: formData.brand.trim(),
+          price: Number(formData.price),
+          discountPrice: formData.discountPrice ? Number(formData.discountPrice) : undefined,
+          stock: Number(formData.stock) || 0,
+          quantity: Number(formData.stock) || 0,
+          countInStock: Number(formData.stock) || 0,
+          sku: formData.sku.trim() || `SKU-${Date.now().toString().slice(-6)}`,
+          color: formData.color ? formData.color.trim() : undefined,
+          category: targetCategoryId || formData.category,
+          categoryId: targetCategoryId || formData.category,
+          categoryName: formData.category,
+          vendor: targetVendorId || undefined,
+          vendorId: targetVendorId || undefined,
+          vendorName: formData.vendor || undefined,
+          description: formData.desc ? formData.desc.trim() : undefined,
+          desc: formData.desc ? formData.desc.trim() : undefined,
+          returnPolicy: formData.returnPolicy ? formData.returnPolicy.trim() : undefined,
+          deliveryTime: formData.deliveryTime ? formData.deliveryTime.trim() : undefined,
+          image: effectivePrimaryImage,
+          images: effectiveImages,
+          status: nextStatus,
+          isActive: formData.isActive
+        }
+
+        // 6. Send to Backend Database API
+        let createdRes = null
+        try {
+          createdRes = await createProduct(fd, jsonPayload)
+        } catch (apiErr) {
+          console.error('Backend createProduct error:', apiErr)
+          const errorMsg = apiErr?.response?.data?.message || apiErr?.response?.data?.error || apiErr?.message || 'Failed to save product in database.'
+          setFormError(errorMsg)
+          showToast(errorMsg, 'error')
+          setFormLoading(false)
+          return
+        }
+
+        const createdData = createdRes?.data || createdRes?.product || createdRes?.result || createdRes
+        let createdNewProduct = formatProductItem(createdData, 0)
+
+        if (createdNewProduct) {
+          createdNewProduct = {
+            ...createdNewProduct,
+            sku: formData.sku.trim() || (createdNewProduct.sku && createdNewProduct.sku !== 'N/A' ? createdNewProduct.sku : `SKU-${Date.now().toString().slice(-6)}`),
+            brand: formData.brand.trim() || createdNewProduct.brand,
+            brandName: formData.brand.trim() || createdNewProduct.brandName,
+            color: formData.color.trim() || createdNewProduct.color,
+            returnPolicy: formData.returnPolicy.trim() || createdNewProduct.returnPolicy,
+            deliveryTime: formData.deliveryTime.trim() || createdNewProduct.deliveryTime,
+            desc: formData.desc.trim() || createdNewProduct.desc,
+            description: formData.desc.trim() || createdNewProduct.description,
+            image: effectivePrimaryImage || createdNewProduct.image,
+            images: effectiveImages.length > 0 ? effectiveImages : createdNewProduct.images
+          }
+        } else {
+          const generatedId = createdData?._id || createdData?.id || `prod-custom-${Date.now()}`
           createdNewProduct = {
             id: generatedId,
             _id: generatedId,
             name: formData.name.trim(),
             productName: formData.name.trim(),
-            vendor: formData.vendor || (formData.vendorId ? `Vendor ${formData.vendorId}` : 'Super Admin'),
-            category: formData.category || (formData.categoryId ? `Category ${formData.categoryId}` : 'General'),
+            vendor: formData.vendor || (targetVendorId ? `Vendor ${targetVendorId}` : 'Super Admin'),
+            category: formData.category || (targetCategoryId ? `Category ${targetCategoryId}` : 'General'),
             status: nextStatus,
             price: formData.price,
             discountPrice: formData.discountPrice ? Number(formData.discountPrice) : null,
@@ -2824,15 +2965,16 @@ function ProductManagement() {
             deliveryTime: formData.deliveryTime ? formData.deliveryTime.trim() : 'Delivery within 3–5 business days',
             desc: formData.desc.trim() || '',
             description: formData.desc.trim() || '',
-            image: primaryImage,
-            images: imagesToSave,
+            image: effectivePrimaryImage,
+            images: effectiveImages,
             joinedOn: new Date().toLocaleDateString('en-US', {
               day: '2-digit',
               month: 'long',
               year: 'numeric'
             }),
             sales: 0,
-            checked: false
+            checked: false,
+            rawData: createdData
           }
         }
 
@@ -2847,7 +2989,12 @@ function ProductManagement() {
           ...prev,
           totalProducts: (prev.totalProducts || productsList.length) + 1
         }))
-        showToast('Product added successfully.', 'success')
+        showToast('Product created and saved to database successfully.', 'success')
+
+        // Live refresh from MongoDB
+        try {
+          await fetchProducts()
+        } catch { }
       }
 
       handleResetForm()
@@ -2864,6 +3011,19 @@ function ProductManagement() {
   // Open Edit Mode
   const handleOpenEdit = (product) => {
     setEditingProduct(product)
+    const stored = getStoredCustomProducts()
+    const customMatch = stored.find(cp => (cp._id && String(cp._id) === String(product._id || product.id)) || (cp.id && String(cp.id) === String(product.id || product._id)))
+
+    const effectiveSku = (product.sku && product.sku !== 'N/A' && product.sku !== 'NA')
+      ? product.sku
+      : ((customMatch?.sku && customMatch.sku !== 'N/A' && customMatch.sku !== 'NA')
+        ? customMatch.sku
+        : ((product.productSku && product.productSku !== 'N/A' && product.productSku !== 'NA')
+          ? product.productSku
+          : ((product.code && product.code !== 'N/A' && product.code !== 'NA') ? product.code : '')))
+
+    const fallbackSku = `${(product.brandName || product.brand || product.productName || product.name || 'SKU').replace(/[^a-zA-Z0-9]/g, '').slice(0, 3).toUpperCase()}-${String(product._id || product.id || Date.now()).slice(-4).toUpperCase()}`
+
     setFormData({
       name: product.productName || product.name || '',
       brand: product.brandName || product.brand || '',
@@ -2871,7 +3031,7 @@ function ProductManagement() {
       price: product.price || '',
       discountPrice: product.discountPrice !== null && product.discountPrice !== undefined ? product.discountPrice : '',
       stock: product.stock !== undefined ? product.stock.toString() : '',
-      sku: product.sku || '',
+      sku: effectiveSku || fallbackSku,
       category: product.category || '',
       categoryId: product.categoryId?._id || product.categoryId || '',
       vendor: product.vendor || '',
@@ -2886,6 +3046,7 @@ function ProductManagement() {
     })
     setFormError('')
     setFieldErrors({
+      image: '',
       name: '',
       brand: '',
       color: '',
@@ -3360,23 +3521,25 @@ function ProductManagement() {
               )}
             </div>
 
-            {/* Thumbnails Row */}
-            <div className="product-thumbnails-row">
-              {sliderImages.map((img, idx) => (
-                <img
-                  key={idx}
-                  src={img}
-                  alt={`Product thumbnail angle ${idx + 1}`}
-                  className={`product-thumbnail-item ${idx === activeSlideIndex ? 'active' : ''}`}
-                  onClick={() => setActiveSlideIndex(idx)}
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = getProductFallbackImage(viewedProduct);
-                  }}
-                  title={`View image ${idx + 1}`}
-                />
-              ))}
-            </div>
+            {/* Thumbnails Row (rendered only when product has multiple images) */}
+            {sliderImages.length > 1 && (
+              <div className="product-thumbnails-row">
+                {sliderImages.map((img, idx) => (
+                  <img
+                    key={idx}
+                    src={img}
+                    alt={`Product thumbnail angle ${idx + 1}`}
+                    className={`product-thumbnail-item ${idx === activeSlideIndex ? 'active' : ''}`}
+                    onClick={() => setActiveSlideIndex(idx)}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = getProductFallbackImage(viewedProduct);
+                    }}
+                    title={`View image ${idx + 1}`}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Full-Screen Enlarged Lightbox Modal */}
             {isLightboxOpen && (
@@ -3520,7 +3683,11 @@ function ProductManagement() {
                     <Package style={{ width: '15px', height: '15px' }} />
                     SKU
                   </span>
-                  <span className="product-prop-value">{viewedProduct.sku || 'N/A'}</span>
+                  <span className="product-prop-value">
+                    {viewedProduct.sku && viewedProduct.sku !== 'N/A' && viewedProduct.sku !== 'NA'
+                      ? viewedProduct.sku
+                      : `${(viewedProduct.brandName || viewedProduct.brand || viewedProduct.productName || 'SKU').replace(/[^a-zA-Z0-9]/g, '').slice(0, 3).toUpperCase()}-${String(viewedProduct._id || viewedProduct.id || '101').slice(-4).toUpperCase()}`}
+                  </span>
                 </div>
                 <div className="product-prop-row">
                   <span className="product-prop-left">
@@ -4196,7 +4363,9 @@ function ProductManagement() {
         <form onSubmit={handleSubmit} noValidate>
           {/* Uploader Image container - Full Width at Top */}
           <div className="form-section-card" style={{ padding: '20px 24px', margin: '0 0 24px 0', width: '100%', boxSizing: 'border-box' }}>
-            <span className="image-upload-label" style={{ marginBottom: '12px', display: 'block' }}>Upload Product Images</span>
+            <span className="image-upload-label" style={{ marginBottom: '12px', display: 'block', fontWeight: '600' }}>
+              Upload Product Images <span style={{ color: '#e53935' }}>*</span>
+            </span>
             <input
               type="file"
               ref={fileInputRef}
@@ -4207,14 +4376,32 @@ function ProductManagement() {
             />
 
             <div
-              className="dropzone-area clickable"
+              className={`dropzone-area clickable ${fieldErrors.image ? 'input-error' : ''}`}
               onClick={handleImageClick}
-              style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '2px dashed #90caf9', borderRadius: '12px', backgroundColor: '#f5faff' }}
+              style={{
+                padding: '20px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                border: fieldErrors.image ? '2px dashed #e53935' : '2px dashed #90caf9',
+                borderRadius: '12px',
+                backgroundColor: fieldErrors.image ? '#fff5f5' : '#f5faff',
+                transition: 'border-color 0.2s, background-color 0.2s'
+              }}
             >
-              <Upload style={{ width: '28px', height: '28px', color: '#1976d2', marginBottom: '8px' }} />
-              <div style={{ fontSize: '14px', fontWeight: '600', color: '#1976d2' }}>Click to Upload Product Images</div>
-              <div style={{ fontSize: '12px', color: '#90a4ae', marginTop: '4px' }}>PNG, JPG, JPEG up to 5MB</div>
+              <Upload style={{ width: '28px', height: '28px', color: fieldErrors.image ? '#e53935' : '#1976d2', marginBottom: '8px' }} />
+              <div style={{ fontSize: '14px', fontWeight: '600', color: fieldErrors.image ? '#e53935' : '#1976d2' }}>Click to Upload Product Images</div>
+              <div style={{ fontSize: '12px', color: fieldErrors.image ? '#e53935' : '#90a4ae', marginTop: '4px' }}>PNG, JPG, JPEG up to 5MB (Compulsory)</div>
             </div>
+
+            {fieldErrors.image && (
+              <span className="field-validation-error" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', color: '#e53935', fontSize: '12px', fontWeight: '500' }}>
+                <AlertCircle style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                {fieldErrors.image}
+              </span>
+            )}
 
             {/* Uploaded Images Preview list */}
             {formData.imagePreviews.length > 0 && (
@@ -4232,11 +4419,18 @@ function ProductManagement() {
                     <button
                       type="button"
                       onClick={() => {
-                        setFormData(prev => ({
-                          ...prev,
-                          imagePreviews: prev.imagePreviews.filter((_, i) => i !== index),
-                          imageFiles: prev.imageFiles ? prev.imageFiles.filter((_, i) => i !== index) : []
-                        }))
+                        setFormData(prev => {
+                          const updatedPreviews = prev.imagePreviews.filter((_, i) => i !== index)
+                          const updatedFiles = prev.imageFiles ? prev.imageFiles.filter((_, i) => i !== index) : []
+                          if (updatedPreviews.length === 0) {
+                            setFieldErrors(fe => ({ ...fe, image: 'Product image is required. Please upload at least one image.' }))
+                          }
+                          return {
+                            ...prev,
+                            imagePreviews: updatedPreviews,
+                            imageFiles: updatedFiles
+                          }
+                        })
                       }}
                       style={{ position: 'absolute', top: '2px', right: '2px', backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
                     >

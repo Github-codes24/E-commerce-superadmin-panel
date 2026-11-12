@@ -303,24 +303,63 @@ export const getProductById = async (id) => {
 };
 
 // 17. Create Product (POST /api/superadmin/products or /api/products)
-export const createProduct = async (formData) => {
+export const createProduct = async (data, secondaryJson = null) => {
+  const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+  const primaryHeaders = isFormData ? { 'Content-Type': 'multipart/form-data' } : {};
+
+  // Try 1: Primary route with provided data
   try {
-    const response = await api.post('/superadmin/products', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const response = await api.post('/superadmin/products', data, { headers: primaryHeaders });
     return response.data;
-  } catch (err) {
-    if (err?.response?.status === 404) {
-      const fallback = await api.post('/products', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return fallback.data;
+  } catch (err1) {
+    const status1 = err1?.response?.status;
+
+    // If 404, fallback to /products or /admin/products
+    if (status1 === 404) {
+      try {
+        const fb1 = await api.post('/products', data, { headers: primaryHeaders });
+        return fb1.data;
+      } catch (errFb1) {
+        if (errFb1?.response?.status === 404) {
+          try {
+            const fb2 = await api.post('/admin/products', data, { headers: primaryHeaders });
+            return fb2.data;
+          } catch {}
+        }
+      }
     }
-    throw err;
+
+    // If multipart failed with 400, 415, 500, or if secondaryJson provided, try JSON payload
+    if (secondaryJson && isFormData) {
+      const jsonRoutes = ['/superadmin/products', '/products', '/admin/products'];
+      for (const route of jsonRoutes) {
+        try {
+          const jsonRes = await api.post(route, secondaryJson, {
+            headers: { 'Content-Type': 'application/json' },
+          });
+          return jsonRes.data;
+        } catch (jsonErr) {
+          if (jsonErr?.response?.status === 404) {
+            continue;
+          }
+        }
+      }
+    }
+
+    // If data was JSON and failed with 400/415, and secondaryFormData was provided, try FormData
+    if (!isFormData && secondaryJson && typeof FormData !== 'undefined' && secondaryJson instanceof FormData) {
+      const fdRoutes = ['/superadmin/products', '/products', '/admin/products'];
+      for (const route of fdRoutes) {
+        try {
+          const fdRes = await api.post(route, secondaryJson, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          return fdRes.data;
+        } catch {}
+      }
+    }
+
+    throw err1;
   }
 };
 
@@ -720,52 +759,169 @@ export const deleteVendor = async (id, secondaryId = null) => {
   throw lastErr;
 };
 
-// 33. Get All Categories (GET /api/superadmin/categories)
+// 33. Get All Categories (GET /api/superadmin/categories with fallbacks)
 export const getAllCategories = async (params = {}) => {
-  const response = await api.get('/superadmin/categories', { params });
-  return response.data;
+  const routes = ['/superadmin/categories', '/categories', '/admin/categories', '/super-admin/categories'];
+  let lastErr = null;
+  for (const route of routes) {
+    try {
+      const response = await api.get(route, { params });
+      return response.data;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr || new Error('Categories endpoint not found');
 };
 
-// 34. Create Category (POST /api/superadmin/categories)
-export const createCategory = async ({ name, description, image, isActive = true }) => {
-  const response = await api.post('/superadmin/categories', {
-    name,
-    description,
-    image,
-    isActive,
-  });
-  return response.data;
+// 34. Create Category (POST /api/superadmin/categories with fallbacks & dual format)
+export const createCategory = async (categoryData) => {
+  const isFormData = typeof FormData !== 'undefined' && categoryData instanceof FormData;
+  
+  let payload = categoryData;
+  if (!isFormData && typeof categoryData === 'object' && categoryData !== null) {
+    const rawName = (categoryData.name || categoryData.categoryName || categoryData.title || '').trim();
+    const rawDesc = categoryData.description || `${rawName} products`;
+    const rawImg = categoryData.image || categoryData.imageUrl || categoryData.categoryImage || categoryData.icon || '';
+    const boolActive = categoryData.isActive !== undefined ? Boolean(categoryData.isActive) : true;
+    
+    payload = {
+      name: rawName,
+      categoryName: rawName,
+      title: rawName,
+      slug: categoryData.slug || rawName.toLowerCase().replace(/\s+/g, '-'),
+      description: rawDesc,
+      isActive: boolActive,
+      status: boolActive ? 'active' : 'inactive',
+    };
+    if (rawImg) {
+      payload.image = rawImg;
+      payload.imageUrl = rawImg;
+      payload.categoryImage = rawImg;
+    }
+  }
+
+  const routes = ['/superadmin/categories', '/categories', '/admin/categories', '/super-admin/categories'];
+  const reqHeaders = isFormData ? { 'Content-Type': 'multipart/form-data' } : { 'Content-Type': 'application/json' };
+
+  let lastErr = null;
+  for (const route of routes) {
+    try {
+      const response = await api.post(route, payload, { headers: reqHeaders });
+      return response.data;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        lastErr = err;
+        continue;
+      }
+      // If server complained about multipart vs json, retry with FormData or JSON
+      if (!isFormData && (err?.response?.status === 415 || (err?.response?.status === 400 && String(err?.response?.data?.message).toLowerCase().includes('multipart')))) {
+        try {
+          const fd = new FormData();
+          Object.keys(payload).forEach(k => {
+            if (payload[k] !== undefined && payload[k] !== null) {
+              fd.append(k, payload[k]);
+            }
+          });
+          const fdRes = await api.post(route, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+          return fdRes.data;
+        } catch {}
+      }
+      throw err;
+    }
+  }
+  throw lastErr || new Error('Failed to create category');
 };
 
-// 35. Get Category By ID (GET /api/superadmin/categories/:id)
+// 35. Get Category By ID (GET /api/superadmin/categories/:id with fallbacks)
 export const getCategoryById = async (id) => {
-  const response = await api.get(`/superadmin/categories/${id}`);
-  return response.data;
+  const routes = [`/superadmin/categories/${id}`, `/categories/${id}`, `/admin/categories/${id}`];
+  let lastErr = null;
+  for (const route of routes) {
+    try {
+      const response = await api.get(route);
+      return response.data;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
 };
 
-// 36. Update Category (PUT /api/superadmin/categories/:id)
-export const updateCategory = async (id, { name, description, image, isActive = true }) => {
-  const response = await api.put(`/superadmin/categories/${id}`, {
-    name,
-    description,
-    image,
-    isActive,
-  });
-  return response.data;
+// 36. Update Category (PUT /api/superadmin/categories/:id with fallbacks)
+export const updateCategory = async (id, data) => {
+  const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+  const reqHeaders = isFormData ? { 'Content-Type': 'multipart/form-data' } : { 'Content-Type': 'application/json' };
+  const routes = [`/superadmin/categories/${id}`, `/categories/${id}`, `/admin/categories/${id}`];
+  let lastErr = null;
+  for (const route of routes) {
+    try {
+      const response = await api.put(route, data, { headers: reqHeaders });
+      return response.data;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
 };
 
-// 37. Delete Category (DELETE /api/superadmin/categories/:id)
+// 37. Delete Category (DELETE /api/superadmin/categories/:id with fallbacks)
 export const deleteCategory = async (id) => {
-  const response = await api.delete(`/superadmin/categories/${id}`);
-  return response.data;
+  const routes = [`/superadmin/categories/${id}`, `/categories/${id}`, `/admin/categories/${id}`];
+  let lastErr = null;
+  for (const route of routes) {
+    try {
+      const response = await api.delete(route);
+      return response.data;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
 };
 
-// 38. Activate / Deactivate Category (PATCH /api/superadmin/categories/:id/status)
+// 38. Activate / Deactivate Category (PATCH /api/superadmin/categories/:id/status with fallbacks)
 export const updateCategoryStatus = async (id, isActive) => {
-  const response = await api.patch(`/superadmin/categories/${id}/status`, {
+  const payload = {
     isActive: typeof isActive === 'boolean' ? isActive : isActive === 'active',
-  });
-  return response.data;
+    status: (typeof isActive === 'boolean' ? isActive : isActive === 'active') ? 'active' : 'inactive',
+  };
+  const routes = [
+    `/superadmin/categories/${id}/status`,
+    `/categories/${id}/status`,
+    `/admin/categories/${id}/status`,
+    `/superadmin/categories/status/${id}`,
+  ];
+  let lastErr = null;
+  for (const route of routes) {
+    try {
+      const response = await api.patch(route, payload);
+      return response.data;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
 };
 
 // 39. Get All Orders (GET /api/superadmin/orders or /super-admin/orders)
@@ -862,18 +1018,116 @@ export const getOrdersByCustomer = async (customerId, params = {}) => {
   }
 };
 
-// 44. Get Orders By Vendor (GET /api/superadmin/orders/vendor/:userId)
-export const getOrdersByVendor = async (vendorId, params = {}) => {
-  try {
-    const cleanId = String(vendorId || '').trim();
-    if (!cleanId || cleanId.length !== 24) {
-      return { success: true, data: { orders: [] }, orders: [] };
+// 44. Get Orders By Vendor (GET /api/superadmin/orders/vendor/:userId or query fallback)
+export const getOrdersByVendor = async (vendorId, vendorMeta = {}, params = {}) => {
+  const cleanId = String(vendorId || '').trim();
+
+  // 1. Try dedicated vendor orders endpoint if valid 24-char ObjectId
+  if (cleanId && cleanId.length === 24) {
+    try {
+      const response = await api.get(`/superadmin/orders/vendor/${cleanId}`, { params });
+      const orders = response?.data?.orders || response?.orders || response?.data;
+      if (Array.isArray(orders) && orders.length > 0) {
+        return { success: true, data: { orders }, orders, total: orders.length };
+      }
+    } catch {
+      // Proceed to fallback
     }
-    const response = await api.get(`/superadmin/orders/vendor/${cleanId}`, { params });
-    return response.data;
+  }
+
+  // 2. Fallback: Query all orders from /api/superadmin/orders and filter by vendor
+  try {
+    const ordersRes = await getAllOrders({ limit: 1000, ...params });
+    const ordersList = ordersRes?.message?.orders || ordersRes?.data?.orders || ordersRes?.orders || ordersRes?.data || [];
+    if (Array.isArray(ordersList)) {
+      const targetId = cleanId.toLowerCase();
+      const targetNames = [
+        vendorMeta?.shopName,
+        vendorMeta?.storeName,
+        vendorMeta?.businessName,
+        vendorMeta?.name,
+        vendorMeta?.fullName
+      ].filter(Boolean).map(x => String(x).toLowerCase().trim());
+
+      const filtered = ordersList.filter(o => {
+        const vId = String(o.vendorId?._id || o.vendorId?.id || o.vendorId || o.vendor?._id || o.vendor?.id || '').toLowerCase().trim();
+        if (targetId && vId && vId === targetId) return true;
+
+        const vName = String(o.vendorName || o.vendor?.name || o.vendor?.storeName || o.vendor || o.seller || '').toLowerCase().trim();
+        if (vName && targetNames.some(t => t === vName || t.includes(vName) || vName.includes(t))) return true;
+
+        // Check items in order
+        const prods = Array.isArray(o.products) ? o.products : (Array.isArray(o.items) ? o.items : []);
+        return prods.some(p => {
+          const pVid = String(p.vendorId?._id || p.vendorId?.id || p.vendorId || '').toLowerCase().trim();
+          if (targetId && pVid && pVid === targetId) return true;
+          const pVname = String(p.vendorName || p.vendor || '').toLowerCase().trim();
+          return pVname && targetNames.some(t => t === pVname || t.includes(pVname) || pVname.includes(t));
+        });
+      });
+
+      return { success: true, data: { orders: filtered }, orders: filtered, total: filtered.length };
+    }
+    return { success: true, data: { orders: [] }, orders: [], total: 0 };
   } catch (err) {
-    console.warn('getOrdersByVendor note:', err?.message);
-    return { success: true, data: { orders: [] }, orders: [] };
+    console.warn('getOrdersByVendor fallback note:', err?.message);
+    return { success: true, data: { orders: [] }, orders: [], total: 0 };
+  }
+};
+
+// 44b. Get Products By Vendor
+export const getProductsByVendor = async (vendorId, vendorMeta = {}, params = {}) => {
+  const cleanId = String(vendorId || '').trim();
+
+  // 1. Try dedicated vendor products endpoint if valid
+  if (cleanId && cleanId.length === 24) {
+    try {
+      const response = await api.get(`/superadmin/products/vendor/${cleanId}`, { params });
+      const prods = response?.data?.products || response?.products || response?.data;
+      if (Array.isArray(prods) && prods.length > 0) {
+        return { success: true, data: { products: prods }, products: prods, total: prods.length };
+      }
+    } catch {
+      // Proceed to fallback
+    }
+  }
+
+  // 2. Fallback: Query all products and filter by vendor
+  try {
+    const prodRes = await getAllProducts({ limit: 1000, ...params });
+    const prodList = prodRes?.data?.products || prodRes?.products || prodRes?.data || [];
+    if (Array.isArray(prodList)) {
+      const targetId = cleanId.toLowerCase();
+      const targetNames = [
+        vendorMeta?.shopName,
+        vendorMeta?.storeName,
+        vendorMeta?.businessName,
+        vendorMeta?.name,
+        vendorMeta?.fullName
+      ].filter(Boolean).map(x => String(x).toLowerCase().trim());
+
+      const filtered = prodList.filter(p => {
+        const vId = String(p.vendorId?._id || p.vendorId?.id || p.vendorId || p.userId || '').toLowerCase().trim();
+        if (targetId && vId && vId === targetId) return true;
+
+        const vName = String(p.vendorName || p.vendor?.name || p.vendor?.storeName || p.vendor || p.brand || p.brandName || '').toLowerCase().trim();
+        if (vName && targetNames.some(t => t === vName || t.includes(vName) || vName.includes(t))) return true;
+
+        if (vendorMeta?.email && vendorMeta.email !== 'N/A') {
+          const vEmail = String(vendorMeta.email).toLowerCase().trim();
+          if (p.vendorId?.email && String(p.vendorId.email).toLowerCase().trim() === vEmail) return true;
+          if (p.email && String(p.email).toLowerCase().trim() === vEmail) return true;
+        }
+
+        return false;
+      });
+
+      return { success: true, data: { products: filtered }, products: filtered, total: filtered.length };
+    }
+    return { success: true, data: { products: [] }, products: [], total: 0 };
+  } catch (err) {
+    console.warn('getProductsByVendor fallback note:', err?.message);
+    return { success: true, data: { products: [] }, products: [], total: 0 };
   }
 };
 
@@ -1411,6 +1665,7 @@ export default {
   cancelOrder,
   getOrdersByCustomer,
   getOrdersByVendor,
+  getProductsByVendor,
   getAllCommissions,
   getCommissionById,
   createCommission,
