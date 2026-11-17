@@ -190,7 +190,7 @@ export const removeAdminApprovalOverride = (adminId, userId) => {
 }
 
 export const resolveAdminApproval = (admin, overrides = null) => {
-  if (!admin) return 'approved'
+  if (!admin) return 'pending'
   const activeOverrides = overrides || getStoredAdminApprovalOverrides()
   const adminId = admin.id || admin._id || admin.userId?._id || admin.userId?.id
   const userId = admin.userId?._id || admin.userId?.id
@@ -199,16 +199,32 @@ export const resolveAdminApproval = (admin, overrides = null) => {
   if (adminId && activeOverrides[adminId]) return activeOverrides[adminId]
   if (userId && activeOverrides[userId]) return activeOverrides[userId]
 
-  // 2. Check adminApprovalStatus string (from /api/superadmin/admins/register response)
+  // 2. Super Admin is always approved
+  const role = (admin.role || admin.userId?.role || '').toString().toUpperCase()
+  if (role === 'SUPER_ADMIN' || role === 'SUPERADMIN' || role === 'SUPER ADMIN' || admin.isSuperAdmin) {
+    return 'approved'
+  }
+
+  // 3. Check explicit rejection reason or status
+  if (admin.adminRejectionReason || admin.userId?.adminRejectionReason || admin.rejectionReason) {
+    return 'rejected'
+  }
+
+  // 4. Check explicit approval timestamp
+  if (admin.adminApprovedAt || admin.userId?.adminApprovedAt || admin.approvedAt) {
+    return 'approved'
+  }
+
+  // 5. Check adminApprovalStatus string (from /api/superadmin/admins/register response or schema)
   const approvalField = admin.adminApprovalStatus || admin.userId?.adminApprovalStatus || admin.approvalStatus || admin.userId?.approvalStatus || admin.approval
   if (approvalField) {
-    const s = approvalField.toString().toLowerCase()
+    const s = approvalField.toString().toLowerCase().trim()
     if (s === 'pending') return 'pending'
     if (s === 'rejected' || s === 'reject') return 'rejected'
     if (s === 'approved' || s === 'approve') return 'approved'
   }
 
-  // 3. Check isApproved boolean
+  // 6. Check isApproved boolean
   if (admin.isApproved !== undefined && admin.isApproved !== null) {
     return admin.isApproved ? 'approved' : 'pending'
   }
@@ -216,7 +232,8 @@ export const resolveAdminApproval = (admin, overrides = null) => {
     return admin.userId.isApproved ? 'approved' : 'pending'
   }
 
-  return 'approved'
+  // 7. By default, newly registered admins or any admin without explicit approved status must be PENDING
+  return 'pending'
 }
 
 function AdminsManagement() {
@@ -558,7 +575,7 @@ function AdminsManagement() {
         const imageOverrides = getStoredImageOverrides()
         const approvalOverrides = getStoredAdminApprovalOverrides()
         const resolvedStatus = resolveAdminStatus(data, overrides) || admin.status || 'active'
-        const resolvedApproval = resolveAdminApproval(data, approvalOverrides) || admin.approval || 'approved'
+        const resolvedApproval = resolveAdminApproval(data, approvalOverrides) || admin.approval || 'pending'
         const isActive = resolvedStatus === 'active'
 
         const joinedDateFormatted = data.createdAt || data.joinedDate
@@ -1071,7 +1088,8 @@ function AdminsManagement() {
           saveImageOverride(newAdminId, newUserId, uploadedImg)
         }
 
-        const newApproval = (userObj.adminApprovalStatus || rawData.adminApprovalStatus || 'PENDING').toLowerCase()
+        const isSuperAdminRole = (formData.role || userObj.role || '').toString().toUpperCase() === 'SUPER_ADMIN'
+        const newApproval = isSuperAdminRole ? 'approved' : 'pending'
         saveAdminApprovalOverride(newAdminId, newUserId, newApproval)
 
         const newAdmin = {
@@ -1091,19 +1109,36 @@ function AdminsManagement() {
           lastLogin: 'Never',
           status: userObj.isActive !== undefined ? (userObj.isActive ? 'active' : 'inactive') : (formData.isActive ? 'active' : 'inactive'),
           approval: newApproval,
-          adminApprovalStatus: userObj.adminApprovalStatus || rawData.adminApprovalStatus || 'PENDING',
+          adminApprovalStatus: isSuperAdminRole ? 'APPROVED' : 'PENDING',
           role: userObj.role || formData.role || 'ADMIN',
           checked: false,
           image: finalImage,
           activities: [
-            { id: Date.now(), title: 'Admin Account Created', description: res?.message || 'Created via API (/api/superadmin/admins/register)', timestamp: Date.now() }
+            { id: Date.now(), title: 'Admin Account Created', description: res?.message || 'Created via API (/api/superadmin/admins/register) - Pending Super Admin Approval', timestamp: Date.now() }
           ],
           loginHistory: [
             { id: Date.now() + 1, event: 'Account Initialized', timestamp: new Date().toLocaleString() }
           ]
         }
 
-        setAdminsList([newAdmin, ...adminsList])
+        const updatedList = [newAdmin, ...adminsList]
+        setAdminsList(updatedList)
+
+        // Sync to cache and counts
+        try {
+          const activeNum = updatedList.filter(a => a.status === 'active').length
+          const inactiveNum = updatedList.filter(a => a.status === 'inactive').length
+          const pendingNum = updatedList.filter(a => a.approval === 'pending').length
+          localStorage.setItem(ADMIN_COUNTS_KEY, JSON.stringify({
+            total: updatedList.length,
+            active: activeNum,
+            inactive: inactiveNum,
+            pending: pendingNum
+          }))
+          localStorage.setItem(CACHED_ADMINS_KEY, JSON.stringify(updatedList))
+        } catch (e) {
+          console.warn('Could not cache admin data', e)
+        }
 
         const newActivity = {
           id: Date.now(),

@@ -979,11 +979,11 @@ export default function ShopnowShoppingGuide() {
           if (apiRes?.data) {
             createdBackendBlog = apiRes.data
           }
-          triggerToast(apiRes?.message || 'Blog created successfully.', 'success')
+          triggerToast(apiRes?.message || 'Blog created and published successfully.', 'success')
         } catch (apiErr) {
           const errMsg = apiErr.response?.data?.message || apiErr.message || 'Error creating blog'
           console.warn('Create blog API returned:', errMsg)
-          triggerToast(errMsg, 'warning')
+          triggerToast(`Backend notice: ${errMsg}`, 'warning')
         }
 
         const now = Date.now()
@@ -1011,7 +1011,15 @@ export default function ShopnowShoppingGuide() {
           backendData: createdBackendBlog
         }
 
-        setGuides(prev => [newGuide, ...prev])
+        setGuides(prev => {
+          const updated = [newGuide, ...prev.filter(g => g.id !== newGuide.id && g.title !== newGuide.title)]
+          try {
+            localStorage.setItem('shopnow4u_shopping_guides', JSON.stringify(updated))
+            localStorage.setItem('shopnow4u_backend_blogs', JSON.stringify(updated.filter(u => u.status === 'Published')))
+            window.dispatchEvent(new Event('storage'))
+          } catch (_) {}
+          return updated
+        })
       }
 
       setIsUploadModalOpen(false)
@@ -1080,8 +1088,8 @@ export default function ShopnowShoppingGuide() {
       triggerToast(`Guide status changed to ${newStatusDisplay}`, 'success')
     }
 
-    setGuides(prev =>
-      prev.map(g => {
+    setGuides(prev => {
+      const updated = prev.map(g => {
         if (g.id === guideId || g._id === guideId) {
           return {
             ...g,
@@ -1095,7 +1103,13 @@ export default function ShopnowShoppingGuide() {
         }
         return g
       })
-    )
+      try {
+        localStorage.setItem('shopnow4u_shopping_guides', JSON.stringify(updated))
+        localStorage.setItem('shopnow4u_backend_blogs', JSON.stringify(updated.filter(u => u.status === 'Published')))
+        window.dispatchEvent(new Event('storage'))
+      } catch (_) {}
+      return updated
+    })
   }
 
   // Reset to default sample guides

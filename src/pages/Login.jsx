@@ -518,15 +518,13 @@ function Login({ onLogin, showToast }) {
             const adminId = adminObj.adminId || adminObj._id || adminObj.id || adminObj.userId?._id || adminObj.userId?.id
             const userId = adminObj.userId?._id || adminObj.userId?.id || (typeof adminObj.userId === 'string' ? adminObj.userId : null)
             
-            let effApproval = isSuccessfulAdminLogin
-              ? 'approved'
-              : (adminObj.adminApprovalStatus || adminObj.userId?.adminApprovalStatus || adminObj.approval || 'pending').toLowerCase()
+            let effApproval = (adminObj.adminApprovalStatus || adminObj.userId?.adminApprovalStatus || adminObj.approval || 'pending').toLowerCase()
 
             try {
               const approvalOverrides = JSON.parse(localStorage.getItem('admin_approval_overrides') || '{}')
               if (adminId && approvalOverrides[adminId]) effApproval = approvalOverrides[adminId].toLowerCase()
               if (userId && approvalOverrides[userId]) effApproval = approvalOverrides[userId].toLowerCase()
-              if (isSuccessfulAdminLogin) {
+              if (isSuccessfulAdminLogin && effApproval !== 'pending' && effApproval !== 'rejected' && (adminObj.adminApprovalStatus || '').toUpperCase() !== 'PENDING') {
                 effApproval = 'approved'
                 if (adminId) approvalOverrides[adminId] = 'approved'
                 if (userId) approvalOverrides[userId] = 'approved'
