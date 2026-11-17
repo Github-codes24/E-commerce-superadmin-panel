@@ -539,62 +539,180 @@ function PaymentMonitoring() {
     fetchPayments(false)
   }, [fetchPayments])
 
-  // Calculations for stats
-  const totalPaymentsCount = paymentRevenue?.totalTransactions !== undefined
-    ? paymentRevenue.totalTransactions
-    : (paymentStats?.totalPayments !== undefined ? paymentStats.totalPayments : paymentsList.length)
+  // Status check helper functions
+  const isPaidPayment = (status) => {
+    if (!status) return false
+    const s = String(status).trim().toLowerCase()
+    return s === 'success' || s === 'paid' || s === 'completed' || s === 'captured' || s === 'settled' || s === 'confirmed' || s === 'approved' || s === 'successful'
+  }
 
-  const totalRevenueAmount = paymentRevenue?.totalRevenue !== undefined
-    ? formatCurrency(paymentRevenue.totalRevenue)
-    : (paymentStats?.totalAmount !== undefined ? formatCurrency(paymentStats.totalAmount) : null)
+  const isPendingPayment = (status) => {
+    if (!status) return false
+    const s = String(status).trim().toLowerCase()
+    return s === 'pending' || s === 'processing' || s === 'in progress' || s === 'initiated' || s === 'created'
+  }
 
-  const averageTransactionAmount = paymentRevenue?.averageTransaction !== undefined
-    ? formatCurrency(paymentRevenue.averageTransaction)
-    : null
+  const isFailedPayment = (status) => {
+    if (!status) return false
+    const s = String(status).trim().toLowerCase()
+    return s === 'failed' || s === 'refund' || s === 'refunded' || s === 'cancelled' || s === 'rejected' || s === 'declined' || s === 'error'
+  }
 
-  const totalPaidCount = paymentStats?.paid?.count !== undefined
-    ? paymentStats.paid.count
-    : paymentsList.filter((p) => p.status === 'Success' || p.status === 'Paid').length
+  // Table-based counts & sums
+  const tablePaidPayments = paymentsList.filter((p) => isPaidPayment(p.status))
+  const tablePaidCount = tablePaidPayments.length
 
-  const totalPaidAmount = paymentStats?.paid?.amount !== undefined
-    ? formatCurrency(paymentStats.paid.amount)
-    : null
+  const tablePaidAmountSum = tablePaidPayments.reduce((sum, p) => {
+    const rawVal = p.raw?.amount ?? p.raw?.totalAmount ?? p.amount ?? p.totalAmount ?? 0
+    const num = typeof rawVal === 'number' ? rawVal : parseFloat(String(rawVal).replace(/[^0-9.-]+/g, ''))
+    return sum + (isNaN(num) ? 0 : num)
+  }, 0)
 
-  const totalPendingCount = paymentStats?.pending?.count !== undefined
-    ? paymentStats.pending.count
-    : (pendingApiStats?.count !== undefined ? pendingApiStats.count : paymentsList.filter((p) => (p.status || '').toLowerCase() === 'pending').length)
+  const tablePendingPayments = paymentsList.filter((p) => isPendingPayment(p.status))
+  const tablePendingCount = tablePendingPayments.length
 
-  const totalPendingAmount = paymentStats?.pending?.amount !== undefined
-    ? formatCurrency(paymentStats.pending.amount)
-    : (pendingApiStats?.totalAmount !== undefined ? formatCurrency(pendingApiStats.totalAmount) : null)
+  const tablePendingAmountSum = tablePendingPayments.reduce((sum, p) => {
+    const rawVal = p.raw?.amount ?? p.raw?.totalAmount ?? p.amount ?? p.totalAmount ?? 0
+    const num = typeof rawVal === 'number' ? rawVal : parseFloat(String(rawVal).replace(/[^0-9.-]+/g, ''))
+    return sum + (isNaN(num) ? 0 : num)
+  }, 0)
 
-  const totalFailedCount = paymentStats?.failed?.count !== undefined
-    ? paymentStats.failed.count
-    : paymentsList.filter((p) => p.status === 'Refund' || p.status === 'Failed').length
+  const tableFailedPayments = paymentsList.filter((p) => isFailedPayment(p.status))
+  const tableFailedCount = tableFailedPayments.length
 
-  const totalFailedAmount = paymentStats?.failed?.amount !== undefined
-    ? formatCurrency(paymentStats.failed.amount)
-    : null
+  const tableFailedAmountSum = tableFailedPayments.reduce((sum, p) => {
+    const rawVal = p.raw?.amount ?? p.raw?.totalAmount ?? p.amount ?? p.totalAmount ?? 0
+    const num = typeof rawVal === 'number' ? rawVal : parseFloat(String(rawVal).replace(/[^0-9.-]+/g, ''))
+    return sum + (isNaN(num) ? 0 : num)
+  }, 0)
+
+  // API Stats extraction (handles multiple shapes: paymentStats.paid.count, paymentStats.paidCount, paymentStats.paid, paymentStats.successCount, etc.)
+  const getApiCount = (stats, keys) => {
+    if (!stats || typeof stats !== 'object') return undefined
+    for (const k of keys) {
+      if (stats[k] !== undefined && stats[k] !== null) {
+        if (typeof stats[k] === 'number') return stats[k]
+        if (typeof stats[k]?.count === 'number') return stats[k].count
+        if (typeof stats[k]?.total === 'number') return stats[k].total
+        const n = parseInt(stats[k], 10)
+        if (!isNaN(n)) return n
+      }
+    }
+    return undefined
+  }
+
+  const getApiAmount = (stats, keys) => {
+    if (!stats || typeof stats !== 'object') return undefined
+    for (const k of keys) {
+      if (stats[k] !== undefined && stats[k] !== null) {
+        if (typeof stats[k] === 'number') return stats[k]
+        if (typeof stats[k]?.amount === 'number') return stats[k].amount
+        if (typeof stats[k]?.totalAmount === 'number') return stats[k].totalAmount
+        const n = parseFloat(String(stats[k]).replace(/[^0-9.-]+/g, ''))
+        if (!isNaN(n)) return n
+      }
+    }
+    return undefined
+  }
+
+  const apiPaidCount = getApiCount(paymentStats, ['paid', 'success', 'successful', 'completed', 'paidPayments', 'successCount'])
+  const apiPaidAmount = getApiAmount(paymentStats, ['paid', 'success', 'paidAmount', 'successAmount'])
+
+  const apiPendingCount = getApiCount(paymentStats, ['pending', 'pendingPayments', 'pendingCount']) ?? (pendingApiStats?.count !== undefined ? Number(pendingApiStats.count) : undefined)
+  const apiPendingAmount = getApiAmount(paymentStats, ['pending', 'pendingAmount']) ?? (pendingApiStats?.totalAmount !== undefined ? Number(pendingApiStats.totalAmount) : undefined)
+
+  const apiFailedCount = getApiCount(paymentStats, ['failed', 'refund', 'refunded', 'failedPayments', 'failedCount', 'refundCount'])
+  const apiFailedAmount = getApiAmount(paymentStats, ['failed', 'refund', 'failedAmount', 'refundAmount'])
+
+  // Total Payments Count: take maximum of table length and API transaction count
+  const totalPaymentsCount = Math.max(
+    paymentsList.length,
+    paymentRevenue?.totalTransactions !== undefined ? Number(paymentRevenue.totalTransactions) : 0,
+    paymentStats?.totalPayments !== undefined ? Number(paymentStats.totalPayments) : 0
+  )
+
+  // Total Revenue Amount:
+  const totalRevenueNumeric = (paymentRevenue?.totalRevenue !== undefined && Number(paymentRevenue.totalRevenue) > 0)
+    ? Number(paymentRevenue.totalRevenue)
+    : (paymentStats?.totalAmount !== undefined && Number(paymentStats.totalAmount) > 0
+        ? Number(paymentStats.totalAmount)
+        : tablePaidAmountSum)
+
+  const totalRevenueAmount = totalRevenueNumeric > 0 ? formatCurrency(totalRevenueNumeric) : '₹0'
+
+  // Average Transaction Amount: calculate dynamic average if backend returns 0 or missing
+  const rawAvg = paymentRevenue?.averageTransaction !== undefined ? Number(paymentRevenue.averageTransaction) : 0
+  const averageTransactionAmount = rawAvg > 0
+    ? formatCurrency(rawAvg)
+    : (totalPaymentsCount > 0 && totalRevenueNumeric > 0
+        ? formatCurrency(Math.round(totalRevenueNumeric / totalPaymentsCount))
+        : null)
+
+  // Paid Payments Count: ALWAYS ensure successful transactions in the table are counted!
+  // If the table contains successful transactions, show at least tablePaidCount (or API count if higher).
+  const totalPaidCount = Math.max(
+    tablePaidCount,
+    apiPaidCount !== undefined && !isNaN(apiPaidCount) ? apiPaidCount : 0
+  )
+
+  const paidAmountNumeric = (apiPaidAmount !== undefined && apiPaidAmount > 0)
+    ? apiPaidAmount
+    : tablePaidAmountSum
+
+  const totalPaidAmount = paidAmountNumeric > 0 ? formatCurrency(paidAmountNumeric) : null
+
+  // Failed / Refund Payments Count:
+  const totalFailedCount = Math.max(
+    tableFailedCount,
+    apiFailedCount !== undefined && !isNaN(apiFailedCount) ? apiFailedCount : 0
+  )
+
+  const failedAmountNumeric = (apiFailedAmount !== undefined && apiFailedAmount > 0)
+    ? apiFailedAmount
+    : tableFailedAmountSum
+
+  const totalFailedAmount = failedAmountNumeric > 0 ? formatCurrency(failedAmountNumeric) : null
+
+  // Pending Payments Count & Amount:
+  // Enforce mathematical consistency: Pending slots cannot exceed Total - Paid - Failed
+  const remainingPendingSlots = Math.max(0, totalPaymentsCount - totalPaidCount - totalFailedCount)
+  const totalPendingCount = tablePendingCount > 0
+    ? tablePendingCount
+    : (apiPendingCount !== undefined && !isNaN(apiPendingCount) && apiPendingCount <= remainingPendingSlots
+        ? apiPendingCount
+        : remainingPendingSlots)
+
+  const remainingPendingAmount = Math.max(0, totalRevenueNumeric - paidAmountNumeric - failedAmountNumeric)
+  const pendingAmountNumeric = (tablePendingAmountSum > 0 && tablePendingAmountSum <= remainingPendingAmount)
+    ? tablePendingAmountSum
+    : (apiPendingAmount !== undefined && apiPendingAmount > 0 && apiPendingAmount <= remainingPendingAmount
+        ? apiPendingAmount
+        : remainingPendingAmount)
+
+  const totalPendingAmount = pendingAmountNumeric > 0 ? formatCurrency(pendingAmountNumeric) : null
 
   // Filter logic
   const filteredPayments = paymentsList.filter((p) => {
-    const q = searchQuery.toLowerCase()
+    const q = searchQuery.toLowerCase().trim()
     const matchesSearch =
       !q ||
-      p.paymentId.toLowerCase().includes(q) ||
-      p.customerName.toLowerCase().includes(q) ||
-      p.orderId.toLowerCase().includes(q)
+      (p.paymentId || '').toLowerCase().includes(q) ||
+      (p.customerName || '').toLowerCase().includes(q) ||
+      (p.orderId || '').toLowerCase().includes(q) ||
+      (p.method || '').toLowerCase().includes(q) ||
+      (p.amount || '').toLowerCase().includes(q)
     
     let matchesStatus = true
     if (statusFilter) {
-      const pStatus = (p.status || '').toLowerCase()
-      const fStatus = statusFilter.toLowerCase()
+      const fStatus = statusFilter.toLowerCase().trim()
       if (fStatus === 'success' || fStatus === 'paid') {
-        matchesStatus = pStatus === 'success' || pStatus === 'paid'
+        matchesStatus = isPaidPayment(p.status)
+      } else if (fStatus === 'pending') {
+        matchesStatus = isPendingPayment(p.status)
       } else if (fStatus === 'failed' || fStatus === 'refund') {
-        matchesStatus = pStatus === 'failed' || pStatus === 'refund'
+        matchesStatus = isFailedPayment(p.status)
       } else {
-        matchesStatus = pStatus === fStatus
+        matchesStatus = (p.status || '').toLowerCase() === fStatus
       }
     }
     return matchesSearch && matchesStatus
@@ -728,7 +846,7 @@ function PaymentMonitoring() {
 
         <div 
           className={`payment-stat-card card-green clickable ${statusFilter === 'Success' ? 'active-filter' : ''}`}
-          onClick={() => { setStatusFilter('Success'); setCurrentPage(1); }}
+          onClick={() => { setStatusFilter(prev => prev === 'Success' ? '' : 'Success'); setCurrentPage(1); }}
           style={{ cursor: 'pointer', color: '#2ecc71' }}
         >
           <div className="payment-stat-icon icon-green">
@@ -743,7 +861,7 @@ function PaymentMonitoring() {
 
         <div 
           className={`payment-stat-card card-yellow clickable ${statusFilter === 'Pending' ? 'active-filter' : ''}`}
-          onClick={() => { setStatusFilter('Pending'); setCurrentPage(1); }}
+          onClick={() => { setStatusFilter(prev => prev === 'Pending' ? '' : 'Pending'); setCurrentPage(1); }}
           style={{ cursor: 'pointer', color: '#f59e0b' }}
         >
           <div className="payment-stat-icon icon-yellow" style={{ backgroundColor: 'transparent' }}>
@@ -758,7 +876,7 @@ function PaymentMonitoring() {
 
         <div 
           className={`payment-stat-card card-pink clickable ${statusFilter === 'Refund' || statusFilter === 'Failed' ? 'active-filter' : ''}`}
-          onClick={() => { setStatusFilter('Refund'); setCurrentPage(1); }}
+          onClick={() => { setStatusFilter(prev => (prev === 'Refund' || prev === 'Failed') ? '' : 'Refund'); setCurrentPage(1); }}
           style={{ cursor: 'pointer', color: '#f43f5e' }}
         >
           <div className="payment-stat-icon icon-pink">

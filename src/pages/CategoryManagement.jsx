@@ -1,8 +1,47 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { LayoutGrid, Package, CheckSquare, AlertTriangle, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, ChevronDown, Check, X, ChevronRight, ChevronLeft, Loader2, RefreshCw, AlertCircle, Maximize2, ZoomIn, ZoomOut, CheckCircle2 } from 'lucide-react'
 import { getAllCategories, createCategory, getCategoryById, updateCategory, deleteCategory, updateCategoryStatus, getAllProducts } from '../services/superAdminService'
 import { uploadFileToS3 } from '../services/s3Service'
 import './CategoryManagement.css'
+
+// Universal safe string & number extractors to guarantee NO object can ever be rendered as a React child (prevents React Minified Error #31)
+export const toSafeString = (val, fallback = '') => {
+  if (val === null || val === undefined) return fallback
+  if (typeof val === 'string') return val
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val)
+  if (typeof val === 'object') {
+    if (typeof val.name === 'string') return val.name
+    if (typeof val.title === 'string') return val.title
+    if (typeof val.categoryName === 'string') return val.categoryName
+    if (typeof val.productName === 'string') return val.productName
+    if (typeof val.description === 'string') return val.description
+    if (typeof val.slug === 'string') return val.slug
+    if (typeof val.text === 'string') return val.text
+    if (typeof val.label === 'string') return val.label
+    if (typeof val.value === 'string' || typeof val.value === 'number') return String(val.value)
+    if (typeof val.en === 'string') return val.en
+    if (typeof val.hi === 'string') return val.hi
+    if (val.name && typeof val.name === 'object') return toSafeString(val.name, fallback)
+    if (val.title && typeof val.title === 'object') return toSafeString(val.title, fallback)
+    if (val.description && typeof val.description === 'object') return toSafeString(val.description, fallback)
+    return fallback
+  }
+  return String(val)
+}
+
+export const toSafeNumber = (val, fallback = 0) => {
+  if (typeof val === 'number' && !isNaN(val)) return val
+  if (typeof val === 'string') {
+    const num = parseFloat(val.replace(/[^0-9.-]+/g, ''))
+    return !isNaN(num) ? num : fallback
+  }
+  if (typeof val === 'object' && val !== null) {
+    if (typeof val.count === 'number') return val.count
+    if (typeof val.total === 'number') return val.total
+    if (typeof val.length === 'number') return val.length
+  }
+  return fallback
+}
 
 // Helper for local persistence of custom created / edited categories
 const getStoredCustomCategories = () => {
@@ -58,7 +97,8 @@ const extractProductsList = (res) => {
 // Helper to normalize and unify category names across singular/plural variations (e.g. "Electronic Items" vs "Electronics Items", "Fashion" vs "Fashions", "Furnitures" vs "Furniture")
 export const normalizeCategoryName = (name) => {
   if (!name) return ''
-  const trimmed = name.toString().trim()
+  const str = toSafeString(name, '')
+  const trimmed = str.trim()
   const lower = trimmed.toLowerCase().replace(/\s+/g, ' ')
 
   if (lower === 'electronic items' || lower === 'electronics items' || lower === 'electronic item' || lower === 'electronics item') {
@@ -78,7 +118,8 @@ export const normalizeCategoryName = (name) => {
 
 export const getCanonicalCategoryKey = (catName) => {
   if (!catName) return ''
-  let cleaned = catName.toString().trim().toLowerCase().replace(/\s+/g, ' ')
+  const str = toSafeString(catName, '')
+  let cleaned = str.trim().toLowerCase().replace(/\s+/g, ' ')
 
   if (cleaned === 'electronic items' || cleaned === 'electronics items' || cleaned === 'electronic item' || cleaned === 'electronics item') {
     return 'electronics items'
@@ -189,14 +230,24 @@ function CategoryManagement() {
     return apiBase.replace(/\/api\/?$/, '')
   }
 
-  // Helper to convert relative image paths like /uploads/... to full URL
+  // Helper to convert relative image paths like /uploads/... to full URL with dead-link protection
   const getFullImageUrl = (imgUrl) => {
     if (!imgUrl || typeof imgUrl !== 'string') return ''
-    if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://') || imgUrl.startsWith('data:') || imgUrl.startsWith('blob:')) {
-      return imgUrl
+    const clean = imgUrl.trim()
+    const lower = clean.toLowerCase()
+    // Skip dead hosts or ephemeral server uploads that return 404
+    if (lower.includes('ws02.onrender.com') || lower.includes('localhost:') || lower.includes('via.placeholder.com')) {
+      return ''
+    }
+    if ((lower.includes('onrender.com/uploads/') || lower.startsWith('/uploads/') || lower.startsWith('uploads/')) &&
+        !lower.includes('aces3.ai') && !lower.includes('s3') && !lower.includes('cloudinary')) {
+      return ''
+    }
+    if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('data:') || clean.startsWith('blob:')) {
+      return clean
     }
     const backendBase = getBackendBaseUrl()
-    const cleanPath = imgUrl.startsWith('/') ? imgUrl : `/${imgUrl}`
+    const cleanPath = clean.startsWith('/') ? clean : `/${clean}`
     return `${backendBase}${cleanPath}`
   }
 
@@ -244,9 +295,11 @@ function CategoryManagement() {
     const rawImg = cat.image || cat.imageUrl || cat.categoryImage || cat.icon
     const image = rawImg ? getFullImageUrl(rawImg) : 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200'
 
-    const catName = normalizeCategoryName((cat.name || cat.categoryName || 'Unnamed Category').trim())
-    const catId = String(cat._id || cat.id || `cat-${idx + 1}`)
-    const subcatsCount = cat.subcategoriesCount ?? cat.subcatsCount ?? (Array.isArray(cat.subcategories) ? cat.subcategories.length : 0)
+    const catName = normalizeCategoryName(toSafeString(cat.name || cat.categoryName, 'Unnamed Category'))
+    const catId = toSafeString(cat._id || cat.id || `cat-${idx + 1}`)
+    const catSlug = toSafeString(cat.slug, catName.toLowerCase().replace(/\s+/g, '-'))
+    const catDesc = toSafeString(cat.description, '')
+    const subcatsCount = toSafeNumber(cat.subcategoriesCount ?? cat.subcatsCount ?? (Array.isArray(cat.subcategories) ? cat.subcategories.length : 0), 0)
 
     // Live product count from cross-referenced products map or backend
     const mappedByName = productCountsMap[catName.toLowerCase()]
@@ -254,7 +307,7 @@ function CategoryManagement() {
     const mappedById = productCountsMap[catId.toLowerCase()]
     const liveCalculatedCount = mappedByCanonical !== undefined ? mappedByCanonical : (mappedByName !== undefined ? mappedByName : (mappedById !== undefined ? mappedById : undefined))
 
-    const rawBackendCount = cat.productsCount || cat.totalProducts || cat.productCount || (Array.isArray(cat.products) ? cat.products.length : 0)
+    const rawBackendCount = toSafeNumber(cat.productsCount || cat.totalProducts || cat.productCount || (Array.isArray(cat.products) ? cat.products.length : 0), 0)
     const productsCount = liveCalculatedCount !== undefined ? liveCalculatedCount : (rawBackendCount || 0)
 
     return {
@@ -262,8 +315,8 @@ function CategoryManagement() {
       rawId: cat._id || cat.id,
       _id: cat._id || cat.id,
       name: catName,
-      slug: cat.slug || catName.toLowerCase().replace(/\s+/g, '-'),
-      description: cat.description || '',
+      slug: catSlug,
+      description: catDesc,
       subcatsCount: typeof subcatsCount === 'number' ? subcatsCount : 0,
       productsCount: typeof productsCount === 'number' ? productsCount : 0,
       status: status,
@@ -317,6 +370,7 @@ function CategoryManagement() {
         })
         const allProducts = Array.from(allProductsMap.values())
         setTotalProductsCount(allProducts.length)
+        setLiveProductsList(allProducts)
 
         allProducts.forEach(p => {
           const catObj = typeof p.categoryId === 'object' && p.categoryId !== null ? p.categoryId : null
@@ -575,6 +629,11 @@ function CategoryManagement() {
   const [editingCategory, setEditingCategory] = useState(null)
   const [deletingCategoryId, setDeletingCategoryId] = useState(null)
   const [viewedCategory, setViewedCategory] = useState(null)
+  const [liveProductsList, setLiveProductsList] = useState([])
+  const [associatedProdSearch, setAssociatedProdSearch] = useState('')
+  const [associatedProdStatusFilter, setAssociatedProdStatusFilter] = useState('all')
+  const [associatedProdPage, setAssociatedProdPage] = useState(1)
+  const associatedProdItemsPerPage = 10
 
   // Get live accurate subcategory count for any category
   const getCategorySubcatsCount = useCallback((cat) => {
@@ -966,16 +1025,32 @@ function CategoryManagement() {
 
   // Live fetch category by ID
   const handleViewCategory = async (category) => {
-    const liveSubcats = getCategorySubcatsCount(category)
-    const liveProducts = getCategoryProductsCount(category)
-    setViewedCategory({
+    if (!category) return
+    const safeCat = {
       ...category,
+      id: toSafeString(category.id || category._id || category.rawId),
+      rawId: toSafeString(category.rawId || category._id || category.id),
+      _id: toSafeString(category._id || category.id || category.rawId),
+      name: normalizeCategoryName(toSafeString(category.name || category.categoryName, 'Unnamed Category')),
+      slug: toSafeString(category.slug, ''),
+      description: toSafeString(category.description, ''),
+      status: toSafeString(category.status, 'active') === 'inactive' ? 'inactive' : 'active',
+      image: toSafeString(category.image, ''),
+    }
+
+    const liveSubcats = getCategorySubcatsCount(safeCat)
+    const liveProducts = getCategoryProductsCount(safeCat)
+    setViewedCategory({
+      ...safeCat,
       subcatsCount: liveSubcats,
       productsCount: liveProducts
     })
     setExpandedSubcatId(null)
+    setAssociatedProdPage(1)
+    setAssociatedProdSearch('')
+    setAssociatedProdStatusFilter('all')
 
-    const catId = category.rawId || category._id || category.id
+    const catId = safeCat.rawId || safeCat._id || safeCat.id
     if (!catId || typeof catId === 'number' || (typeof catId === 'string' && catId.startsWith('cat-'))) {
       return
     }
@@ -983,20 +1058,21 @@ function CategoryManagement() {
     try {
       setCategoryDetailsLoading(true)
       const res = await getCategoryById(catId)
-      const data = res?.data || res?.category || res
+      const data = res?.category || res?.data?.category || res?.data || res?.message?.category || res?.message || res
 
-      if (data) {
-        const rawId = data._id || data.id || category.id
-        const rawName = normalizeCategoryName(data.name || data.categoryName || category.name)
-        const rawSlug = data.slug || ''
-        const rawDesc = data.description || category.description || ''
+      if (data && typeof data === 'object') {
+        const rawId = toSafeString(data._id || data.id || safeCat.id)
+        const rawName = normalizeCategoryName(toSafeString(data.name || data.categoryName || safeCat.name))
+        const rawSlug = toSafeString(data.slug, safeCat.slug || rawName.toLowerCase().replace(/\s+/g, '-'))
+        const rawDesc = toSafeString(data.description, safeCat.description || '')
         const rawStatus = typeof data.isActive === 'boolean'
           ? (data.isActive ? 'active' : 'inactive')
-          : (data.status ? data.status.toLowerCase() : category.status)
+          : (data.status ? toSafeString(data.status).toLowerCase() : safeCat.status)
+        const rawImg = data.image || data.imageUrl || data.categoryImage || safeCat.image
 
         setViewedCategory(prev => {
           const updated = {
-            ...(prev || category),
+            ...(prev || safeCat),
             id: rawId,
             _id: rawId,
             rawId: rawId,
@@ -1004,7 +1080,7 @@ function CategoryManagement() {
             slug: rawSlug,
             description: rawDesc,
             status: rawStatus,
-            image: data.image ? getFullImageUrl(data.image) : (data.imageUrl ? getFullImageUrl(data.imageUrl) : category.image),
+            image: rawImg ? getFullImageUrl(rawImg) : safeCat.image,
             rawData: data
           }
           return {
@@ -1515,22 +1591,24 @@ function CategoryManagement() {
     )
   }
 
-  // 1. RENDER VIEW CATEGORY DETAILS WITH EXPANDABLE SUB-CATEGORIES
+  // 1. RENDER VIEW CATEGORY DETAILS WITH EXPANDABLE SUB-CATEGORIES & ASSOCIATED PRODUCTS
   if (viewedCategory) {
-    const isCatActive = viewedCategory.status === 'active'
+    const isCatActive = toSafeString(viewedCategory.status, 'active') === 'active'
+    const catCanonicalKey = getCanonicalCategoryKey(toSafeString(viewedCategory.name))
+    const catIdStr = toSafeString(viewedCategory._id || viewedCategory.id || viewedCategory.rawId).toLowerCase()
 
     // Get subcategories filtered for this category
     const rawSubcats = subcategoriesData.filter(sc => 
-      sc.parentCategory && getCanonicalCategoryKey(sc.parentCategory) === getCanonicalCategoryKey(viewedCategory.name)
+      sc.parentCategory && getCanonicalCategoryKey(toSafeString(sc.parentCategory)) === catCanonicalKey
     )
     const filteredSubcats = rawSubcats.filter(sc => {
-      const matchesSearch = sc.name.toLowerCase().includes(subcatSearch.toLowerCase())
+      const matchesSearch = toSafeString(sc.name).toLowerCase().includes(subcatSearch.toLowerCase())
       const matchesStatus = subcatStatusFilter === 'all' ? true : sc.status === subcatStatusFilter
       return matchesSearch && matchesStatus
     }).sort((a, b) => {
       if (subcatSort === 'newest') return b.id - a.id
       if (subcatSort === 'oldest') return a.id - b.id
-      if (subcatSort === 'alpha') return a.name.localeCompare(b.name)
+      if (subcatSort === 'alpha') return toSafeString(a.name).localeCompare(toSafeString(b.name))
       return 0
     })
 
@@ -1539,6 +1617,76 @@ function CategoryManagement() {
     const totalSubcatPages = Math.ceil(totalSubcatItems / subcatItemsPerPage) || 1
     const subcatStartIndex = (subcatPage - 1) * subcatItemsPerPage
     const paginatedSubcats = filteredSubcats.slice(subcatStartIndex, subcatStartIndex + subcatItemsPerPage)
+
+    // Associated Products for this category
+    const seenProdIds = new Set()
+    const categoryAssociatedProducts = []
+
+    // 1. From liveProductsList (backend products + custom products created in ProductManagement)
+    liveProductsList.forEach((p, idx) => {
+      const pCatObj = typeof p.categoryId === 'object' && p.categoryId !== null ? p.categoryId : null
+      const pCatName = (pCatObj?.name || (typeof p.category === 'object' ? p.category?.name : p.category) || p.categoryName || '').trim()
+      const pCatId = toSafeString(pCatObj?._id || pCatObj?.id || (typeof p.categoryId === 'string' ? p.categoryId : '')).toLowerCase()
+
+      const matches =
+        (pCatName && getCanonicalCategoryKey(pCatName) === catCanonicalKey) ||
+        (catIdStr && pCatId && pCatId === catIdStr)
+
+      if (matches) {
+        const prodId = toSafeString(p._id || p.id || `live-${idx}`)
+        if (!seenProdIds.has(prodId)) {
+          seenProdIds.add(prodId)
+          const pName = toSafeString(p.productName || p.name, 'Product')
+          const pImg = (Array.isArray(p.images) && p.images[0]) || p.image || ''
+          categoryAssociatedProducts.push({
+            id: prodId,
+            name: pName,
+            sku: toSafeString(p.sku || p.SKU, 'N/A'),
+            price: toSafeNumber(p.price || p.regularPrice || p.salePrice, 0),
+            stock: toSafeNumber(p.stockQuantity ?? p.stock ?? p.quantity, 0),
+            status: typeof p.isActive === 'boolean' ? (p.isActive ? 'active' : 'inactive') : (toSafeString(p.status, 'active') === 'inactive' ? 'inactive' : 'active'),
+            image: pImg ? getFullImageUrl(pImg) : 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=100&h=100',
+            subcatName: toSafeString(p.subcatName || p.subcategory || (typeof p.subcategory === 'object' ? p.subcategory?.name : ''), 'General'),
+          })
+        }
+      }
+    })
+
+    // 2. From mock/local productsData
+    productsData.forEach((p, idx) => {
+      const pParentCat = toSafeString(p.parentCategory, '')
+      const matches = (pParentCat && getCanonicalCategoryKey(pParentCat) === catCanonicalKey) ||
+        rawSubcats.some(sc => toSafeString(sc.name).toLowerCase() === toSafeString(p.subcatName).toLowerCase())
+
+      if (matches) {
+        const prodId = toSafeString(p.id || `mock-${idx}`)
+        if (!seenProdIds.has(prodId)) {
+          seenProdIds.add(prodId)
+          categoryAssociatedProducts.push({
+            id: prodId,
+            name: toSafeString(p.name, 'Product'),
+            sku: toSafeString(p.sku, `SKU-${prodId}`),
+            price: toSafeNumber(p.price, 0),
+            stock: toSafeNumber(p.stock, 0),
+            status: toSafeString(p.status, 'active') === 'inactive' ? 'inactive' : 'active',
+            image: p.image ? getFullImageUrl(p.image) : 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=100&h=100',
+            subcatName: toSafeString(p.subcatName, 'General'),
+          })
+        }
+      }
+    })
+
+    const filteredAssocProducts = categoryAssociatedProducts.filter(p => {
+      const matchSearch = toSafeString(p.name).toLowerCase().includes(associatedProdSearch.toLowerCase()) ||
+                          toSafeString(p.sku).toLowerCase().includes(associatedProdSearch.toLowerCase())
+      const matchStatus = associatedProdStatusFilter === 'all' ? true : p.status === associatedProdStatusFilter
+      return matchSearch && matchStatus
+    })
+
+    const totalAssocItems = filteredAssocProducts.length
+    const totalAssocPages = Math.ceil(totalAssocItems / associatedProdItemsPerPage) || 1
+    const assocStartIndex = (associatedProdPage - 1) * associatedProdItemsPerPage
+    const paginatedAssocProducts = filteredAssocProducts.slice(assocStartIndex, assocStartIndex + associatedProdItemsPerPage)
 
     return (
       <div className="view-category-details" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -1562,12 +1710,12 @@ function CategoryManagement() {
           <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
             <div
               className="category-banner-img-container"
-              onClick={() => setFullscreenImage({ url: viewedCategory.image, title: viewedCategory.name })}
+              onClick={() => setFullscreenImage({ url: toSafeString(viewedCategory.image), title: toSafeString(viewedCategory.name) })}
               title="Click to view image in full screen"
             >
               <img
-                src={viewedCategory.image}
-                alt={viewedCategory.name}
+                src={toSafeString(viewedCategory.image)}
+                alt={toSafeString(viewedCategory.name)}
                 className="category-banner-img"
                 onError={(e) => { e.target.src = 'https://via.placeholder.com/120x80' }}
               />
@@ -1578,9 +1726,9 @@ function CategoryManagement() {
             <div className="category-banner-info">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
                 <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', color: '#607d8b' }}>Category Details</div>
-                {viewedCategory.slug && (
+                {Boolean(toSafeString(viewedCategory.slug)) && (
                   <span style={{ fontSize: '11px', background: 'rgba(0,0,0,0.06)', padding: '2px 8px', borderRadius: '6px', color: '#546e7a', fontWeight: '600' }}>
-                    slug: {viewedCategory.slug}
+                    slug: {toSafeString(viewedCategory.slug)}
                   </span>
                 )}
                 {categoryDetailsLoading && (
@@ -1588,7 +1736,7 @@ function CategoryManagement() {
                 )}
                 <button
                   type="button"
-                  onClick={() => setFullscreenImage({ url: viewedCategory.image, title: viewedCategory.name })}
+                  onClick={() => setFullscreenImage({ url: toSafeString(viewedCategory.image), title: toSafeString(viewedCategory.name) })}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -1609,16 +1757,16 @@ function CategoryManagement() {
                   <span>Full Screen Image</span>
                 </button>
               </div>
-              <span className="category-banner-name" style={{ fontSize: '22px', fontWeight: '800' }}>{viewedCategory.name}</span>
-              {viewedCategory.description && (
-                <p style={{ fontSize: '13px', color: '#546e7a', margin: '4px 0 0 0' }}>{viewedCategory.description}</p>
+              <span className="category-banner-name" style={{ fontSize: '22px', fontWeight: '800' }}>{toSafeString(viewedCategory.name)}</span>
+              {Boolean(toSafeString(viewedCategory.description)) && (
+                <p style={{ fontSize: '13px', color: '#546e7a', margin: '4px 0 0 0' }}>{toSafeString(viewedCategory.description)}</p>
               )}
               <div style={{ display: 'flex', gap: '20px', marginTop: '12px' }}>
                 <span className="category-banner-subcats" style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <strong>Total Sub-Categories:</strong> {getCategorySubcatsCount(viewedCategory)}
+                  <strong>Total Sub-Categories:</strong> {toSafeNumber(getCategorySubcatsCount(viewedCategory))}
                 </span>
                 <span className="category-banner-subcats" style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <strong>Total Products:</strong> {getCategoryProductsCount(viewedCategory).toLocaleString()}
+                  <strong>Total Products:</strong> {Math.max(toSafeNumber(getCategoryProductsCount(viewedCategory)), categoryAssociatedProducts.length).toLocaleString()}
                 </span>
               </div>
             </div>
@@ -1709,11 +1857,11 @@ function CategoryManagement() {
 
                     // Filter products for this subcat
                     const rawProducts = productsData.filter(p => 
-                      (p.subcatName && p.subcatName.toLowerCase() === sc.name.toLowerCase()) && 
-                      (!p.parentCategory || getCanonicalCategoryKey(p.parentCategory) === getCanonicalCategoryKey(viewedCategory.name))
+                      (toSafeString(p.subcatName).toLowerCase() === toSafeString(sc.name).toLowerCase()) && 
+                      (!p.parentCategory || getCanonicalCategoryKey(toSafeString(p.parentCategory)) === catCanonicalKey)
                     )
                     const filteredProducts = rawProducts.filter(p => {
-                      const matchesSearch = p.name.toLowerCase().includes(prodSearch.toLowerCase())
+                      const matchesSearch = toSafeString(p.name).toLowerCase().includes(prodSearch.toLowerCase())
                       const matchesStatus = prodStatusFilter === 'all' ? true : p.status === prodStatusFilter
                       return matchesSearch && matchesStatus
                     })
@@ -1745,17 +1893,17 @@ function CategoryManagement() {
                           <td style={{ fontWeight: '700' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <img
-                                src={sc.image}
-                                alt={sc.name}
+                                src={toSafeString(sc.image)}
+                                alt={toSafeString(sc.name)}
                                 style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover', cursor: 'pointer' }}
                                 title="Click to view full screen"
-                                onClick={() => setFullscreenImage({ url: sc.image, title: `${viewedCategory.name} - ${sc.name}` })}
+                                onClick={() => setFullscreenImage({ url: toSafeString(sc.image), title: `${toSafeString(viewedCategory.name)} - ${toSafeString(sc.name)}` })}
                                 onError={(e) => { e.target.src = 'https://via.placeholder.com/32' }}
                               />
-                              {sc.name}
+                              {toSafeString(sc.name)}
                             </div>
                           </td>
-                          <td>{Math.max(rawProducts.length, Number(sc.productsCount) || 0)} Products</td>
+                          <td>{Math.max(rawProducts.length, toSafeNumber(sc.productsCount))} Products</td>
                           <td>
                             <span
                               className={`admin-status-badge clickable ${sc.status === 'active' ? 'active' : 'inactive-orange'}`}
@@ -1765,7 +1913,7 @@ function CategoryManagement() {
                               {sc.status === 'active' ? 'Active' : 'Inactive'}
                             </span>
                           </td>
-                          <td>{sc.createdDate || '2026-05-14'}</td>
+                          <td>{toSafeString(sc.createdDate, '2026-05-14')}</td>
                           <td style={{ textAlign: 'center' }}>
                             <div className="action-icon-group">
                               <button
@@ -1773,7 +1921,7 @@ function CategoryManagement() {
                                 title="Edit Sub-Category"
                                 onClick={() => {
                                   setEditingSubcat(sc)
-                                  setSubcatFormData({ name: sc.name, imagePreview: sc.image, isVisible: sc.status === 'active' })
+                                  setSubcatFormData({ name: toSafeString(sc.name), imagePreview: toSafeString(sc.image), isVisible: sc.status === 'active' })
                                   setIsAddingSubcat(true)
                                 }}
                               >
@@ -1786,12 +1934,12 @@ function CategoryManagement() {
                                   if (window.confirm("Are you sure you want to delete this sub-category?")) {
                                     setSubcategoriesData(subcategoriesData.filter(item => item.id !== sc.id))
                                     setCategoriesList(categoriesList.map(c => {
-                                      if (c.name === viewedCategory.name) {
-                                        return { ...c, subcatsCount: Math.max(0, c.subcatsCount - 1) }
+                                      if (toSafeString(c.name) === toSafeString(viewedCategory.name)) {
+                                        return { ...c, subcatsCount: Math.max(0, toSafeNumber(c.subcatsCount) - 1) }
                                       }
                                       return c
                                     }))
-                                    setViewedCategory(prev => ({ ...prev, subcatsCount: Math.max(0, prev.subcatsCount - 1) }))
+                                    setViewedCategory(prev => ({ ...prev, subcatsCount: Math.max(0, toSafeNumber(prev.subcatsCount) - 1) }))
                                   }
                                 }}
                               >
@@ -1807,7 +1955,7 @@ function CategoryManagement() {
                             <td colSpan="6" style={{ backgroundColor: '#f8fafc', padding: '24px', borderBottom: '1px solid #cfd8dc' }}>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>Products under {sc.name}</h4>
+                                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>Products under {toSafeString(sc.name)}</h4>
                                   <button
                                     className="edit-profile-btn"
                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '12px' }}
@@ -1859,9 +2007,9 @@ function CategoryManagement() {
                                       {paginatedProducts.length > 0 ? (
                                         paginatedProducts.map(p => (
                                           <tr key={p.id}>
-                                            <td style={{ fontWeight: '600' }}>{p.name}</td>
-                                            <td>₹{p.price.toLocaleString()}</td>
-                                            <td>{p.stock} units</td>
+                                            <td style={{ fontWeight: '600' }}>{toSafeString(p.name)}</td>
+                                            <td>₹{toSafeNumber(p.price).toLocaleString()}</td>
+                                            <td>{toSafeNumber(p.stock)} units</td>
                                             <td>
                                               <span
                                                 className={`admin-status-badge clickable ${p.status === 'active' ? 'active' : 'inactive-orange'}`}
@@ -1879,7 +2027,7 @@ function CategoryManagement() {
                                                   title="Edit Product"
                                                   onClick={() => {
                                                     setEditingProduct(p)
-                                                    setProductFormData({ name: p.name, price: p.price.toString(), stock: p.stock.toString(), isVisible: p.status === 'active' })
+                                                    setProductFormData({ name: toSafeString(p.name), price: toSafeString(p.price), stock: toSafeString(p.stock), isVisible: p.status === 'active' })
                                                     setIsAddingProduct(true)
                                                   }}
                                                 >
@@ -1893,17 +2041,17 @@ function CategoryManagement() {
                                                       setProductsData(productsData.filter(item => item.id !== p.id))
                                                       setSubcategoriesData(subcategoriesData.map(sub => {
                                                         if (sub.id === sc.id) {
-                                                          return { ...sub, productsCount: Math.max(0, sub.productsCount - 1) }
+                                                          return { ...sub, productsCount: Math.max(0, toSafeNumber(sub.productsCount) - 1) }
                                                         }
                                                         return sub
                                                       }))
                                                       setCategoriesList(categoriesList.map(c => {
-                                                        if (c.name === viewedCategory.name) {
-                                                          return { ...c, productsCount: Math.max(0, c.productsCount - 1) }
+                                                        if (toSafeString(c.name) === toSafeString(viewedCategory.name)) {
+                                                          return { ...c, productsCount: Math.max(0, toSafeNumber(c.productsCount) - 1) }
                                                         }
                                                         return c
                                                       }))
-                                                      setViewedCategory(prev => ({ ...prev, productsCount: Math.max(0, prev.productsCount - 1) }))
+                                                      setViewedCategory(prev => ({ ...prev, productsCount: Math.max(0, toSafeNumber(prev.productsCount) - 1) }))
                                                     }
                                                   }}
                                                 >
@@ -1991,6 +2139,146 @@ function CategoryManagement() {
           </div>
         </div>
 
+        {/* Associated Products Section */}
+        <div className="dashboard-card-panel" style={{ marginTop: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #f1f3f4', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h3 style={{ fontSize: '16px', fontWeight: '800', margin: 0, color: 'var(--text-dark)' }}>
+                Associated Products
+              </h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                All products assigned under {toSafeString(viewedCategory.name)} ({totalAssocItems} products)
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700', background: '#e0f2fe', color: '#0369a1', padding: '4px 12px', borderRadius: '12px' }}>
+                {totalAssocItems} Products
+              </span>
+            </div>
+          </div>
+
+          {/* Filters Bar for Associated Products */}
+          <div className="table-filter-bar" style={{ marginBottom: '20px' }}>
+            <div className="table-search-wrapper" style={{ width: '280px' }}>
+              <Search />
+              <input
+                type="text"
+                placeholder="Search Associated Product..."
+                value={associatedProdSearch}
+                onChange={(e) => { setAssociatedProdSearch(e.target.value); setAssociatedProdPage(1); }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <select className="status-select" value={associatedProdStatusFilter} onChange={(e) => { setAssociatedProdStatusFilter(e.target.value); setAssociatedProdPage(1); }}>
+                <option value="all">Status: All</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Associated Products Table */}
+          <div className="admins-table-wrapper">
+            <table className="admins-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '60px' }}>Image</th>
+                  <th>Product Name</th>
+                  <th>SKU</th>
+                  <th>Sub-Category</th>
+                  <th>Price</th>
+                  <th>Stock</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedAssocProducts.length > 0 ? (
+                  paginatedAssocProducts.map(p => (
+                    <tr key={p.id}>
+                      <td>
+                        <img
+                          src={p.image}
+                          alt={toSafeString(p.name)}
+                          style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover', cursor: 'pointer' }}
+                          title="Click to view full screen"
+                          onClick={() => setFullscreenImage({ url: p.image, title: toSafeString(p.name) })}
+                          onError={(e) => { e.target.src = 'https://via.placeholder.com/36' }}
+                        />
+                      </td>
+                      <td style={{ fontWeight: '700', color: '#1e293b' }}>
+                        {toSafeString(p.name)}
+                      </td>
+                      <td style={{ fontSize: '12px', color: '#64748b' }}>
+                        {toSafeString(p.sku)}
+                      </td>
+                      <td>
+                        <span style={{ fontSize: '11px', background: '#f1f5f9', padding: '3px 8px', borderRadius: '4px', color: '#475569', fontWeight: '600' }}>
+                          {toSafeString(p.subcatName, 'General')}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: '600', color: '#0f172a' }}>
+                        ₹{toSafeNumber(p.price).toLocaleString()}
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: '600', color: toSafeNumber(p.stock) > 0 ? '#10b981' : '#ef4444' }}>
+                          {toSafeNumber(p.stock)} units
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`admin-status-badge ${p.status === 'active' ? 'active' : 'inactive-orange'}`}>
+                          {p.status === 'active' ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="7" style={{ textAlign: 'center', padding: '36px', color: '#94a3b8' }}>
+                      No associated products found for this category.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Associated Products Pagination */}
+          {totalAssocPages > 1 && (
+            <div className="offers-table-footer">
+              <div className="footer-entries-text">
+                Showing {assocStartIndex + 1} to {Math.min(assocStartIndex + associatedProdItemsPerPage, totalAssocItems)} of {totalAssocItems} Products
+              </div>
+              <div className="offers-pagination">
+                <button
+                  className="pag-btn"
+                  onClick={() => associatedProdPage > 1 && setAssociatedProdPage(associatedProdPage - 1)}
+                  disabled={associatedProdPage === 1}
+                  style={{ opacity: associatedProdPage === 1 ? 0.5 : 1, cursor: associatedProdPage === 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  &lt;
+                </button>
+                {Array.from({ length: totalAssocPages }, (_, i) => i + 1).map((pageNum) => (
+                  <button
+                    key={pageNum}
+                    className={`pag-btn ${associatedProdPage === pageNum ? 'active' : ''}`}
+                    onClick={() => setAssociatedProdPage(pageNum)}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+                <button
+                  className="pag-btn"
+                  onClick={() => associatedProdPage < totalAssocPages && setAssociatedProdPage(associatedProdPage + 1)}
+                  disabled={associatedProdPage === totalAssocPages}
+                  style={{ opacity: associatedProdPage === totalAssocPages ? 0.5 : 1, cursor: associatedProdPage === totalAssocPages ? 'not-allowed' : 'pointer' }}
+                >
+                  &gt;
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Nested Add/Edit Sub-Category modal popup */}
         {isAddingSubcat && (
           <div className="modal-overlay" onClick={() => setIsAddingSubcat(false)}>
@@ -1999,7 +2287,7 @@ function CategoryManagement() {
               <form onSubmit={handleSubcatSubmit}>
                 <div className="modal-field">
                   <label className="modal-label">Parent Category</label>
-                  <input type="text" className="modal-input" value={viewedCategory.name} disabled />
+                  <input type="text" className="modal-input" value={toSafeString(viewedCategory.name)} disabled />
                 </div>
                 <div className="modal-field">
                   <label className="modal-label">Sub-Category Name</label>
@@ -2068,11 +2356,11 @@ function CategoryManagement() {
               <form onSubmit={handleProductSubmit}>
                 <div className="modal-field">
                   <label className="modal-label">Parent Category</label>
-                  <input type="text" className="modal-input" value={viewedCategory.name} disabled />
+                  <input type="text" className="modal-input" value={toSafeString(viewedCategory.name)} disabled />
                 </div>
                 <div className="modal-field">
                   <label className="modal-label">Parent Sub-Category</label>
-                  <input type="text" className="modal-input" value={subcategoriesData.find(sc => sc.id === expandedSubcatId)?.name || ''} disabled />
+                  <input type="text" className="modal-input" value={toSafeString(subcategoriesData.find(sc => sc.id === expandedSubcatId)?.name)} disabled />
                 </div>
                 <div className="modal-field">
                   <label className="modal-label">Product Name</label>
@@ -2522,7 +2810,7 @@ function CategoryManagement() {
                         className="product-thumbnail-img"
                         style={{ cursor: 'pointer' }}
                         title="Click to view full screen"
-                        onClick={() => setFullscreenImage({ url: cat.image, title: cat.name })}
+                        onClick={() => setFullscreenImage({ url: toSafeString(cat.image), title: toSafeString(cat.name) })}
                         onError={(e) => { e.target.src = 'https://via.placeholder.com/50' }}
                       />
                     </td>
@@ -2531,11 +2819,11 @@ function CategoryManagement() {
                         className="table-link-name"
                         onClick={() => handleViewCategory(cat)}
                       >
-                        {cat.name}
+                        {toSafeString(cat.name)}
                       </span>
                     </td>
-                    <td>{getCategorySubcatsCount(cat)}</td>
-                    <td>{getCategoryProductsCount(cat).toLocaleString()}</td>
+                    <td>{toSafeNumber(getCategorySubcatsCount(cat))}</td>
+                    <td>{toSafeNumber(getCategoryProductsCount(cat)).toLocaleString()}</td>
                     <td>
                       <span
                         className={`admin-status-badge clickable ${cat.status === 'active' ? 'active' : 'inactive-orange'}`}

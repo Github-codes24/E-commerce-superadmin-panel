@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { loginSuperAdmin, forgotPassword, verifyOtp } from '../services/superAdminService'
+import { touchSession } from '../utils/sessionManager'
 import './login.css'
 import loginArt from '../assets/Mobile login-panal.png'
 import forgotArt from '../assets/Forgot password-pana 1.png'
@@ -483,6 +484,9 @@ function Login({ onLogin, showToast }) {
           } else {
             localStorage.setItem('token', 'logged_in_' + Date.now())
           }
+
+          // Initialize 30-day session timeout
+          touchSession()
 
           if (refreshToken) {
             localStorage.setItem('refreshToken', refreshToken)

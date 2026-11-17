@@ -1366,46 +1366,129 @@ export const deleteOfferCoupon = async (id, typeOrParams = 'OFFER') => {
 export const deleteOffer = (id) => deleteOfferCoupon(id, 'OFFER');
 export const deleteCoupon = (id) => deleteOfferCoupon(id, 'COUPON');
 
-// 56. Get All Payments (GET /api/super-admin/payments)
+// 56. Get All Payments (GET /api/super-admin/payments with fallbacks)
 export const getAllPayments = async (params = {}) => {
-  const response = await api.get('/super-admin/payments', { params });
-  return response.data;
+  const routes = ['/super-admin/payments', '/superadmin/payments', '/payments', '/admin/payments'];
+  let lastErr = null;
+  for (const route of routes) {
+    try {
+      const response = await api.get(route, { params });
+      return response.data;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr || new Error('Payments endpoint not found');
 };
 
 export const getPayments = getAllPayments;
 
-// 57. Get Payment Stats (GET /api/super-admin/payments/stats)
+// 57. Get Payment Stats (GET /api/super-admin/payments/stats with fallbacks)
 export const getPaymentStats = async () => {
-  const response = await api.get('/super-admin/payments/stats');
-  return response.data;
+  const routes = ['/super-admin/payments/stats', '/superadmin/payments/stats', '/payments/stats', '/admin/payments/stats'];
+  let lastErr = null;
+  for (const route of routes) {
+    try {
+      const response = await api.get(route);
+      return response.data;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr || new Error('Payment stats endpoint not found');
 };
 
 export const getPaymentsStats = getPaymentStats;
 
-// 58. Get Failed Payments (GET /api/super-admin/payments/failed)
+// 58. Get Failed Payments (GET /api/super-admin/payments/failed with fallbacks)
 export const getFailedPayments = async (params = {}) => {
-  const response = await api.get('/super-admin/payments/failed', { params });
-  return response.data;
+  const routes = ['/super-admin/payments/failed', '/superadmin/payments/failed', '/payments/failed', '/admin/payments/failed'];
+  let lastErr = null;
+  for (const route of routes) {
+    try {
+      const response = await api.get(route, { params });
+      return response.data;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr || new Error('Failed payments endpoint not found');
 };
 
-// 59. Get Pending Payments (GET /api/super-admin/payments/pending)
+// 59. Get Pending Payments (GET /api/super-admin/payments/pending with fallbacks)
 export const getPendingPayments = async (params = {}) => {
-  const response = await api.get('/super-admin/payments/pending', { params });
-  return response.data;
+  const routes = ['/super-admin/payments/pending', '/superadmin/payments/pending', '/payments/pending', '/admin/payments/pending'];
+  let lastErr = null;
+  for (const route of routes) {
+    try {
+      const response = await api.get(route, { params });
+      return response.data;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr || new Error('Pending payments endpoint not found');
 };
 
-// 60. Get Payment Revenue (GET /api/super-admin/payments/revenue)
+// 60. Get Payment Revenue (GET /api/super-admin/payments/revenue with fallbacks)
 export const getPaymentRevenue = async (params = {}) => {
-  const response = await api.get('/super-admin/payments/revenue', { params });
-  return response.data;
+  const routes = ['/super-admin/payments/revenue', '/superadmin/payments/revenue', '/payments/revenue', '/admin/payments/revenue'];
+  let lastErr = null;
+  for (const route of routes) {
+    try {
+      const response = await api.get(route, { params });
+      return response.data;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr || new Error('Payment revenue endpoint not found');
 };
 
 export const getPaymentsRevenue = getPaymentRevenue;
 
-// 61. Get Payment by Order ID (GET /api/super-admin/payments/:orderId)
+// 61. Get Payment by Order ID (GET /api/super-admin/payments/:orderId with fallbacks)
 export const getPaymentByOrderId = async (orderId) => {
-  const response = await api.get(`/super-admin/payments/${orderId}`);
-  return response.data;
+  const routes = [
+    `/super-admin/payments/${orderId}`,
+    `/superadmin/payments/${orderId}`,
+    `/payments/${orderId}`,
+    `/admin/payments/${orderId}`
+  ];
+  let lastErr = null;
+  for (const route of routes) {
+    try {
+      const response = await api.get(route);
+      return response.data;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr || new Error('Payment by order endpoint not found');
 };
 
 export const getPaymentByOrder = getPaymentByOrderId;

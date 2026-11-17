@@ -146,11 +146,20 @@ const getBackendBaseUrl = () => {
 // Helper to convert relative image paths like /uploads/... to full URL
 const getFullImageUrl = (imgUrl) => {
   if (!imgUrl || typeof imgUrl !== 'string') return ''
-  if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://') || imgUrl.startsWith('data:') || imgUrl.startsWith('blob:')) {
-    return imgUrl
+  const clean = imgUrl.trim()
+  const lower = clean.toLowerCase()
+  if (lower.includes('ws02.onrender.com') || lower.includes('localhost:') || lower.includes('via.placeholder.com')) {
+    return ''
+  }
+  if ((lower.includes('onrender.com/uploads/') || lower.startsWith('/uploads/') || lower.startsWith('uploads/')) &&
+      !lower.includes('aces3.ai') && !lower.includes('s3') && !lower.includes('cloudinary')) {
+    return ''
+  }
+  if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('data:') || clean.startsWith('blob:')) {
+    return clean
   }
   const backendBase = getBackendBaseUrl()
-  const cleanPath = imgUrl.startsWith('/') ? imgUrl : `/${imgUrl}`
+  const cleanPath = clean.startsWith('/') ? clean : `/${clean}`
   return `${backendBase}${cleanPath}`
 }
 

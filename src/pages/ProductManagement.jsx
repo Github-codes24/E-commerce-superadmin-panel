@@ -1652,20 +1652,32 @@ function ProductManagement() {
   })
 
   // Helper to get backend base URL for relative image paths
+  // Helper to get backend base URL for relative image paths
   const getBackendBaseUrl = () => {
     const apiBase = import.meta.env.VITE_API_BASE_URL || 'https://e-commerce-backend-1-we80.onrender.com/api'
     return apiBase.replace(/\/api\/?$/, '')
   }
 
-  // Helper to convert relative image paths like /uploads/... to full URL
-  const getFullImageUrl = (imgUrl) => {
-    if (!imgUrl || typeof imgUrl !== 'string') return ''
-    if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://') || imgUrl.startsWith('data:') || imgUrl.startsWith('blob:')) {
-      return imgUrl
+  // Helper to detect decommissioned/ephemeral/dead URLs that throw 404 in browser console
+  const isDeadOrInaccessibleUrl = (url) => {
+    if (!url || typeof url !== 'string') return true
+    const s = url.trim().toLowerCase()
+    if (!s || s === 'undefined' || s === 'null' || s === '[object object]' || s === 'n/a') return true
+    if (s.includes('via.placeholder.com')) return true
+    
+    // Decommissioned Render backend instance (100% returns no-server / 404):
+    if (s.includes('ws02.onrender.com')) return true
+    
+    // Local dev URLs:
+    if (s.includes('localhost:') || s.includes('127.0.0.1:')) return true
+    
+    // Render ephemeral local disk uploads that do not exist:
+    if ((s.includes('onrender.com/uploads/') || s.startsWith('/uploads/') || s.startsWith('uploads/')) &&
+        !s.includes('aces3.ai') && !s.includes('s3') && !s.includes('cloudinary')) {
+      return true
     }
-    const backendBase = getBackendBaseUrl()
-    const cleanPath = imgUrl.startsWith('/') ? imgUrl : `/${imgUrl}`
-    return `${backendBase}${cleanPath}`
+    
+    return false
   }
 
   // Smart contextual fallback image generator based on product name / category
@@ -1676,23 +1688,44 @@ function ProductManagement() {
     if (name.includes('chair') || cat.includes('furniture') || name.includes('sofa') || name.includes('table') || name.includes('bed') || name.includes('wood')) {
       return 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&q=80&w=350&h=350' // Modern wooden chair
     }
-    if (name.includes('phone') || name.includes('iphone') || name.includes('mobile') || name.includes('samsung') || name.includes('apple')) {
+    if (name.includes('t-shirt') || name.includes('tshirt') || name.includes('mens tshirt') || name.includes('shirt') || name.includes('top') || name.includes('polo')) {
+      return 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&q=80&w=350&h=350' // Classic black t-shirt
+    }
+    if (name.includes('jhan') || name.includes('player') || name.includes('audio') || name.includes('music') || name.includes('speaker') || name.includes('sound')) {
+      return 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=350&h=350' // Audio player / music
+    }
+    if (name.includes('dress') || name.includes('gown') || name.includes('kurti') || name.includes('saree') || name.includes('skirt')) {
+      return 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&q=80&w=350&h=350' // Summer dress
+    }
+    if (name.includes('laptop') || name.includes('macbook') || name.includes('computer') || name.includes('dell') || name.includes('thinkpad')) {
+      return 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&q=80&w=350&h=350' // Laptop
+    }
+    if (name.includes('phone') || name.includes('iphone') || name.includes('mobile') || name.includes('samsung') || name.includes('apple') || name.includes('smartphone')) {
       return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=350&h=350' // Smartphone
     }
-    if (name.includes('laptop') || name.includes('macbook') || name.includes('computer')) {
-      return 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&q=80&w=350&h=350'
-    }
     if (name.includes('watch') || cat.includes('watch')) {
-      return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=350&h=350'
+      return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=350&h=350' // Watch
     }
-    if (name.includes('shoe') || name.includes('sneaker') || cat.includes('footwear')) {
-      return 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=350&h=350'
+    if (name.includes('shoe') || name.includes('sneaker') || cat.includes('footwear') || name.includes('boot')) {
+      return 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=350&h=350' // Sneaker
     }
-    if (name.includes('dress') || name.includes('shirt') || cat.includes('cloth') || cat.includes('fashion')) {
+    if (name.includes('camera') || name.includes('dslr') || name.includes('sony') || name.includes('nikon') || name.includes('canon')) {
+      return 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&q=80&w=350&h=350' // Camera
+    }
+    if (name.includes('headphone') || name.includes('earphone') || name.includes('airpod')) {
+      return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=350&h=350' // Headphones
+    }
+    if (name.includes('lamp') || name.includes('light') || name.includes('lighting')) {
+      return 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&q=80&w=350&h=350' // Lamp
+    }
+    if (name.includes('jewel') || name.includes('necklace') || name.includes('ring') || name.includes('gold')) {
+      return 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&q=80&w=350&h=350' // Necklace
+    }
+    if (name.includes('bag') || name.includes('leather') || name.includes('backpack') || name.includes('handbag')) {
+      return 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&q=80&w=350&h=350' // Leather bag
+    }
+    if (cat.includes('cloth') || cat.includes('fashion')) {
       return 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=350&h=350'
-    }
-    if (name.includes('headphone') || name.includes('earphone') || name.includes('audio') || name.includes('sound')) {
-      return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=350&h=350'
     }
     if (cat.includes('electronics')) {
       return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&q=80&w=350&h=350'
@@ -1700,12 +1733,27 @@ function ProductManagement() {
     return 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&q=80&w=350&h=350'
   }
 
+  // Helper to convert relative image paths like /uploads/... to full URL with safety checks
+  const getFullImageUrl = (imgUrl, contextItem = null) => {
+    if (!imgUrl || typeof imgUrl !== 'string') {
+      return contextItem ? getProductFallbackImage(contextItem) : ''
+    }
+    const clean = imgUrl.trim()
+    if (isDeadOrInaccessibleUrl(clean)) {
+      return contextItem ? getProductFallbackImage(contextItem) : ''
+    }
+    if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('data:') || clean.startsWith('blob:')) {
+      return clean
+    }
+    const backendBase = getBackendBaseUrl()
+    const cleanPath = clean.startsWith('/') ? clean : `/${clean}`
+    return `${backendBase}${cleanPath}`
+  }
+
   // Get complete gallery with distinct corresponding images for each thumbnail & slide
   const getContextualProductGallery = (product) => {
     if (!product) return ['https://via.placeholder.com/350']
     const smartFallback = getProductFallbackImage(product)
-    const name = (product?.productName || product?.name || '').toLowerCase()
-    const cat = (product?.category || product?.categoryId?.name || '').toLowerCase()
 
     let rawList = []
     if (Array.isArray(product?.images) && product.images.length > 0) {
@@ -1715,10 +1763,12 @@ function ProductManagement() {
     }
 
     const cleanList = rawList
-      .map(img => (typeof img === 'string' ? getFullImageUrl(img) : (img?.url ? getFullImageUrl(img.url) : '')))
-      .filter(img => typeof img === 'string' && img.trim().length > 0 && !img.includes('via.placeholder.com'))
+      .map(img => (typeof img === 'string' ? img : (img?.url || '')))
+      .filter(img => typeof img === 'string' && img.trim().length > 0 && !isDeadOrInaccessibleUrl(img))
+      .map(img => getFullImageUrl(img, product))
+      .filter(Boolean)
 
-    // If product has its own image(s), show ONLY the exact uploaded image(s) without any mock or default images
+    // If product has valid image(s), return them
     if (cleanList.length > 0) {
       return cleanList
     }
@@ -1833,6 +1883,21 @@ function ProductManagement() {
 
     const smartFallback = getProductFallbackImage({ productName: rawName, category: rawCategory })
 
+    // Check if we have an admin-saved custom product with a working uploaded image (e.g. data: base64 or S3 URL)
+    const stored = getStoredCustomProducts()
+    const storedMatch = stored.find(cp => (cp._id && String(cp._id) === String(rawId)) || (cp.id && String(cp.id) === String(rawId)) || (rawSku && cp.sku === rawSku))
+
+    let workingStoredImage = null
+    let workingStoredImages = []
+    if (storedMatch) {
+      if (storedMatch.image && !isDeadOrInaccessibleUrl(storedMatch.image)) {
+        workingStoredImage = storedMatch.image
+      }
+      if (Array.isArray(storedMatch.images) && storedMatch.images.length > 0) {
+        workingStoredImages = storedMatch.images.filter(img => !isDeadOrInaccessibleUrl(img))
+      }
+    }
+
     // Images resolution
     let rawImages = []
     if (Array.isArray(p.images) && p.images.length > 0) {
@@ -1849,9 +1914,26 @@ function ProductManagement() {
       rawImages = [p.productImage]
     }
 
-    const formattedImages = rawImages.map(img => (typeof img === 'string' ? getFullImageUrl(img) : (img?.url ? getFullImageUrl(img.url) : ''))).filter(Boolean)
-    const imagesList = formattedImages.length > 0 ? formattedImages : [smartFallback]
-    const primaryImage = imagesList[0] || smartFallback
+    const formattedImages = rawImages
+      .map(img => (typeof img === 'string' ? img : (img?.url || '')))
+      .filter(img => typeof img === 'string' && !isDeadOrInaccessibleUrl(img))
+      .map(img => getFullImageUrl(img, { productName: rawName, category: rawCategory }))
+      .filter(Boolean)
+
+    let imagesList = []
+    if (workingStoredImages.length > 0) {
+      imagesList = workingStoredImages
+    } else if (formattedImages.length > 0) {
+      imagesList = formattedImages
+    } else if (workingStoredImage) {
+      imagesList = [workingStoredImage]
+    } else {
+      imagesList = [smartFallback]
+    }
+
+    const primaryImage = (workingStoredImage && !isDeadOrInaccessibleUrl(workingStoredImage))
+      ? workingStoredImage
+      : (imagesList[0] || smartFallback)
 
     const joinedDateFormatted = p.createdAt || p.joinedOn || p.date
       ? new Date(p.createdAt || p.joinedOn || p.date).toLocaleDateString('en-US', {
