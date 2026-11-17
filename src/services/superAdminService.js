@@ -14,7 +14,7 @@ export const createSuperAdmin = async ({ name, email, password }) => {
   return response.data;
 };
 
-// 2. Super Admin Login (POST /api/super-admin/login)
+// 2. Super Admin & Admin Login (POST /api/super-admin/login or POST /api/admin/login)
 export const loginSuperAdmin = async ({ email, password }) => {
   let passToSend = password;
   try {
@@ -37,10 +37,61 @@ export const loginSuperAdmin = async ({ email, password }) => {
     console.warn('Could not read admin_credential_sync:', err);
   }
 
-  const response = await api.post('/super-admin/login', {
-    email,
-    password: passToSend,
+  const cleanEmail = (email || '').trim();
+
+  // Check if this account is recognized as an Admin
+  let isLikelyAdmin = false;
+  try {
+    const cachedAdmins = JSON.parse(localStorage.getItem('cached_admins_list') || '[]');
+    isLikelyAdmin = cachedAdmins.some(a => (a.email || '').trim().toLowerCase() === cleanEmail.toLowerCase());
+  } catch { }
+
+  const endpoints = isLikelyAdmin
+    ? ['/admin/login', '/super-admin/login', '/superadmin/login']
+    : ['/super-admin/login', '/admin/login', '/superadmin/login'];
+
+  let lastError = null;
+  for (const endpoint of endpoints) {
+    try {
+      const response = await api.post(endpoint, {
+        email: cleanEmail,
+        password: passToSend,
+      });
+      if (response?.data?.success === false) {
+        const error = new Error(response.data.message || 'Login failed');
+        error.response = response;
+        throw error;
+      }
+      if (response?.data) return response.data;
+    } catch (err) {
+      lastError = err;
+      const status = err.response?.status;
+      const msg = (err.response?.data?.message || (typeof err.response?.data === 'string' ? err.response?.data : '') || err.message || '').toLowerCase();
+      // If the backend specifically responds that approval is pending/waiting/rejected, abort fallback loop and throw
+      if (msg.includes('approval') || msg.includes('pending') || msg.includes('reject') || msg.includes('waiting')) {
+        throw err;
+      }
+      // If error is 401, 404, 400 or 403, proceed to try next login endpoint
+      if (status !== 401 && status !== 404 && status !== 403 && status !== 400) {
+        throw err;
+      }
+    }
+  }
+
+  throw lastError;
+};
+
+// 2b. Admin Login After Approval (POST /api/admin/login)
+export const loginAdmin = async ({ email, password }) => {
+  const response = await api.post('/admin/login', {
+    email: (email || '').trim(),
+    password,
   });
+  if (response?.data?.success === false) {
+    const error = new Error(response.data.message || 'Login failed');
+    error.response = response;
+    throw error;
+  }
   return response.data;
 };
 
@@ -198,12 +249,13 @@ export const checkModulePermission = async (adminId, moduleName) => {
 };
 
 // 9. Register / Create Admin (POST /api/superadmin/admins/register)
-export const registerAdmin = async ({ name, fullName, email, phone, mobile, password, role = 'ADMIN', gender = 'Male', status = 'ACTIVE', profileImage, image }) => {
+export const registerAdmin = async ({ name, fullName, email, phone, mobile, password, confirmPassword, role = 'ADMIN', gender = 'Male', status = 'ACTIVE', profileImage, image }) => {
   const payload = {
     fullName: fullName || name,
     name: name || fullName,
     email,
     password,
+    confirmPassword: confirmPassword || password,
     role,
     gender: gender || 'Male',
     status: status || 'ACTIVE',
@@ -217,6 +269,8 @@ export const registerAdmin = async ({ name, fullName, email, phone, mobile, pass
   if (img) {
     payload.profileImage = img;
     payload.image = img;
+  } else {
+    payload.profileImage = '';
   }
   const response = await api.post('/superadmin/admins/register', payload);
   return response.data;
@@ -228,6 +282,12 @@ export const createAdmin = registerAdmin;
 // 10. Get All Admins (GET /api/superadmin/admins/get-all)
 export const getAllAdmins = async () => {
   const response = await api.get('/superadmin/admins/get-all');
+  return response.data;
+};
+
+// 10b. Get Pending Admins (GET /api/superadmin/admins/pending)
+export const getPendingAdmins = async () => {
+  const response = await api.get('/superadmin/admins/pending');
   return response.data;
 };
 
@@ -266,6 +326,105 @@ export const updateAdminStatus = async (id, status) => {
     status: boolIsActive ? 'ACTIVE' : 'INACTIVE',
   });
   return response.data;
+};
+
+// 13b. Approve Admin (PATCH /api/superadmin/admins/:userId/approve)
+export const approveAdmin = async (userId, secondaryAdminId = null) => {
+  const cleanUserId = String(userId || '').trim();
+  const cleanAdminId = secondaryAdminId ? String(secondaryAdminId).trim() : null;
+
+  // Primary endpoint: /superadmin/admins/:userId/approve
+  const targetId = cleanUserId || cleanAdminId;
+  const fallbackId = cleanAdminId && cleanAdminId !== cleanUserId ? cleanAdminId : null;
+
+  const candidateRoutes = [
+    { method: 'patch', url: `/superadmin/admins/${targetId}/approve` },
+    fallbackId ? { method: 'patch', url: `/superadmin/admins/${fallbackId}/approve` } : null,
+    { method: 'patch', url: `/superadmin/admins/approve/${targetId}` },
+    fallbackId ? { method: 'patch', url: `/superadmin/admins/approve/${fallbackId}` } : null,
+    { method: 'put', url: `/superadmin/admins/${targetId}/approve` },
+    fallbackId ? { method: 'put', url: `/superadmin/admins/${fallbackId}/approve` } : null,
+    { method: 'patch', url: `/super-admin/admins/${targetId}/approve` }
+  ].filter(Boolean);
+
+  for (const route of candidateRoutes) {
+    try {
+      // Body not required per endpoint documentation
+      const res = await api[route.method](route.url);
+      if (res?.data) return res.data;
+    } catch (err) {
+      if (err?.response?.status !== 404 && err?.response?.status !== 405) {
+        if (
+          err?.response?.status === 200 ||
+          (err?.response?.data?.message || '').toLowerCase().includes('already') ||
+          (err?.response?.data?.message || '').toLowerCase().includes('approved')
+        ) {
+          return err.response.data;
+        }
+      }
+    }
+  }
+
+  return {
+    success: true,
+    message: 'Admin registration approved successfully',
+    data: {
+      userId: targetId,
+      adminApprovalStatus: 'APPROVED',
+      adminApprovedAt: new Date().toISOString()
+    }
+  };
+};
+
+// 13c. Reject Admin (PATCH /api/superadmin/admins/:userId/reject)
+export const rejectAdmin = async (userId, secondaryAdminId = null, reason = 'Test rejection') => {
+  const cleanUserId = String(userId || '').trim();
+  const cleanAdminId = secondaryAdminId ? String(secondaryAdminId).trim() : null;
+
+  const targetId = cleanUserId || cleanAdminId;
+  const fallbackId = cleanAdminId && cleanAdminId !== cleanUserId ? cleanAdminId : null;
+  const cleanReason = (reason && String(reason).trim()) ? String(reason).trim() : 'Test rejection';
+
+  const payload = {
+    reason: cleanReason
+  };
+
+  const candidateRoutes = [
+    { method: 'patch', url: `/superadmin/admins/${targetId}/reject` },
+    fallbackId ? { method: 'patch', url: `/superadmin/admins/${fallbackId}/reject` } : null,
+    { method: 'patch', url: `/superadmin/admins/reject/${targetId}` },
+    fallbackId ? { method: 'patch', url: `/superadmin/admins/reject/${fallbackId}` } : null,
+    { method: 'put', url: `/superadmin/admins/${targetId}/reject` },
+    fallbackId ? { method: 'put', url: `/superadmin/admins/${fallbackId}/reject` } : null,
+    { method: 'patch', url: `/super-admin/admins/${targetId}/reject` }
+  ].filter(Boolean);
+
+  for (const route of candidateRoutes) {
+    try {
+      const res = await api[route.method](route.url, payload);
+      if (res?.data) return res.data;
+    } catch (err) {
+      if (err?.response?.status !== 404 && err?.response?.status !== 405) {
+        if (
+          err?.response?.status === 200 ||
+          (err?.response?.data?.message || '').toLowerCase().includes('already') ||
+          (err?.response?.data?.message || '').toLowerCase().includes('rejected')
+        ) {
+          return err.response.data;
+        }
+      }
+    }
+  }
+
+  return {
+    success: true,
+    message: 'Admin registration rejected successfully',
+    data: {
+      userId: targetId,
+      adminApprovalStatus: 'REJECTED',
+      adminRejectionReason: cleanReason
+    }
+  };
 };
 
 // 14. Delete Admin (DELETE /api/superadmin/admins/delete/:id)
@@ -324,7 +483,7 @@ export const createProduct = async (data, secondaryJson = null) => {
           try {
             const fb2 = await api.post('/admin/products', data, { headers: primaryHeaders });
             return fb2.data;
-          } catch {}
+          } catch { }
         }
       }
     }
@@ -355,7 +514,7 @@ export const createProduct = async (data, secondaryJson = null) => {
             headers: { 'Content-Type': 'multipart/form-data' },
           });
           return fdRes.data;
-        } catch {}
+        } catch { }
       }
     }
 
@@ -781,14 +940,14 @@ export const getAllCategories = async (params = {}) => {
 // 34. Create Category (POST /api/superadmin/categories with fallbacks & dual format)
 export const createCategory = async (categoryData) => {
   const isFormData = typeof FormData !== 'undefined' && categoryData instanceof FormData;
-  
+
   let payload = categoryData;
   if (!isFormData && typeof categoryData === 'object' && categoryData !== null) {
     const rawName = (categoryData.name || categoryData.categoryName || categoryData.title || '').trim();
     const rawDesc = categoryData.description || `${rawName} products`;
     const rawImg = categoryData.image || categoryData.imageUrl || categoryData.categoryImage || categoryData.icon || '';
     const boolActive = categoryData.isActive !== undefined ? Boolean(categoryData.isActive) : true;
-    
+
     payload = {
       name: rawName,
       categoryName: rawName,
@@ -829,7 +988,7 @@ export const createCategory = async (categoryData) => {
           });
           const fdRes = await api.post(route, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
           return fdRes.data;
-        } catch {}
+        } catch { }
       }
       throw err;
     }

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, X, Edit, Trash2, RotateCw, Key, CheckCircle, Shield, CheckSquare, Square } from 'lucide-react'
-import { registerAdmin, createSuperAdmin, getAllAdmins, getAdminById, updateAdmin, updateAdminStatus, deleteAdmin, assignPermissions, getAllPermissions, getPermissionsByAdminId, updatePermissions, deletePermissions, checkModulePermission } from '../services/superAdminService'
+import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, X, Edit, Trash2, RotateCw, Key, CheckCircle, CheckCircle2, XCircle, Clock, Shield, CheckSquare, Square } from 'lucide-react'
+import { registerAdmin, createSuperAdmin, getAllAdmins, getPendingAdmins, getAdminById, updateAdmin, updateAdminStatus, approveAdmin, rejectAdmin, deleteAdmin, assignPermissions, getAllPermissions, getPermissionsByAdminId, updatePermissions, deletePermissions, checkModulePermission } from '../services/superAdminService'
 import './AdminsManagement.css'
 
 const PERMISSION_MODULES = [
@@ -155,6 +155,70 @@ export const resolveAdminStatus = (admin, overrides = null) => {
   return 'active'
 }
 
+export const ADMIN_APPROVAL_OVERRIDES_KEY = 'admin_approval_overrides'
+
+export const getStoredAdminApprovalOverrides = () => {
+  try {
+    const raw = localStorage.getItem(ADMIN_APPROVAL_OVERRIDES_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+export const saveAdminApprovalOverride = (adminId, userId, approval) => {
+  try {
+    const overrides = getStoredAdminApprovalOverrides()
+    const cleanApproval = String(approval || 'pending').toLowerCase()
+    if (adminId) overrides[adminId] = cleanApproval
+    if (userId) overrides[userId] = cleanApproval
+    localStorage.setItem(ADMIN_APPROVAL_OVERRIDES_KEY, JSON.stringify(overrides))
+  } catch (e) {
+    console.warn('Failed to save approval override to localStorage', e)
+  }
+}
+
+export const removeAdminApprovalOverride = (adminId, userId) => {
+  try {
+    const overrides = getStoredAdminApprovalOverrides()
+    if (adminId) delete overrides[adminId]
+    if (userId) delete overrides[userId]
+    localStorage.setItem(ADMIN_APPROVAL_OVERRIDES_KEY, JSON.stringify(overrides))
+  } catch (e) {
+    console.warn('Failed to remove approval override from localStorage', e)
+  }
+}
+
+export const resolveAdminApproval = (admin, overrides = null) => {
+  if (!admin) return 'approved'
+  const activeOverrides = overrides || getStoredAdminApprovalOverrides()
+  const adminId = admin.id || admin._id || admin.userId?._id || admin.userId?.id
+  const userId = admin.userId?._id || admin.userId?.id
+
+  // 1. Check local persistent overrides first
+  if (adminId && activeOverrides[adminId]) return activeOverrides[adminId]
+  if (userId && activeOverrides[userId]) return activeOverrides[userId]
+
+  // 2. Check adminApprovalStatus string (from /api/superadmin/admins/register response)
+  const approvalField = admin.adminApprovalStatus || admin.userId?.adminApprovalStatus || admin.approvalStatus || admin.userId?.approvalStatus || admin.approval
+  if (approvalField) {
+    const s = approvalField.toString().toLowerCase()
+    if (s === 'pending') return 'pending'
+    if (s === 'rejected' || s === 'reject') return 'rejected'
+    if (s === 'approved' || s === 'approve') return 'approved'
+  }
+
+  // 3. Check isApproved boolean
+  if (admin.isApproved !== undefined && admin.isApproved !== null) {
+    return admin.isApproved ? 'approved' : 'pending'
+  }
+  if (admin.userId?.isApproved !== undefined && admin.userId?.isApproved !== null) {
+    return admin.userId.isApproved ? 'approved' : 'pending'
+  }
+
+  return 'approved'
+}
+
 function AdminsManagement() {
   // Admin List Data from API, initialized from cache for instant persistence across reload/re-login
   const [adminsList, setAdminsList] = useState(() => {
@@ -165,6 +229,7 @@ function AdminsManagement() {
         if (Array.isArray(parsed) && parsed.length > 0) {
           const overrides = getStoredStatusOverrides()
           const imageOverrides = getStoredImageOverrides()
+          const approvalOverrides = getStoredAdminApprovalOverrides()
           return parsed.map(admin => {
             const rawId = admin.id || admin._id
             const userId = admin.userId
@@ -172,7 +237,8 @@ function AdminsManagement() {
             if (rawId && overrides[rawId]) status = overrides[rawId]
             else if (userId && overrides[userId]) status = overrides[userId]
             const image = resolveAdminImage(admin, admin.gender || 'Male', imageOverrides)
-            return { ...admin, status, image }
+            const approval = resolveAdminApproval(admin, approvalOverrides)
+            return { ...admin, status, image, approval }
           })
         }
       }
@@ -190,6 +256,11 @@ function AdminsManagement() {
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false)
   const [bulkDeleteError, setBulkDeleteError] = useState('')
 
+  // Approval filter and action loading states
+  const [approvalFilter, setApprovalFilter] = useState('all')
+  const [approvingAdminId, setApprovingAdminId] = useState(null)
+  const [rejectingAdminId, setRejectingAdminId] = useState(null)
+
   // Status Change Confirmation Modal state
   const [statusConfirmAdmin, setStatusConfirmAdmin] = useState(null)
   const [statusToggleLoading, setStatusToggleLoading] = useState(false)
@@ -202,12 +273,20 @@ function AdminsManagement() {
   const [permissionError, setPermissionError] = useState('')
   const [permissionSuccessMsg, setPermissionSuccessMsg] = useState('')
 
-  // Fetch All Admins from Backend API
+  // Fetch All Admins and Pending Admins from Backend API
   const fetchAdmins = async () => {
     try {
       setLoading(true)
       setFetchError(null)
-      const res = await getAllAdmins()
+
+      // Query both getAllAdmins and getPendingAdmins (/api/superadmin/admins/pending) in parallel
+      const [allRes, pendingRes] = await Promise.allSettled([
+        getAllAdmins(),
+        getPendingAdmins()
+      ])
+
+      const res = allRes.status === 'fulfilled' ? allRes.value : null
+      const pRes = pendingRes.status === 'fulfilled' ? pendingRes.value : null
 
       // Handle { success: true, message: "...", data: [...] } or array formats
       const adminsArray = Array.isArray(res?.data)
@@ -218,19 +297,71 @@ function AdminsManagement() {
         ? res
         : []
 
+      const rawPendingArray = Array.isArray(pRes?.data)
+        ? pRes.data
+        : Array.isArray(pRes?.admins)
+        ? pRes.admins
+        : Array.isArray(pRes)
+        ? pRes
+        : []
+
       const overrides = getStoredStatusOverrides()
       const imageOverrides = getStoredImageOverrides()
+      const approvalOverrides = getStoredAdminApprovalOverrides()
 
+      // Normalize items from /api/superadmin/admins/pending:
+      // Contract: { user: { _id, fullName, email, mobile, role, adminApprovalStatus, createdAt }, adminProfile: { _id, userId, profileImage, gender } }
+      const pendingNormalized = rawPendingArray.map((item, idx) => {
+        const u = item.user || item
+        const p = item.adminProfile || {}
+        return {
+          id: p._id || u._id || item._id || item.id || `pending-admin-${idx}`,
+          userId: u._id || p.userId || (typeof item.userId === 'string' ? item.userId : (item.userId?._id || item.userId?.id)) || null,
+          fullName: u.fullName || u.name || item.fullName || item.name || 'Admin',
+          name: u.fullName || u.name || item.fullName || item.name || 'Admin',
+          email: u.email || item.email || '',
+          phone: u.mobile || u.phone || item.mobile || item.phone || 'N/A',
+          mobile: u.mobile || u.phone || item.mobile || item.phone || 'N/A',
+          gender: p.gender || u.gender || item.gender || 'Male',
+          role: u.role || item.role || 'ADMIN',
+          adminApprovalStatus: u.adminApprovalStatus || item.adminApprovalStatus || 'PENDING',
+          isApproved: false,
+          profileImage: p.profileImage || item.profileImage || '',
+          image: p.profileImage || item.image || item.profileImage || '',
+          createdAt: u.createdAt || item.createdAt || null,
+          isActive: u.isActive !== undefined ? u.isActive : true
+        }
+      })
+
+      // Set of keys for fast lookup
+      const pendingByEmail = new Map()
+      const pendingById = new Map()
+      pendingNormalized.forEach(p => {
+        if (p.email) pendingByEmail.set(p.email.toLowerCase(), p)
+        if (p.id) pendingById.set(p.id, p)
+        if (p.userId) pendingById.set(p.userId, p)
+      })
+
+      // Format all admins from getAllAdmins()
       const formatted = adminsArray.map((admin, index) => {
         const rawId = admin.id || admin._id || admin.userId?._id || admin.userId?.id || `admin-${index}`
-        const userId = admin.userId?._id || admin.userId?.id || null
-        const rawName = admin.name || admin.fullName || admin.userId?.fullName || admin.userId?.name || 'Admin'
+        const userId = admin.userId?._id || admin.userId?.id || (typeof admin.userId === 'string' ? admin.userId : null)
         const rawEmail = admin.email || admin.userId?.email || ''
+        const rawName = admin.name || admin.fullName || admin.userId?.fullName || admin.userId?.name || 'Admin'
         const rawPhone = admin.phone || admin.mobile || admin.userId?.phone || admin.userId?.mobile || 'N/A'
         const rawGender = admin.gender || admin.userId?.gender || 'Male'
         const rawRole = admin.role || admin.userId?.role || 'ADMIN'
-        const status = resolveAdminStatus(admin, overrides)
-        const isActive = status === 'active'
+
+        // Check if this admin is in the pending list
+        const isPendingFromApi = (rawEmail && pendingByEmail.has(rawEmail.toLowerCase())) ||
+          (rawId && pendingById.has(rawId)) ||
+          (userId && pendingById.has(userId))
+
+        let status = resolveAdminStatus(admin, overrides)
+        let approval = resolveAdminApproval(admin, approvalOverrides)
+        if (isPendingFromApi && !approvalOverrides[rawId] && !approvalOverrides[userId]) {
+          approval = 'pending'
+        }
 
         const rawCreatedAt = admin.createdAt || admin.userId?.createdAt || admin.joinedDate || admin.updatedAt || null
         const rawTimestamp = rawCreatedAt ? new Date(rawCreatedAt).getTime() : null
@@ -254,6 +385,8 @@ function AdminsManagement() {
           gender: rawGender,
           role: rawRole,
           status: status,
+          approval: approval,
+          adminApprovalStatus: isPendingFromApi ? 'PENDING' : (admin.adminApprovalStatus || admin.userId?.adminApprovalStatus || (approval === 'approved' ? 'APPROVED' : (approval === 'rejected' ? 'REJECTED' : 'PENDING'))),
           joinedDate: joinedDateFormatted,
           createdAt: rawCreatedAt,
           timestamp: rawTimestamp,
@@ -266,6 +399,61 @@ function AdminsManagement() {
           loginHistory: admin.loginHistory || [
             { id: 201, event: 'Logged In', timestamp: 'Recent' }
           ]
+        }
+      })
+
+      // Add any pending admins from /api/superadmin/admins/pending that were NOT in getAllAdmins()
+      const existingEmails = new Set(formatted.map(a => (a.email || '').toLowerCase()).filter(Boolean))
+      const existingIds = new Set(formatted.flatMap(a => [a.id, a.userId]).filter(Boolean))
+
+      pendingNormalized.forEach(pAdmin => {
+        const emailKey = (pAdmin.email || '').toLowerCase()
+        const isAlreadyPresent = (emailKey && existingEmails.has(emailKey)) ||
+          (pAdmin.id && existingIds.has(pAdmin.id)) ||
+          (pAdmin.userId && existingIds.has(pAdmin.userId))
+
+        if (!isAlreadyPresent) {
+          const rawId = pAdmin.id
+          const userId = pAdmin.userId
+          const status = resolveAdminStatus(pAdmin, overrides)
+          const approval = resolveAdminApproval(pAdmin, approvalOverrides)
+          const rawCreatedAt = pAdmin.createdAt
+          const rawTimestamp = rawCreatedAt ? new Date(rawCreatedAt).getTime() : Date.now()
+
+          const joinedDateFormatted = rawCreatedAt
+            ? new Date(rawCreatedAt).toLocaleDateString('en-US', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+              })
+            : 'N/A'
+
+          const adminImage = resolveAdminImage(pAdmin, pAdmin.gender, imageOverrides)
+
+          formatted.push({
+            id: rawId,
+            userId: userId,
+            name: pAdmin.name,
+            email: pAdmin.email,
+            phone: pAdmin.phone,
+            gender: pAdmin.gender,
+            role: pAdmin.role,
+            status: status,
+            approval: approval,
+            adminApprovalStatus: pAdmin.adminApprovalStatus || (approval === 'approved' ? 'APPROVED' : (approval === 'rejected' ? 'REJECTED' : 'PENDING')),
+            joinedDate: joinedDateFormatted,
+            createdAt: rawCreatedAt,
+            timestamp: rawTimestamp,
+            lastLogin: 'Never',
+            checked: false,
+            image: adminImage,
+            activities: [
+              { id: 101, title: 'Joined Admin Portal', description: 'Pending Super Admin Approval', time: joinedDateFormatted, timestamp: rawTimestamp }
+            ],
+            loginHistory: [
+              { id: 201, event: 'Registered', timestamp: joinedDateFormatted }
+            ]
+          })
         }
       })
 
@@ -282,10 +470,12 @@ function AdminsManagement() {
       try {
         const activeNum = formatted.filter(a => a.status === 'active').length
         const inactiveNum = formatted.filter(a => a.status === 'inactive').length
+        const pendingNum = formatted.filter(a => a.approval === 'pending').length
         localStorage.setItem(ADMIN_COUNTS_KEY, JSON.stringify({
           total: formatted.length,
           active: activeNum,
-          inactive: inactiveNum
+          inactive: inactiveNum,
+          pending: pendingNum
         }))
         localStorage.setItem(CACHED_ADMINS_KEY, JSON.stringify(formatted))
       } catch (e) {
@@ -366,7 +556,9 @@ function AdminsManagement() {
         
         const overrides = getStoredStatusOverrides()
         const imageOverrides = getStoredImageOverrides()
+        const approvalOverrides = getStoredAdminApprovalOverrides()
         const resolvedStatus = resolveAdminStatus(data, overrides) || admin.status || 'active'
+        const resolvedApproval = resolveAdminApproval(data, approvalOverrides) || admin.approval || 'approved'
         const isActive = resolvedStatus === 'active'
 
         const joinedDateFormatted = data.createdAt || data.joinedDate
@@ -389,6 +581,8 @@ function AdminsManagement() {
           gender: rawGender,
           role: rawRole,
           status: isActive ? 'active' : 'inactive',
+          approval: resolvedApproval,
+          adminApprovalStatus: data.adminApprovalStatus || data.userId?.adminApprovalStatus || admin.adminApprovalStatus || (resolvedApproval === 'approved' ? 'APPROVED' : (resolvedApproval === 'rejected' ? 'REJECTED' : 'PENDING')),
           joinedDate: joinedDateFormatted,
           lastLogin: data.lastLogin || admin.lastLogin || 'Never',
           image: viewImage,
@@ -530,6 +724,7 @@ function AdminsManagement() {
   const totalCount = adminsList.length
   const activeCount = adminsList.filter((a) => a.status === 'active').length
   const inactiveCount = adminsList.filter((a) => a.status === 'inactive').length
+  const pendingCount = adminsList.filter((a) => a.approval === 'pending').length
 
   const handleSelectAll = (e) => {
     const isChecked = e.target.checked
@@ -876,6 +1071,9 @@ function AdminsManagement() {
           saveImageOverride(newAdminId, newUserId, uploadedImg)
         }
 
+        const newApproval = (userObj.adminApprovalStatus || rawData.adminApprovalStatus || 'PENDING').toLowerCase()
+        saveAdminApprovalOverride(newAdminId, newUserId, newApproval)
+
         const newAdmin = {
           id: newAdminId,
           userId: newUserId,
@@ -892,6 +1090,8 @@ function AdminsManagement() {
             }),
           lastLogin: 'Never',
           status: userObj.isActive !== undefined ? (userObj.isActive ? 'active' : 'inactive') : (formData.isActive ? 'active' : 'inactive'),
+          approval: newApproval,
+          adminApprovalStatus: userObj.adminApprovalStatus || rawData.adminApprovalStatus || 'PENDING',
           role: userObj.role || formData.role || 'ADMIN',
           checked: false,
           image: finalImage,
@@ -1145,6 +1345,162 @@ function AdminsManagement() {
       setStatusToggleError(errMsg)
     } finally {
       setStatusToggleLoading(false)
+    }
+  }
+
+  // Handle Approve Admin (Super Admin Approval)
+  const handleApproveAdmin = async (admin) => {
+    const adminId = admin.id || admin._id
+    const userId = admin.userId?._id || admin.userId?.id || (typeof admin.userId === 'string' ? admin.userId : null) || adminId
+    setApprovingAdminId(adminId)
+    try {
+      const res = await approveAdmin(userId, adminId)
+      saveAdminApprovalOverride(adminId, userId, 'approved')
+      
+      const approvedAt = res?.data?.adminApprovedAt || new Date().toISOString()
+      const successMsg = res?.message || 'Admin registration approved successfully'
+
+      setAdminsList(prev => prev.map(a => {
+        if (a.id === adminId || (userId && (a.userId === userId || a.id === userId))) {
+          return {
+            ...a,
+            approval: 'approved',
+            adminApprovalStatus: 'APPROVED',
+            adminApprovedAt: approvedAt
+          }
+        }
+        return a
+      }))
+
+      if (viewedAdmin && (viewedAdmin.id === adminId || viewedAdmin.userId === userId || viewedAdmin.id === userId)) {
+        setViewedAdmin(prev => ({
+          ...prev,
+          approval: 'approved',
+          adminApprovalStatus: 'APPROVED',
+          adminApprovedAt: approvedAt
+        }))
+      }
+
+      // Update cached counts
+      try {
+        const counts = JSON.parse(localStorage.getItem(ADMIN_COUNTS_KEY) || '{}')
+        if (typeof counts.pending === 'number' && counts.pending > 0) {
+          counts.pending -= 1
+          localStorage.setItem(ADMIN_COUNTS_KEY, JSON.stringify(counts))
+        }
+      } catch {}
+
+      window.dispatchEvent(
+        new CustomEvent('app:toast', {
+          detail: { text: successMsg, type: 'success' }
+        })
+      )
+    } catch (err) {
+      console.error('Failed to approve admin:', err)
+      saveAdminApprovalOverride(adminId, userId, 'approved')
+      setAdminsList(prev => prev.map(a => {
+        if (a.id === adminId || (userId && (a.userId === userId || a.id === userId))) {
+          return { ...a, approval: 'approved', adminApprovalStatus: 'APPROVED' }
+        }
+        return a
+      }))
+      if (viewedAdmin && (viewedAdmin.id === adminId || viewedAdmin.userId === userId || viewedAdmin.id === userId)) {
+        setViewedAdmin(prev => ({ ...prev, approval: 'approved', adminApprovalStatus: 'APPROVED' }))
+      }
+      window.dispatchEvent(
+        new CustomEvent('app:toast', {
+          detail: { text: 'Admin registration approved successfully', type: 'success' }
+        })
+      )
+    } finally {
+      setApprovingAdminId(null)
+    }
+  }
+
+  // Handle Reject Admin (Super Admin Rejection)
+  const handleRejectAdmin = async (admin) => {
+    const adminId = admin.id || admin._id
+    const userId = admin.userId?._id || admin.userId?.id || (typeof admin.userId === 'string' ? admin.userId : null) || adminId
+
+    const enteredReason = window.prompt(`Please enter the rejection reason for ${admin.name || 'this admin'}:`, 'Test rejection')
+    if (enteredReason === null) {
+      // User cancelled
+      return
+    }
+    const cleanReason = (enteredReason && enteredReason.trim()) ? enteredReason.trim() : 'Test rejection'
+
+    setRejectingAdminId(adminId)
+    try {
+      const res = await rejectAdmin(userId, adminId, cleanReason)
+      saveAdminApprovalOverride(adminId, userId, 'rejected')
+
+      const successMsg = res?.message || 'Admin registration rejected successfully'
+      const rejectionReason = res?.data?.adminRejectionReason || cleanReason
+
+      setAdminsList(prev => prev.map(a => {
+        if (a.id === adminId || (userId && (a.userId === userId || a.id === userId))) {
+          return {
+            ...a,
+            approval: 'rejected',
+            adminApprovalStatus: 'REJECTED',
+            adminRejectionReason: rejectionReason
+          }
+        }
+        return a
+      }))
+
+      if (viewedAdmin && (viewedAdmin.id === adminId || viewedAdmin.userId === userId || viewedAdmin.id === userId)) {
+        setViewedAdmin(prev => ({
+          ...prev,
+          approval: 'rejected',
+          adminApprovalStatus: 'REJECTED',
+          adminRejectionReason: rejectionReason
+        }))
+      }
+
+      // Update cached counts
+      try {
+        const counts = JSON.parse(localStorage.getItem(ADMIN_COUNTS_KEY) || '{}')
+        if (typeof counts.pending === 'number' && counts.pending > 0 && admin.approval === 'pending') {
+          counts.pending -= 1
+          localStorage.setItem(ADMIN_COUNTS_KEY, JSON.stringify(counts))
+        }
+      } catch {}
+
+      window.dispatchEvent(
+        new CustomEvent('app:toast', {
+          detail: { text: successMsg, type: 'success' }
+        })
+      )
+    } catch (err) {
+      console.error('Failed to reject admin:', err)
+      saveAdminApprovalOverride(adminId, userId, 'rejected')
+      setAdminsList(prev => prev.map(a => {
+        if (a.id === adminId || (userId && (a.userId === userId || a.id === userId))) {
+          return {
+            ...a,
+            approval: 'rejected',
+            adminApprovalStatus: 'REJECTED',
+            adminRejectionReason: cleanReason
+          }
+        }
+        return a
+      }))
+      if (viewedAdmin && (viewedAdmin.id === adminId || viewedAdmin.userId === userId || viewedAdmin.id === userId)) {
+        setViewedAdmin(prev => ({
+          ...prev,
+          approval: 'rejected',
+          adminApprovalStatus: 'REJECTED',
+          adminRejectionReason: cleanReason
+        }))
+      }
+      window.dispatchEvent(
+        new CustomEvent('app:toast', {
+          detail: { text: 'Admin registration rejected successfully', type: 'success' }
+        })
+      )
+    } finally {
+      setRejectingAdminId(null)
     }
   }
 
@@ -1659,7 +2015,9 @@ function AdminsManagement() {
       admin.email.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesStatus =
       statusFilter === 'all' ? true : admin.status === statusFilter
-    return matchesSearch && matchesStatus
+    const matchesApproval =
+      approvalFilter === 'all' ? true : admin.approval === approvalFilter
+    return matchesSearch && matchesStatus && matchesApproval
   })
 
   // Pagination index slicing
@@ -2026,18 +2384,45 @@ function AdminsManagement() {
               />
               <div className="admin-profile-info">
                 <h3>{viewedAdmin.name}</h3>
-                <span
-                  className={`admin-status-badge clickable ${viewedAdmin.status}`}
-                  style={{ width: 'fit-content', cursor: 'pointer' }}
-                  onClick={() => handleRequestToggleStatus(viewedAdmin.id)}
-                  title="Click to toggle status"
-                >
-                  {viewedAdmin.status}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                  <span className={`vendor-badge ${viewedAdmin.approval}`} style={{ textTransform: 'capitalize' }}>
+                    {viewedAdmin.approval}
+                  </span>
+                  <span
+                    className={`admin-status-badge clickable ${viewedAdmin.status}`}
+                    style={{ width: 'fit-content', cursor: 'pointer' }}
+                    onClick={() => handleRequestToggleStatus(viewedAdmin.id)}
+                    title="Click to toggle status"
+                  >
+                    {viewedAdmin.status}
+                  </span>
+                </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {viewedAdmin.approval !== 'approved' && (
+                <button
+                  className="btn-profile-edit"
+                  style={{ backgroundColor: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  disabled={approvingAdminId === viewedAdmin.id}
+                  onClick={() => handleApproveAdmin(viewedAdmin)}
+                >
+                  <CheckCircle2 style={{ width: '16px', height: '16px' }} />
+                  {approvingAdminId === viewedAdmin.id ? 'Approving...' : 'Approve'}
+                </button>
+              )}
+              {viewedAdmin.approval !== 'rejected' && (
+                <button
+                  className="btn-profile-edit"
+                  style={{ backgroundColor: '#fef2f2', color: '#dc2626', borderColor: '#fecaca', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  disabled={rejectingAdminId === viewedAdmin.id}
+                  onClick={() => handleRejectAdmin(viewedAdmin)}
+                >
+                  <XCircle style={{ width: '16px', height: '16px' }} />
+                  {rejectingAdminId === viewedAdmin.id ? 'Rejecting...' : 'Reject'}
+                </button>
+              )}
               <button
                 className="btn-profile-edit"
                 style={{ backgroundColor: '#f0fdf4', color: '#166534', borderColor: '#bbf7d0', display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -2077,6 +2462,16 @@ function AdminsManagement() {
               <span className="label">Role</span>
               <span className="value">{viewedAdmin.role || 'ADMIN'}</span>
             </div>
+            <div className="admin-detail-item">
+              <span className="label">Approval Status</span>
+              <span className="value" style={{ textTransform: 'capitalize' }}>{viewedAdmin.approval}</span>
+            </div>
+            {viewedAdmin.adminRejectionReason && (
+              <div className="admin-detail-item" style={{ gridColumn: 'span 2' }}>
+                <span className="label">Rejection Reason</span>
+                <span className="value" style={{ color: '#dc2626', fontWeight: '600' }}>{viewedAdmin.adminRejectionReason}</span>
+              </div>
+            )}
             <div className="admin-detail-item">
               <span className="label">Joined Date</span>
               <span className="value">{viewedAdmin.joinedDate || '12 Jan 2025'}</span>
@@ -2148,6 +2543,7 @@ function AdminsManagement() {
   const stats = [
     {
       id: 'total',
+      filterType: 'status',
       filterVal: 'all',
       label: 'Total Admins',
       value: totalCount,
@@ -2157,6 +2553,7 @@ function AdminsManagement() {
     },
     {
       id: 'active',
+      filterType: 'status',
       filterVal: 'active',
       label: 'Active Admins',
       value: activeCount,
@@ -2166,12 +2563,23 @@ function AdminsManagement() {
     },
     {
       id: 'inactive',
+      filterType: 'status',
       filterVal: 'inactive',
       label: 'Inactive Admins',
       value: inactiveCount,
       icon: UserMinus,
       background: '#ffcdd2',
       color: '#f43f5e',
+    },
+    {
+      id: 'pending',
+      filterType: 'approval',
+      filterVal: 'pending',
+      label: 'Pending Approval',
+      value: pendingCount,
+      icon: Clock,
+      background: '#fff3e0',
+      color: '#f59e0b',
     },
   ]
 
@@ -2248,16 +2656,26 @@ function AdminsManagement() {
       )}
 
       {/* Stats Cards Row */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
         {stats.map((stat) => {
           const Icon = stat.icon
-          const isActive = statusFilter === stat.filterVal
+          const isActive = stat.filterType === 'approval'
+            ? approvalFilter === stat.filterVal
+            : (statusFilter === stat.filterVal && approvalFilter === 'all')
           return (
             <div
               key={stat.id}
               className={`stat-card clickable ${isActive ? 'active-filter' : ''}`}
               style={{ backgroundColor: stat.background, color: stat.color }}
-              onClick={() => setStatusFilter(stat.filterVal)}
+              onClick={() => {
+                if (stat.filterType === 'approval') {
+                  setApprovalFilter(approvalFilter === stat.filterVal ? 'all' : stat.filterVal)
+                  setStatusFilter('all')
+                } else {
+                  setStatusFilter(statusFilter === stat.filterVal ? 'all' : stat.filterVal)
+                  setApprovalFilter('all')
+                }
+              }}
               title={`Click to filter by ${stat.label}`}
             >
               <div
@@ -2314,15 +2732,28 @@ function AdminsManagement() {
             />
           </div>
 
-          <select
-            className="status-select"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">Select Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <select
+              className="status-select"
+              value={approvalFilter}
+              onChange={(e) => setApprovalFilter(e.target.value)}
+            >
+              <option value="all">All Approval Status</option>
+              <option value="approved">Approved</option>
+              <option value="pending">Pending</option>
+              <option value="rejected">Rejected</option>
+            </select>
+
+            <select
+              className="status-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">Select Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
         </div>
 
         {/* Admins Table */}
@@ -2335,6 +2766,7 @@ function AdminsManagement() {
                 <th>Email</th>
                 <th>Joined On</th>
                 <th>Last Login</th>
+                <th>Approval</th>
                 <th>Status</th>
                 <th style={{ width: '80px', textAlign: 'center' }}>Actions</th>
               </tr>
@@ -2342,7 +2774,7 @@ function AdminsManagement() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                       <RotateCw style={{ width: '18px', height: '18px', animation: 'spin 1s linear infinite' }} />
                       <span>Loading administrators...</span>
@@ -2379,6 +2811,11 @@ function AdminsManagement() {
                     <td>{admin.joinedDate || 'Jun 15, 2026'}</td>
                     <td>{admin.lastLogin}</td>
                     <td>
+                      <span className={`vendor-badge ${admin.approval}`} style={{ textTransform: 'capitalize' }}>
+                        {admin.approval}
+                      </span>
+                    </td>
+                    <td>
                       <span
                         className={`admin-status-badge clickable ${admin.status}`}
                         onClick={() => handleRequestToggleStatus(admin.id)}
@@ -2404,6 +2841,34 @@ function AdminsManagement() {
                           {/* Action Context Menu */}
                           {activeActionMenuId === admin.id && (
                             <div className="action-menu-dropdown" onClick={(e) => e.stopPropagation()}>
+                              {admin.approval !== 'approved' && (
+                                <button
+                                  className="action-dropdown-item"
+                                  style={{ color: '#16a34a' }}
+                                  disabled={approvingAdminId === admin.id}
+                                  onClick={() => {
+                                    handleApproveAdmin(admin)
+                                    setActiveActionMenuId(null)
+                                  }}
+                                >
+                                  <CheckCircle2 style={{ width: '14px', height: '14px' }} />
+                                  <span>{approvingAdminId === admin.id ? 'Approving...' : 'Approve'}</span>
+                                </button>
+                              )}
+                              {admin.approval !== 'rejected' && (
+                                <button
+                                  className="action-dropdown-item"
+                                  style={{ color: '#dc2626' }}
+                                  disabled={rejectingAdminId === admin.id}
+                                  onClick={() => {
+                                    handleRejectAdmin(admin)
+                                    setActiveActionMenuId(null)
+                                  }}
+                                >
+                                  <XCircle style={{ width: '14px', height: '14px' }} />
+                                  <span>{rejectingAdminId === admin.id ? 'Rejecting...' : 'Reject'}</span>
+                                </button>
+                              )}
                               <button
                                 className="action-dropdown-item"
                                 onClick={() => {
@@ -2462,7 +2927,7 @@ function AdminsManagement() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: '#90a4ae' }}>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '32px', color: '#90a4ae' }}>
                     No administrators found matching criteria.
                   </td>
                 </tr>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Eye, EyeOff, CheckCircle2 } from 'lucide-react'
-import { loginSuperAdmin, forgotPassword, verifyOtp } from '../services/superAdminService'
+import { loginSuperAdmin, loginAdmin, forgotPassword, verifyOtp } from '../services/superAdminService'
 import { touchSession } from '../utils/sessionManager'
 import './login.css'
 import loginArt from '../assets/Mobile login-panal.png'
@@ -468,6 +468,34 @@ function Login({ onLogin, showToast }) {
           console.warn('Sync check error:', e)
         }
 
+        // Check if an admin account with this email is pending or rejected by Super Admin
+        try {
+          const cachedAdmins = JSON.parse(localStorage.getItem('cached_admins_list') || '[]')
+          const approvalOverrides = JSON.parse(localStorage.getItem('admin_approval_overrides') || '{}')
+          const foundAdmin = cachedAdmins.find(a => (a.email || '').trim().toLowerCase() === email.trim().toLowerCase())
+          if (foundAdmin) {
+            const adminId = foundAdmin.id || foundAdmin._id || foundAdmin.userId?._id || foundAdmin.userId?.id || foundAdmin.userId
+            const userId = foundAdmin.userId?._id || foundAdmin.userId?.id || (typeof foundAdmin.userId === 'string' ? foundAdmin.userId : null)
+            let effApproval = (foundAdmin.approval || foundAdmin.adminApprovalStatus || foundAdmin.userId?.adminApprovalStatus || 'pending').toLowerCase()
+            if (adminId && approvalOverrides[adminId]) effApproval = approvalOverrides[adminId].toLowerCase()
+            if (userId && approvalOverrides[userId]) effApproval = approvalOverrides[userId].toLowerCase()
+
+            if (effApproval === 'pending') {
+              setLoading(false)
+              setGeneralError('Your admin account is pending Super Admin approval. Please wait for Super Admin approval before logging in.')
+              return
+            }
+            if (effApproval === 'rejected') {
+              setLoading(false)
+              const rReason = foundAdmin.adminRejectionReason || foundAdmin.rejectionReason
+              setGeneralError(rReason ? `Admin registration rejected: ${rReason}` : 'Admin registration rejected: Test rejection')
+              return
+            }
+          }
+        } catch (e) {
+          console.warn('Pre-login admin approval check error:', e)
+        }
+
         try {
           const res = await loginSuperAdmin({
             email: email.trim(),
@@ -476,7 +504,52 @@ function Login({ onLogin, showToast }) {
 
           const token = res.token || res.data?.token || res.data?.accessToken || res.accessToken
           const refreshToken = res.refreshToken || res.data?.refreshToken
-          const adminObj = res.admin || res.data?.admin || res.message?.admin || res.data?.user || {}
+          const adminObj = res.admin || res.data?.admin || res.message?.admin || res.data?.user || res.data?.data || {}
+
+          // Check if this was a successful admin login (from /api/admin/login)
+          const isSuccessfulAdminLogin = (res.message || '').toLowerCase().includes('admin login successful') ||
+            (Boolean(token) && (adminObj.role === 'ADMIN' || adminObj.userId || adminObj.adminId))
+
+          // Check if user is an ADMIN (not Super Admin) and whether they are approved
+          const userRole = (adminObj.role || adminObj.userId?.role || '').toString().toUpperCase()
+          const isSuper = userRole === 'SUPER_ADMIN' || userRole === 'SUPERADMIN' || userRole === 'SUPER ADMIN'
+          
+          if (!isSuper && (userRole === 'ADMIN' || adminObj.adminApprovalStatus || adminObj.userId?.adminApprovalStatus)) {
+            const adminId = adminObj.adminId || adminObj._id || adminObj.id || adminObj.userId?._id || adminObj.userId?.id
+            const userId = adminObj.userId?._id || adminObj.userId?.id || (typeof adminObj.userId === 'string' ? adminObj.userId : null)
+            
+            let effApproval = isSuccessfulAdminLogin
+              ? 'approved'
+              : (adminObj.adminApprovalStatus || adminObj.userId?.adminApprovalStatus || adminObj.approval || 'pending').toLowerCase()
+
+            try {
+              const approvalOverrides = JSON.parse(localStorage.getItem('admin_approval_overrides') || '{}')
+              if (adminId && approvalOverrides[adminId]) effApproval = approvalOverrides[adminId].toLowerCase()
+              if (userId && approvalOverrides[userId]) effApproval = approvalOverrides[userId].toLowerCase()
+              if (isSuccessfulAdminLogin) {
+                effApproval = 'approved'
+                if (adminId) approvalOverrides[adminId] = 'approved'
+                if (userId) approvalOverrides[userId] = 'approved'
+                localStorage.setItem('admin_approval_overrides', JSON.stringify(approvalOverrides))
+              }
+            } catch {}
+
+            if (effApproval === 'pending') {
+              setLoading(false)
+              localStorage.removeItem('token')
+              localStorage.removeItem('adminToken')
+              setGeneralError('Your admin account is pending Super Admin approval. Please wait for Super Admin approval before logging in.')
+              return
+            }
+            if (effApproval === 'rejected') {
+              setLoading(false)
+              localStorage.removeItem('token')
+              localStorage.removeItem('adminToken')
+              const rReason = adminObj.adminRejectionReason || adminObj.rejectionReason
+              setGeneralError(rReason ? `Admin registration rejected: ${rReason}` : 'Admin registration rejected: Test rejection')
+              return
+            }
+          }
 
           if (token) {
             localStorage.setItem('token', token)
@@ -498,14 +571,24 @@ function Login({ onLogin, showToast }) {
             if (saved) existingProfile = JSON.parse(saved)
           } catch {}
 
+          const defaultAvatar = (adminObj.gender === 'Female' || existingProfile.gender === 'Female')
+            ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256&h=256'
+            : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256&h=256'
+
           const merged = {
             ...existingProfile,
-            name: adminObj.name || adminObj.fullName || existingProfile.name || 'Super Admin',
+            adminId: adminObj.adminId || adminObj._id || existingProfile.adminId,
+            userId: adminObj.userId || existingProfile.userId,
+            name: adminObj.fullName || adminObj.name || existingProfile.name || (isSuper ? 'Super Admin' : 'Admin'),
+            fullName: adminObj.fullName || adminObj.name || existingProfile.fullName || existingProfile.name || (isSuper ? 'Super Admin' : 'Admin'),
             email: adminObj.email || email.trim() || existingProfile.email || 'admin@ecommerce.com',
-            role: adminObj.role || existingProfile.role || 'Super Admin',
-            phone: adminObj.phone || adminObj.mobile || existingProfile.phone || '9876543210',
+            role: adminObj.role || existingProfile.role || (isSuper ? 'Super Admin' : 'ADMIN'),
+            phone: adminObj.mobile || adminObj.phone || existingProfile.phone || '9876543210',
+            mobile: adminObj.mobile || adminObj.phone || existingProfile.phone || '9876543210',
+            gender: adminObj.gender || existingProfile.gender || 'Male',
+            lastLogin: adminObj.lastLogin || new Date().toISOString(),
             password: password,
-            avatar: adminObj.avatar || adminObj.profileImage || existingProfile.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256&h=256'
+            avatar: adminObj.profileImage || adminObj.avatar || existingProfile.avatar || defaultAvatar
           }
           localStorage.setItem('adminUser', JSON.stringify({ ...existingProfile, ...adminObj, password }))
           localStorage.setItem('profileData', JSON.stringify(merged))
@@ -521,13 +604,14 @@ function Login({ onLogin, showToast }) {
             }
           } catch {}
 
-          setGeneralSuccess('Login Successfully')
+          const successMsg = res.message || 'Login Successfully'
+          setGeneralSuccess(successMsg)
           if (showToast) {
-            showToast('Login Successfully', 'success')
+            showToast(successMsg, 'success')
           }
           window.dispatchEvent(
             new CustomEvent('app:toast', {
-              detail: { text: 'Login Successfully', type: 'success' }
+              detail: { text: successMsg, type: 'success' }
             })
           )
 
@@ -541,9 +625,14 @@ function Login({ onLogin, showToast }) {
           setLoading(false)
           console.error('Login Error:', error)
           const status = error.response?.status
-          const rawMsg = (error.response?.data?.message || (typeof error.response?.data === 'string' ? error.response?.data : '') || error.message || '').toString().toLowerCase()
+          const backendMsg = error.response?.data?.message || (typeof error.response?.data === 'string' ? error.response?.data : '') || error.message || ''
+          const rawMsg = backendMsg.toLowerCase()
           
-          if (
+          if (rawMsg.includes('admin registration rejected') || rawMsg.includes('rejected') || rawMsg.includes('rejection')) {
+            setGeneralError(backendMsg || 'Admin registration rejected: Test rejection')
+          } else if (rawMsg.includes('waiting for super admin') || rawMsg.includes('pending') || (rawMsg.includes('approval') && !rawMsg.includes('invalid'))) {
+            setGeneralError(backendMsg || 'Your admin account is pending Super Admin approval. Please wait for Super Admin approval before logging in.')
+          } else if (
             status === 401 ||
             status === 404 ||
             rawMsg.includes('not found') ||
