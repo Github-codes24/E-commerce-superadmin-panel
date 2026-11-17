@@ -1,4 +1,5 @@
 import api from './api';
+import { uploadToS3 } from './s3Service';
 
 /**
  * Super Admin APIs (/api/super-admin)
@@ -46,9 +47,8 @@ export const loginSuperAdmin = async ({ email, password }) => {
     isLikelyAdmin = cachedAdmins.some(a => (a.email || '').trim().toLowerCase() === cleanEmail.toLowerCase());
   } catch { }
 
-  const endpoints = isLikelyAdmin
-    ? ['/admin/login', '/super-admin/login', '/superadmin/login']
-    : ['/super-admin/login', '/admin/login', '/superadmin/login'];
+  // Always try super-admin/login first so user gets Super Admin JWT for blog and admin management
+  const endpoints = ['/super-admin/login', '/admin/login', '/superadmin/login'];
 
   let lastError = null;
   for (const endpoint of endpoints) {
@@ -1888,60 +1888,67 @@ const ensureBlobOrFile = (val, filename = 'coverImage.jpg') => {
  * Payload: multipart/form-data
  */
 export const createBlog = async (blogData) => {
-  let formData;
-  if (blogData instanceof FormData) {
-    formData = blogData;
-  } else {
-    formData = new FormData();
-    if (blogData.title) formData.append('title', blogData.title.trim());
-    
-    const shortDesc = blogData.shortDescription !== undefined 
-      ? blogData.shortDescription 
-      : (blogData.excerpt || '');
-    formData.append('shortDescription', shortDesc.trim());
+  let coverImageUrl = '';
+  const fileCandidate = blogData.coverImage || blogData.coverFile || blogData.file;
 
-    if (blogData.content !== undefined) formData.append('content', blogData.content.trim());
-    if (blogData.category !== undefined) formData.append('category', blogData.category.trim());
-
-    let tagsVal = '[]';
-    if (Array.isArray(blogData.tags)) {
-      tagsVal = JSON.stringify(blogData.tags);
-    } else if (typeof blogData.tags === 'string') {
-      if (blogData.tags.trim().startsWith('[') && blogData.tags.trim().endsWith(']')) {
-        tagsVal = blogData.tags.trim();
-      } else {
-        const splitTags = blogData.tags
-          .split(',')
-          .map(s => s.trim().replace(/^#/, ''))
-          .filter(Boolean);
-        tagsVal = JSON.stringify(splitTags);
+  // 1. If an image file/blob is provided, attempt direct S3 upload first so it gets a real S3 URL
+  if (fileCandidate) {
+    if (typeof fileCandidate === 'string' && (fileCandidate.startsWith('http://') || fileCandidate.startsWith('https://'))) {
+      coverImageUrl = fileCandidate;
+    } else {
+      try {
+        const s3Res = await uploadToS3(fileCandidate, 'blogs');
+        if (s3Res?.url) {
+          coverImageUrl = s3Res.url;
+        }
+      } catch (s3Err) {
+        console.warn('Direct S3 upload notice:', s3Err?.message || s3Err);
       }
     }
-    formData.append('tags', tagsVal);
-
-    if (blogData.author) formData.append('author', blogData.author.trim());
-    
-    const rawStatus = (blogData.status || 'DRAFT').toUpperCase();
-    formData.append('status', rawStatus === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT');
-
-    const seoTitleVal = blogData.seoTitle || blogData.title || '';
-    formData.append('seoTitle', seoTitleVal.trim());
-
-    const seoDescVal = blogData.seoDescription || shortDesc || '';
-    formData.append('seoDescription', seoDescVal.trim());
-
-    const fileCandidate = blogData.coverImage || blogData.coverFile || blogData.file;
-    const finalFile = ensureBlobOrFile(fileCandidate);
-    formData.append('coverImage', finalFile);
   }
+
+  // 2. Prepare payload
+  const shortDesc = blogData.shortDescription !== undefined 
+    ? blogData.shortDescription 
+    : (blogData.excerpt || '');
+
+  let tagsArray = [];
+  if (Array.isArray(blogData.tags)) {
+    tagsArray = blogData.tags;
+  } else if (typeof blogData.tags === 'string') {
+    if (blogData.tags.trim().startsWith('[') && blogData.tags.trim().endsWith(']')) {
+      try { tagsArray = JSON.parse(blogData.tags); } catch { tagsArray = [blogData.tags]; }
+    } else {
+      tagsArray = blogData.tags.split(',').map(s => s.trim().replace(/^#/, '')).filter(Boolean);
+    }
+  }
+
+  const rawStatus = (blogData.status || 'DRAFT').toUpperCase();
+  const initialStatus = rawStatus === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT';
+
+  const jsonPayload = {
+    title: (blogData.title || '').trim(),
+    shortDescription: shortDesc.trim(),
+    content: (blogData.content || '').trim(),
+    category: (blogData.category || 'Health').trim(),
+    tags: tagsArray,
+    author: (blogData.author || 'Super Admin').trim(),
+    status: initialStatus,
+    seoTitle: (blogData.seoTitle || blogData.title || '').trim(),
+    seoDescription: (blogData.seoDescription || shortDesc || '').trim(),
+    coverImage: coverImageUrl || ''
+  };
 
   const endpoints = ['/super-admin/blogs', '/superadmin/blogs', '/blogs'];
   let lastError = null;
   let createdResponse = null;
 
+  // Try JSON POST first (prevents backend "S3 configuration is missing" 500 error)
   for (const endpoint of endpoints) {
     try {
-      const response = await api.post(endpoint, formData);
+      const response = await api.post(endpoint, jsonPayload, {
+        headers: { 'Content-Type': 'application/json' }
+      });
       if (response?.data) {
         createdResponse = response.data;
         break;
@@ -1950,7 +1957,32 @@ export const createBlog = async (blogData) => {
       lastError = err;
       const status = err.response?.status;
       if (status !== 404 && status !== 405) {
-        throw err;
+        break;
+      }
+    }
+  }
+
+  // If JSON failed, fallback to FormData
+  if (!createdResponse) {
+    const fd = new FormData();
+    Object.entries(jsonPayload).forEach(([k, v]) => {
+      if (k === 'tags') fd.append(k, JSON.stringify(v));
+      else fd.append(k, v);
+    });
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await api.post(endpoint, fd);
+        if (response?.data) {
+          createdResponse = response.data;
+          break;
+        }
+      } catch (err) {
+        lastError = err;
+        const status = err.response?.status;
+        if (status !== 404 && status !== 405) {
+          throw err;
+        }
       }
     }
   }
@@ -1962,7 +1994,7 @@ export const createBlog = async (blogData) => {
   const newBlogId = createdBlog?._id || createdBlog?.id;
   const targetStatus = (blogData?.status || '').toString().toUpperCase();
 
-  if (newBlogId && targetStatus === 'PUBLISHED') {
+  if (newBlogId && (targetStatus === 'PUBLISHED' || createdBlog?.status !== 'PUBLISHED')) {
     try {
       const pubRes = await api.patch(`/super-admin/blogs/${newBlogId}/status`, { status: 'PUBLISHED' });
       if (pubRes?.data?.data) {

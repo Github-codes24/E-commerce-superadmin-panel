@@ -235,9 +235,12 @@ export async function testS3Connection() {
   }
 }
 
+export const uploadToS3 = uploadFileToS3;
+
 export default {
   S3_CONFIG,
   uploadFileToS3,
+  uploadToS3,
   uploadMultipleFilesToS3,
   isRemoteOrS3Url,
   testS3Connection
