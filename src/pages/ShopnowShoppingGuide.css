@@ -1010,3 +1010,67 @@
     max-width: 100%;
   }
 }
+
+/* ─────────────────────────────────────────
+   7. Pagination Styling
+───────────────────────────────────────── */
+.sg-pagination-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--bg-card, #ffffff);
+  border-radius: 14px;
+  margin-top: 24px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sg-pagination-info {
+  font-size: 13.5px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.sg-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sg-pag-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.sg-pag-btn:hover:not(:disabled) {
+  border-color: #84cc16;
+  color: #65a30d;
+  background: #f7fee7;
+}
+
+.sg-pag-btn.active {
+  background: #84cc16;
+  border-color: #84cc16;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(132, 204, 22, 0.35);
+}
+
+.sg-pag-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

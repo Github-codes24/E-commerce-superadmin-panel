@@ -28,6 +28,7 @@ import {
   CheckSquare
 } from 'lucide-react'
 import './ShopnowShoppingGuide.css'
+import { createBlog, getAllBlogs, getBlogById, updateBlog, updateBlogStatus, deleteBlog } from '../services/superAdminService'
 
 // Import asset images
 import blog1Img from '../assets/Blog 1.jpeg'
@@ -435,6 +436,7 @@ All featured appliances come with brand warranty and official technician install
 
 const CATEGORIES_LIST = [
   'All Categories',
+  'Health',
   'Shopping Guide',
   'Shopping Tips',
   'Online Safety',
@@ -619,33 +621,124 @@ export default function ShopnowShoppingGuide() {
   const [isEditMode, setIsEditMode] = useState(false)
   const [editingGuideId, setEditingGuideId] = useState(null)
   const [previewGuide, setPreviewGuide] = useState(null)
+  const [isLoadingBlogDetail, setIsLoadingBlogDetail] = useState(false)
   const [deleteConfirmGuide, setDeleteConfirmGuide] = useState(null)
+  const [isDeletingBlog, setIsDeletingBlog] = useState(false)
 
   // 4. Form State for Upload / Edit
   const [formTitle, setFormTitle] = useState('')
-  const [formCategory, setFormCategory] = useState('Shopping Tips')
-  const [formAuthor, setFormAuthor] = useState('Shopnow4u Team')
+  const [formCategory, setFormCategory] = useState('Health')
+  const [formAuthor, setFormAuthor] = useState('Admin')
   const [formReadTime, setFormReadTime] = useState('4 min read')
   const [formCoverImage, setFormCoverImage] = useState('')
+  const [formCoverFile, setFormCoverFile] = useState(null)
   const [formExcerpt, setFormExcerpt] = useState('')
   const [formContent, setFormContent] = useState('')
-  const [formStatus, setFormStatus] = useState('Published')
+  const [formStatus, setFormStatus] = useState('DRAFT')
+  const [formSeoTitle, setFormSeoTitle] = useState('')
+  const [formSeoDescription, setFormSeoDescription] = useState('')
   const [formFeatured, setFormFeatured] = useState(false)
   const [formTagInput, setFormTagInput] = useState('')
   const [formTags, setFormTags] = useState([])
+  const [isSubmittingBlog, setIsSubmittingBlog] = useState(false)
+  const [isLoadingBlogs, setIsLoadingBlogs] = useState(false)
+
+  // 5. Pagination State for Blogs (/api/super-admin/blogs?page=1&limit=10)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalBlogs, setTotalBlogs] = useState(0)
+  const [paginationInfo, setPaginationInfo] = useState({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 1
+  })
 
   const fileInputRef = useRef(null)
+
+  // Fetch blogs from backend with pagination
+  const fetchRemoteBlogs = async (page = 1, limit = 10, isSilent = false) => {
+    try {
+      if (!isSilent) setIsLoadingBlogs(true)
+      const res = await getAllBlogs({ page, limit })
+      const rawBlogs = res?.data?.blogs || res?.blogs || (Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []))
+      const pagination = res?.data?.pagination || res?.pagination
+
+      if (pagination) {
+        setPaginationInfo(pagination)
+        const total = Number(pagination.total) || rawBlogs.length
+        setTotalBlogs(total)
+        setCurrentPage(Number(pagination.page) || page)
+        const pages = Number(pagination.totalPages) || Math.ceil(total / limit) || 1
+        setTotalPages(pages)
+      } else if (rawBlogs.length > 0) {
+        setTotalBlogs(rawBlogs.length)
+        setTotalPages(Math.ceil(rawBlogs.length / limit) || 1)
+      }
+
+      if (Array.isArray(rawBlogs) && rawBlogs.length > 0) {
+        const mappedRemote = rawBlogs.map(b => ({
+          id: b._id || b.id,
+          _id: b._id,
+          title: b.title || 'Untitled Blog',
+          slug: b.slug || '',
+          category: b.category || 'Health',
+          author: b.author || 'Super Admin',
+          readTime: b.readTime || '4 min read',
+          coverImage: b.coverImage || blog1Img,
+          coverImageKey: b.coverImageKey,
+          excerpt: b.shortDescription || b.excerpt || (b.content ? b.content.slice(0, 160) + '...' : ''),
+          shortDescription: b.shortDescription || '',
+          content: b.content || '',
+          status: (b.status || 'DRAFT').toUpperCase() === 'PUBLISHED' ? 'Published' : 'Draft',
+          tags: Array.isArray(b.tags)
+            ? b.tags
+            : (typeof b.tags === 'string' && b.tags.trim().startsWith('[')
+              ? JSON.parse(b.tags)
+              : (b.tags ? [b.tags] : [])),
+          seoTitle: b.seoTitle || b.title,
+          seoDescription: b.seoDescription || b.shortDescription,
+          createdAt: b.createdAt ? new Date(b.createdAt).getTime() : Date.now(),
+          publishedDate: b.publishedAt ? b.publishedAt.split('T')[0] : (b.createdAt ? b.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
+          backendData: b,
+          views: b.views || 0,
+          featured: Boolean(b.featured)
+        }))
+
+        setGuides(prev => {
+          const remoteIds = new Set(mappedRemote.map(m => String(m.id)))
+          const filteredLocal = prev.filter(p => !remoteIds.has(String(p.id)) && !remoteIds.has(String(p._id)))
+          const combined = [...mappedRemote, ...filteredLocal]
+          combined.sort((a, b) => getGuideTimestamp(b) - getGuideTimestamp(a))
+          return combined
+        })
+      }
+    } catch (err) {
+      console.warn('Could not load remote blogs:', err.message)
+    } finally {
+      if (!isSilent) setIsLoadingBlogs(false)
+    }
+  }
+
+  // Load blogs on mount
+  useEffect(() => {
+    fetchRemoteBlogs(currentPage, pageSize)
+  }, [currentPage, pageSize])
 
   // Reset form
   const resetForm = () => {
     setFormTitle('')
-    setFormCategory('Shopping Tips')
-    setFormAuthor('Shopnow4u Team')
+    setFormCategory('Health')
+    setFormAuthor('Admin')
     setFormReadTime('4 min read')
     setFormCoverImage('')
+    setFormCoverFile(null)
     setFormExcerpt('')
     setFormContent('')
-    setFormStatus('Published')
+    setFormStatus('DRAFT')
+    setFormSeoTitle('')
+    setFormSeoDescription('')
     setFormFeatured(false)
     setFormTagInput('')
     setFormTags([])
@@ -659,36 +752,110 @@ export default function ShopnowShoppingGuide() {
     setIsUploadModalOpen(true)
   }
 
-  // Open Edit Modal
-  const handleOpenEditModal = (guide) => {
+  // Open Preview Modal with fresh backend data (/api/super-admin/blogs/:id)
+  const handleOpenPreviewModal = async (guide) => {
+    setPreviewGuide(guide)
+    const blogId = guide?._id || guide?.id
+    if (blogId && (guide?._id || String(blogId).length >= 24)) {
+      try {
+        setIsLoadingBlogDetail(true)
+        const res = await getBlogById(blogId)
+        const blogDetail = res?.data || res?.blog || (res?._id ? res : null)
+        if (blogDetail) {
+          setPreviewGuide(prev => ({
+            ...prev,
+            ...blogDetail,
+            id: blogDetail._id || prev?.id,
+            _id: blogDetail._id,
+            title: blogDetail.title || prev?.title,
+            slug: blogDetail.slug || prev?.slug,
+            category: blogDetail.category || prev?.category,
+            author: blogDetail.author || prev?.author,
+            readTime: blogDetail.readTime || prev?.readTime || '4 min read',
+            coverImage: blogDetail.coverImage || prev?.coverImage,
+            coverImageKey: blogDetail.coverImageKey || prev?.coverImageKey,
+            excerpt: blogDetail.shortDescription || blogDetail.excerpt || prev?.excerpt,
+            shortDescription: blogDetail.shortDescription || prev?.shortDescription,
+            content: blogDetail.content || prev?.content,
+            status: (blogDetail.status || prev?.status || 'DRAFT').toUpperCase() === 'PUBLISHED' ? 'Published' : 'Draft',
+            tags: Array.isArray(blogDetail.tags)
+              ? blogDetail.tags
+              : (typeof blogDetail.tags === 'string' && blogDetail.tags.trim().startsWith('[')
+                  ? JSON.parse(blogDetail.tags)
+                  : (prev?.tags || [])),
+            seoTitle: blogDetail.seoTitle || prev?.seoTitle,
+            seoDescription: blogDetail.seoDescription || prev?.seoDescription,
+            publishedDate: blogDetail.publishedAt ? blogDetail.publishedAt.split('T')[0] : (blogDetail.createdAt ? blogDetail.createdAt.split('T')[0] : prev?.publishedDate),
+            backendData: blogDetail
+          }))
+        }
+      } catch (err) {
+        console.warn('Could not fetch blog detail by id for preview:', err.message)
+      } finally {
+        setIsLoadingBlogDetail(false)
+      }
+    }
+  }
+
+  // Open Edit Modal with fresh backend data (/api/super-admin/blogs/:id)
+  const handleOpenEditModal = async (guide) => {
     setFormTitle(guide.title || '')
     setFormCategory(guide.category || 'Shopping Tips')
-    setFormAuthor(guide.author || 'Shopnow4u Team')
+    setFormAuthor(guide.author || 'Admin')
     setFormReadTime(guide.readTime || '4 min read')
     setFormCoverImage(guide.coverImage || '')
-    setFormExcerpt(guide.excerpt || '')
+    setFormCoverFile(null)
+    setFormExcerpt(guide.shortDescription || guide.excerpt || '')
     setFormContent(guide.content || '')
-    setFormStatus(guide.status || 'Published')
+    setFormStatus((guide.status || 'DRAFT').toUpperCase() === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT')
+    setFormSeoTitle(guide.seoTitle || guide.title || '')
+    setFormSeoDescription(guide.seoDescription || guide.shortDescription || guide.excerpt || '')
     setFormFeatured(Boolean(guide.featured))
     setFormTags(Array.isArray(guide.tags) ? [...guide.tags] : [])
     setFormTagInput('')
     setIsEditMode(true)
-    setEditingGuideId(guide.id)
+    setEditingGuideId(guide.id || guide._id)
     setIsUploadModalOpen(true)
+
+    // Sync latest details from backend if it's a backend blog
+    const blogId = guide?._id || guide?.id
+    if (blogId && (guide?._id || String(blogId).length >= 24)) {
+      try {
+        const res = await getBlogById(blogId)
+        const blogDetail = res?.data || res?.blog || (res?._id ? res : null)
+        if (blogDetail) {
+          if (blogDetail.title) setFormTitle(blogDetail.title)
+          if (blogDetail.category) setFormCategory(blogDetail.category)
+          if (blogDetail.author) setFormAuthor(blogDetail.author)
+          if (blogDetail.coverImage) setFormCoverImage(blogDetail.coverImage)
+          if (blogDetail.shortDescription) setFormExcerpt(blogDetail.shortDescription)
+          if (blogDetail.content) setFormContent(blogDetail.content)
+          if (blogDetail.status) {
+            setFormStatus(blogDetail.status.toUpperCase() === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT')
+          }
+          if (blogDetail.seoTitle) setFormSeoTitle(blogDetail.seoTitle)
+          if (blogDetail.seoDescription) setFormSeoDescription(blogDetail.seoDescription)
+          if (Array.isArray(blogDetail.tags)) setFormTags(blogDetail.tags)
+        }
+      } catch (err) {
+        console.warn('Failed to fetch blog by id for edit:', err.message)
+      }
+    }
   }
 
-  // Handle Image Upload from disk (FileReader -> Base64 data URL)
+  // Handle Image Upload from disk (FileReader -> Base64 data URL and save File object)
   const handleFileChange = (e) => {
     const file = e.target.files?.[0]
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        triggerToast('Image file size must be less than 5MB', 'error')
+      if (file.size > 10 * 1024 * 1024) {
+        triggerToast('Image file size must be less than 10MB', 'error')
         return
       }
+      setFormCoverFile(file)
       const reader = new FileReader()
       reader.onload = (event) => {
         setFormCoverImage(event.target.result)
-        triggerToast('Image uploaded successfully', 'success')
+        triggerToast('Image selected successfully', 'success')
       }
       reader.readAsDataURL(file)
     }
@@ -707,8 +874,8 @@ export default function ShopnowShoppingGuide() {
     setFormTags(formTags.filter(t => t !== tagToRemove))
   }
 
-  // Handle Form Submit (Create or Update)
-  const handleSaveGuide = (e) => {
+  // Handle Form Submit (Create or Update with Backend Integration)
+  const handleSaveGuide = async (e) => {
     e.preventDefault()
 
     if (!formTitle.trim()) {
@@ -721,82 +888,210 @@ export default function ShopnowShoppingGuide() {
       return
     }
 
+    setIsSubmittingBlog(true)
+
     const defaultImages = [blog1Img, blog2Img, blog3Img, blog4Img, blog5Img]
     const imageToUse = formCoverImage.trim() || defaultImages[Math.floor(Math.random() * defaultImages.length)]
     const dateStr = new Date().toISOString().split('T')[0]
     const slugStr = formTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
-    if (isEditMode && editingGuideId) {
-      // Update existing
-      setGuides(prev =>
-        prev.map(g => {
-          if (g.id === editingGuideId) {
-            return {
-              ...g,
-              title: formTitle.trim(),
-              slug: slugStr,
-              category: formCategory,
-              author: formAuthor.trim() || 'Shopnow4u Team',
-              readTime: formReadTime.trim() || '4 min read',
-              coverImage: imageToUse,
-              excerpt: formExcerpt.trim() || formContent.slice(0, 160) + '...',
-              content: formContent.trim(),
-              status: formStatus,
-              featured: formFeatured,
-              tags: formTags.length > 0 ? formTags : ['Shopping Tips', 'Guide']
-            }
+    const blogStatus = formStatus.toUpperCase() === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT'
+    const finalAuthor = formAuthor.trim() || 'Admin'
+    const finalShortDesc = formExcerpt.trim() || formContent.slice(0, 160) + '...'
+    const finalSeoTitle = formSeoTitle.trim() || formTitle.trim()
+    const finalSeoDesc = formSeoDescription.trim() || finalShortDesc
+    const finalTags = formTags.length > 0 ? formTags : ['Shopping Tips', 'Guide']
+
+    try {
+      if (isEditMode && editingGuideId) {
+        // Update existing blog
+        const updatePayload = {
+          title: formTitle.trim(),
+          shortDescription: finalShortDesc,
+          content: formContent.trim(),
+          category: formCategory,
+          tags: finalTags,
+          author: finalAuthor,
+          status: blogStatus,
+          seoTitle: finalSeoTitle,
+          seoDescription: finalSeoDesc,
+          coverImage: formCoverFile || formCoverImage
+        }
+
+        let updatedBackendBlog = null
+        try {
+          const apiRes = await updateBlog(editingGuideId, updatePayload)
+          if (apiRes?.data) {
+            updatedBackendBlog = apiRes.data
           }
-          return g
-        })
-      )
-      triggerToast('Shopping Guide updated successfully!', 'success')
-    } else {
-      // Create new with current timestamp
-      const now = Date.now()
-      const newGuide = {
-        id: `guide-${now}`,
-        createdAt: now,
-        title: formTitle.trim(),
-        slug: slugStr,
-        category: formCategory,
-        author: formAuthor.trim() || 'Shopnow4u Team',
-        authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150&h=150',
-        coverImage: imageToUse,
-        readTime: formReadTime.trim() || '4 min read',
-        publishedDate: dateStr,
-        status: formStatus,
-        featured: formFeatured,
-        views: 0,
-        excerpt: formExcerpt.trim() || formContent.slice(0, 160) + '...',
-        content: formContent.trim(),
-        tags: formTags.length > 0 ? formTags : ['Shopping Tips', 'Guide']
+          triggerToast(apiRes?.message || 'Blog updated successfully.', 'success')
+        } catch (apiErr) {
+          const errMsg = apiErr.response?.data?.message || apiErr.message || 'Error updating blog'
+          console.warn('Backend updateBlog failed:', errMsg)
+          triggerToast(errMsg, 'warning')
+        }
+
+        setGuides(prev =>
+          prev.map(g => {
+            if (g.id === editingGuideId || g._id === editingGuideId) {
+              return {
+                ...g,
+                title: updatedBackendBlog?.title || formTitle.trim(),
+                slug: updatedBackendBlog?.slug || slugStr,
+                category: updatedBackendBlog?.category || formCategory,
+                author: updatedBackendBlog?.author || finalAuthor,
+                readTime: formReadTime.trim() || '4 min read',
+                coverImage: updatedBackendBlog?.coverImage || formCoverImage || g.coverImage,
+                coverImageKey: updatedBackendBlog?.coverImageKey || g.coverImageKey,
+                excerpt: updatedBackendBlog?.shortDescription || finalShortDesc,
+                shortDescription: updatedBackendBlog?.shortDescription || finalShortDesc,
+                content: updatedBackendBlog?.content || formContent.trim(),
+                status: (updatedBackendBlog?.status || blogStatus) === 'PUBLISHED' ? 'Published' : 'Draft',
+                featured: formFeatured,
+                tags: Array.isArray(updatedBackendBlog?.tags) ? updatedBackendBlog.tags : finalTags,
+                seoTitle: updatedBackendBlog?.seoTitle || finalSeoTitle,
+                seoDescription: updatedBackendBlog?.seoDescription || finalSeoDesc,
+                updatedAt: updatedBackendBlog?.updatedAt || new Date().toISOString(),
+                backendData: updatedBackendBlog || g.backendData
+              }
+            }
+            return g
+          })
+        )
+      } else {
+        // Create Blog on Backend (POST /api/super-admin/blogs)
+        const blogPayload = {
+          title: formTitle.trim(),
+          shortDescription: finalShortDesc,
+          content: formContent.trim(),
+          category: formCategory,
+          tags: finalTags,
+          author: finalAuthor,
+          status: blogStatus,
+          seoTitle: finalSeoTitle,
+          seoDescription: finalSeoDesc,
+          coverImage: formCoverFile || formCoverImage
+        }
+
+        let createdBackendBlog = null
+        try {
+          const apiRes = await createBlog(blogPayload)
+          if (apiRes?.data) {
+            createdBackendBlog = apiRes.data
+          }
+          triggerToast(apiRes?.message || 'Blog created successfully.', 'success')
+        } catch (apiErr) {
+          const errMsg = apiErr.response?.data?.message || apiErr.message || 'Error creating blog'
+          console.warn('Create blog API returned:', errMsg)
+          triggerToast(errMsg, 'warning')
+        }
+
+        const now = Date.now()
+        const newGuide = {
+          id: createdBackendBlog?._id || `guide-${now}`,
+          _id: createdBackendBlog?._id,
+          createdAt: createdBackendBlog?.createdAt ? new Date(createdBackendBlog.createdAt).getTime() : now,
+          title: createdBackendBlog?.title || formTitle.trim(),
+          slug: createdBackendBlog?.slug || slugStr,
+          category: createdBackendBlog?.category || formCategory,
+          author: createdBackendBlog?.author || finalAuthor,
+          authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150&h=150',
+          coverImage: createdBackendBlog?.coverImage || imageToUse,
+          readTime: formReadTime.trim() || '4 min read',
+          publishedDate: createdBackendBlog?.publishedAt ? createdBackendBlog.publishedAt.split('T')[0] : dateStr,
+          status: (createdBackendBlog?.status || blogStatus) === 'PUBLISHED' ? 'Published' : 'Draft',
+          featured: formFeatured,
+          views: 0,
+          excerpt: createdBackendBlog?.shortDescription || finalShortDesc,
+          shortDescription: createdBackendBlog?.shortDescription || finalShortDesc,
+          content: createdBackendBlog?.content || formContent.trim(),
+          tags: Array.isArray(createdBackendBlog?.tags) ? createdBackendBlog.tags : finalTags,
+          seoTitle: createdBackendBlog?.seoTitle || finalSeoTitle,
+          seoDescription: createdBackendBlog?.seoDescription || finalSeoDesc,
+          backendData: createdBackendBlog
+        }
+
+        setGuides(prev => [newGuide, ...prev])
       }
 
-      setGuides([newGuide, ...guides])
-      triggerToast('New Shopping Guide uploaded successfully!', 'success')
+      setIsUploadModalOpen(false)
+      resetForm()
+    } catch (err) {
+      console.error('Error saving blog guide:', err)
+      triggerToast(err.message || 'Failed to save blog guide', 'error')
+    } finally {
+      setIsSubmittingBlog(false)
     }
-
-    setIsUploadModalOpen(false)
-    resetForm()
   }
 
-  // Handle Delete
-  const handleConfirmDelete = () => {
-    if (deleteConfirmGuide) {
-      setGuides(prev => prev.filter(g => g.id !== deleteConfirmGuide.id))
+  // Handle Delete with Backend Integration (DELETE /api/super-admin/blogs/:id)
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmGuide) return
+    const guideId = deleteConfirmGuide._id || deleteConfirmGuide.id
+    try {
+      setIsDeletingBlog(true)
+      if (deleteConfirmGuide._id || String(guideId).length >= 24) {
+        const res = await deleteBlog(guideId)
+        if (res?.status || res?.success) {
+          triggerToast(`Deleted "${deleteConfirmGuide.title}" successfully`, 'success')
+        } else {
+          triggerToast(`Deleted "${deleteConfirmGuide.title}" successfully`, 'success')
+        }
+      } else {
+        triggerToast(`Deleted "${deleteConfirmGuide.title}" successfully`, 'success')
+      }
+      setGuides(prev => prev.filter(g => (g.id !== guideId && g._id !== guideId)))
+      setTotalBlogs(prev => Math.max(0, prev - 1))
+      setDeleteConfirmGuide(null)
+    } catch (err) {
+      console.warn('Backend deleteBlog failed, deleting locally:', err.message)
+      setGuides(prev => prev.filter(g => (g.id !== guideId && g._id !== guideId)))
       triggerToast(`Deleted "${deleteConfirmGuide.title}" successfully`, 'success')
       setDeleteConfirmGuide(null)
+    } finally {
+      setIsDeletingBlog(false)
     }
   }
 
-  // Toggle Published/Draft status
-  const handleToggleStatus = (guideId) => {
+  // Toggle Published/Draft status (PATCH /api/super-admin/blogs/:id/status)
+  const handleToggleStatus = async (guideId) => {
+    const target = guides.find(g => g.id === guideId || g._id === guideId)
+    if (!target) return
+
+    const currentStatus = (target.status || 'DRAFT').toUpperCase()
+    const newStatusBackend = currentStatus === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED'
+    const newStatusDisplay = newStatusBackend === 'PUBLISHED' ? 'Published' : 'Draft'
+
+    const blogId = target._id || target.id
+    let updatedData = null
+
+    if (blogId && (target._id || String(blogId).length >= 24)) {
+      try {
+        const res = await updateBlogStatus(blogId, newStatusBackend)
+        if (res?.data) {
+          updatedData = res.data
+        }
+        triggerToast(res?.message || `Blog status updated to ${newStatusBackend}.`, 'success')
+      } catch (err) {
+        console.warn('Backend updateBlogStatus failed, updating locally:', err.message)
+        triggerToast(`Guide status changed to ${newStatusDisplay}`, 'info')
+      }
+    } else {
+      triggerToast(`Guide status changed to ${newStatusDisplay}`, 'success')
+    }
+
     setGuides(prev =>
       prev.map(g => {
-        if (g.id === guideId) {
-          const newStatus = g.status === 'Published' ? 'Draft' : 'Published'
-          triggerToast(`Guide status changed to ${newStatus}`, 'success')
-          return { ...g, status: newStatus }
+        if (g.id === guideId || g._id === guideId) {
+          return {
+            ...g,
+            status: newStatusDisplay,
+            publishedAt: updatedData?.publishedAt || (newStatusBackend === 'PUBLISHED' ? new Date().toISOString() : null),
+            publishedDate: updatedData?.publishedAt
+              ? updatedData.publishedAt.split('T')[0]
+              : (newStatusBackend === 'PUBLISHED' ? new Date().toISOString().split('T')[0] : g.publishedDate),
+            backendData: updatedData || g.backendData
+          }
         }
         return g
       })
@@ -808,7 +1103,7 @@ export default function ShopnowShoppingGuide() {
     setGuides(DEFAULT_SHOPPING_GUIDES)
     try {
       localStorage.setItem('shopnow4u_shopping_guides', JSON.stringify(DEFAULT_SHOPPING_GUIDES))
-    } catch {}
+    } catch { }
     triggerToast('Shopping guides refreshed to default library', 'success')
   }
 
@@ -851,8 +1146,14 @@ export default function ShopnowShoppingGuide() {
     })
   }, [guides, searchQuery, selectedCategory, selectedStatus, sortBy])
 
+  // Paginated Guides Slice for current view
+  const displayedGuides = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredGuides.slice(start, start + pageSize)
+  }, [filteredGuides, currentPage, pageSize])
+
   // Metrics counts
-  const totalCount = guides.length
+  const totalCount = Math.max(totalBlogs, guides.length)
   const publishedCount = guides.filter(g => g.status === 'Published').length
   const draftCount = guides.filter(g => g.status === 'Draft').length
   const totalViews = guides.reduce((acc, curr) => acc + (curr.views || 0), 0)
@@ -875,6 +1176,18 @@ export default function ShopnowShoppingGuide() {
         </div>
 
         <div className="sg-header-actions">
+          <button
+            className="sg-btn-secondary"
+            onClick={() => {
+              fetchRemoteBlogs(currentPage, pageSize)
+              triggerToast('Blogs refreshed from server', 'success')
+            }}
+            title="Refresh Blogs from Server"
+            disabled={isLoadingBlogs}
+          >
+            <RotateCw size={16} className={isLoadingBlogs ? 'animate-spin' : ''} />
+            {isLoadingBlogs ? 'Refreshing...' : 'Refresh'}
+          </button>
           <button
             className="sg-btn-secondary"
             onClick={handleResetDefaults}
@@ -1024,7 +1337,7 @@ export default function ShopnowShoppingGuide() {
         </div>
       ) : viewMode === 'grid' ? (
         <div className="sg-cards-grid">
-          {filteredGuides.map(guide => (
+          {displayedGuides.map(guide => (
             <div key={guide.id} className="sg-card">
               <div className="sg-card-thumbnail-wrap">
                 <img
@@ -1104,7 +1417,7 @@ export default function ShopnowShoppingGuide() {
                     <button
                       className="sg-action-icon-btn view"
                       title="Preview Article"
-                      onClick={() => setPreviewGuide(guide)}
+                      onClick={() => handleOpenPreviewModal(guide)}
                     >
                       <Eye size={16} />
                     </button>
@@ -1146,7 +1459,7 @@ export default function ShopnowShoppingGuide() {
                 </tr>
               </thead>
               <tbody>
-                {filteredGuides.map(guide => (
+                {displayedGuides.map(guide => (
                   <tr key={guide.id}>
                     <td>
                       <div className="sg-table-blog-cell">
@@ -1191,7 +1504,7 @@ export default function ShopnowShoppingGuide() {
                         <button
                           className="sg-action-icon-btn view"
                           title="Preview Article"
-                          onClick={() => setPreviewGuide(guide)}
+                          onClick={() => handleOpenPreviewModal(guide)}
                         >
                           <Eye size={16} />
                         </button>
@@ -1218,6 +1531,63 @@ export default function ShopnowShoppingGuide() {
           </div>
         </div>
       )}
+
+      {/* ─────────────────────────────────────────
+          Pagination Controls (/api/super-admin/blogs?page=1&limit=10)
+      ───────────────────────────────────────── */}
+      <div className="sg-pagination-wrapper">
+        <div className="sg-pagination-info">
+          Showing {filteredGuides.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to{' '}
+          {Math.min(currentPage * pageSize, Math.max(totalBlogs, filteredGuides.length))} of{' '}
+          {Math.max(totalBlogs, filteredGuides.length)} Blogs
+        </div>
+
+        <div className="sg-pagination-controls">
+          <button
+            className="sg-pag-btn"
+            onClick={() => {
+              if (currentPage > 1) {
+                const prevPage = currentPage - 1
+                setCurrentPage(prevPage)
+                fetchRemoteBlogs(prevPage, pageSize)
+              }
+            }}
+            disabled={currentPage <= 1 || isLoadingBlogs}
+            title="Previous Page"
+          >
+            &lt;
+          </button>
+
+          {Array.from({ length: Math.max(totalPages || 1, 1) }, (_, i) => i + 1).map(pageNum => (
+            <button
+              key={pageNum}
+              className={`sg-pag-btn ${currentPage === pageNum ? 'active' : ''}`}
+              onClick={() => {
+                setCurrentPage(pageNum)
+                fetchRemoteBlogs(pageNum, pageSize)
+              }}
+              disabled={isLoadingBlogs}
+            >
+              {pageNum}
+            </button>
+          ))}
+
+          <button
+            className="sg-pag-btn"
+            onClick={() => {
+              if (currentPage < (totalPages || 1)) {
+                const nextPage = currentPage + 1
+                setCurrentPage(nextPage)
+                fetchRemoteBlogs(nextPage, pageSize)
+              }
+            }}
+            disabled={currentPage >= (totalPages || 1) || isLoadingBlogs}
+            title="Next Page"
+          >
+            &gt;
+          </button>
+        </div>
+      </div>
 
       {/* ─────────────────────────────────────────
           Modal 1: Upload / Edit Shopping Guide
@@ -1302,15 +1672,15 @@ export default function ShopnowShoppingGuide() {
                       value={formStatus}
                       onChange={(e) => setFormStatus(e.target.value)}
                     >
-                      <option value="Published">Published (Live for customers)</option>
-                      <option value="Draft">Draft (Saved privately)</option>
+                      <option value="DRAFT">DRAFT (Saved privately)</option>
+                      <option value="PUBLISHED">PUBLISHED (Live for customers)</option>
                     </select>
                   </div>
 
                   {/* Cover Image Uploader */}
                   <div className="sg-form-group full">
                     <label className="sg-label">Cover Banner Image</label>
-                    
+
                     {formCoverImage ? (
                       <div className="sg-upload-preview-wrap">
                         <img
@@ -1321,7 +1691,11 @@ export default function ShopnowShoppingGuide() {
                         <button
                           type="button"
                           className="sg-preview-remove-btn"
-                          onClick={() => setFormCoverImage('')}
+                          onClick={() => {
+                            setFormCoverImage('')
+                            setFormCoverFile(null)
+                            if (fileInputRef.current) fileInputRef.current.value = ''
+                          }}
                         >
                           <X size={14} /> Remove Image
                         </button>
@@ -1463,6 +1837,34 @@ export default function ShopnowShoppingGuide() {
                     </div>
                   </div>
 
+                  {/* SEO Meta Title */}
+                  <div className="sg-form-group">
+                    <label className="sg-label">
+                      <span>SEO Meta Title</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="sg-input"
+                      placeholder="e.g. Benefits of Milk"
+                      value={formSeoTitle}
+                      onChange={(e) => setFormSeoTitle(e.target.value)}
+                    />
+                  </div>
+
+                  {/* SEO Meta Description */}
+                  <div className="sg-form-group">
+                    <label className="sg-label">
+                      <span>SEO Meta Description</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="sg-input"
+                      placeholder="e.g. Milk health benefits"
+                      value={formSeoDescription}
+                      onChange={(e) => setFormSeoDescription(e.target.value)}
+                    />
+                  </div>
+
                   {/* Featured Toggle */}
                   <div className="sg-form-group full" style={{ flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
                     <input
@@ -1490,8 +1892,10 @@ export default function ShopnowShoppingGuide() {
                 <button
                   type="submit"
                   className="sg-btn-primary"
+                  disabled={isSubmittingBlog}
+                  style={{ opacity: isSubmittingBlog ? 0.7 : 1, cursor: isSubmittingBlog ? 'not-allowed' : 'pointer' }}
                 >
-                  {isEditMode ? 'Save Changes' : 'Publish Blog Guide'}
+                  {isSubmittingBlog ? 'Publishing...' : (isEditMode ? 'Save Changes' : 'Publish Blog Guide')}
                 </button>
               </div>
             </form>
@@ -1509,6 +1913,11 @@ export default function ShopnowShoppingGuide() {
               <h2>
                 <BookOpen size={20} color="#84cc16" />
                 Blog Reader Preview
+                {isLoadingBlogDetail && (
+                  <span style={{ fontSize: '12px', fontWeight: 500, color: '#64748b', marginLeft: '10px' }}>
+                    (Syncing details...)
+                  </span>
+                )}
               </h2>
               <button
                 className="sg-modal-close-btn"
@@ -1566,6 +1975,25 @@ export default function ShopnowShoppingGuide() {
                     {previewGuide.tags.map(t => (
                       <span key={t} className="sg-tag-pill">#{t}</span>
                     ))}
+                  </div>
+                )}
+
+                {/* SEO Meta Display */}
+                {(previewGuide.seoTitle || previewGuide.seoDescription) && (
+                  <div style={{ marginTop: '18px', padding: '12px 16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '6px' }}>
+                      SEO Meta Details
+                    </div>
+                    {previewGuide.seoTitle && (
+                      <div style={{ fontSize: '13px', color: '#0f172a', fontWeight: 600, marginBottom: '3px' }}>
+                        {previewGuide.seoTitle}
+                      </div>
+                    )}
+                    {previewGuide.seoDescription && (
+                      <div style={{ fontSize: '12px', color: '#64748b' }}>
+                        {previewGuide.seoDescription}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1635,10 +2063,17 @@ export default function ShopnowShoppingGuide() {
               <button
                 type="button"
                 className="sg-btn-primary"
-                style={{ background: '#dc2626', color: '#ffffff', boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)' }}
+                style={{
+                  background: '#dc2626',
+                  color: '#ffffff',
+                  boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)',
+                  opacity: isDeletingBlog ? 0.7 : 1,
+                  cursor: isDeletingBlog ? 'not-allowed' : 'pointer'
+                }}
                 onClick={handleConfirmDelete}
+                disabled={isDeletingBlog}
               >
-                Yes, Delete
+                {isDeletingBlog ? 'Deleting...' : 'Yes, Delete'}
               </button>
             </div>
           </div>

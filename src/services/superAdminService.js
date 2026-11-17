@@ -1851,6 +1851,315 @@ export const updateBusinessPlan = updateVendorBusinessPlan;
 export const deleteBusinessPlan = deleteVendorBusinessPlan;
 export const updateBusinessPlanStatus = updateVendorBusinessPlanStatus;
 
+/**
+ * Helper to ensure base64 data URL or File is converted to File object for multipart upload
+ */
+const ensureBlobOrFile = (val, filename = 'coverImage.jpg') => {
+  if (!val) return null;
+  if (val instanceof File || val instanceof Blob) return val;
+  if (typeof val === 'string' && val.startsWith('data:')) {
+    try {
+      const parts = val.split(',');
+      const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+      const bstr = atob(parts[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      return new File([u8arr], filename, { type: mime });
+    } catch (e) {
+      console.warn('Failed to convert data URL to File:', e);
+    }
+  }
+  return null;
+};
+
+/**
+ * 76. Create Blog (POST /api/super-admin/blogs)
+ * Method: POST
+ * Authentication: Bearer Token
+ * Authorization: Super Admin
+ * Payload: multipart/form-data
+ */
+export const createBlog = async (blogData) => {
+  let formData;
+  if (blogData instanceof FormData) {
+    formData = blogData;
+  } else {
+    formData = new FormData();
+    if (blogData.title) formData.append('title', blogData.title.trim());
+    
+    const shortDesc = blogData.shortDescription !== undefined 
+      ? blogData.shortDescription 
+      : (blogData.excerpt || '');
+    formData.append('shortDescription', shortDesc.trim());
+
+    if (blogData.content !== undefined) formData.append('content', blogData.content.trim());
+    if (blogData.category !== undefined) formData.append('category', blogData.category.trim());
+
+    let tagsVal = '[]';
+    if (Array.isArray(blogData.tags)) {
+      tagsVal = JSON.stringify(blogData.tags);
+    } else if (typeof blogData.tags === 'string') {
+      if (blogData.tags.trim().startsWith('[') && blogData.tags.trim().endsWith(']')) {
+        tagsVal = blogData.tags.trim();
+      } else {
+        const splitTags = blogData.tags
+          .split(',')
+          .map(s => s.trim().replace(/^#/, ''))
+          .filter(Boolean);
+        tagsVal = JSON.stringify(splitTags);
+      }
+    }
+    formData.append('tags', tagsVal);
+
+    if (blogData.author) formData.append('author', blogData.author.trim());
+    
+    const rawStatus = (blogData.status || 'DRAFT').toUpperCase();
+    formData.append('status', rawStatus === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT');
+
+    const seoTitleVal = blogData.seoTitle || blogData.title || '';
+    formData.append('seoTitle', seoTitleVal.trim());
+
+    const seoDescVal = blogData.seoDescription || shortDesc || '';
+    formData.append('seoDescription', seoDescVal.trim());
+
+    const fileCandidate = blogData.coverImage || blogData.coverFile || blogData.file;
+    const finalFile = ensureBlobOrFile(fileCandidate);
+    if (finalFile) {
+      formData.append('coverImage', finalFile);
+    }
+  }
+
+  const endpoints = ['/super-admin/blogs', '/superadmin/blogs', '/blogs'];
+  let lastError = null;
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await api.post(endpoint, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      if (response?.data) return response.data;
+    } catch (err) {
+      lastError = err;
+      const status = err.response?.status;
+      if (status !== 404 && status !== 405) {
+        throw err;
+      }
+    }
+  }
+  throw lastError;
+};
+
+/**
+ * Get All Blogs (GET /api/super-admin/blogs?page=1&limit=10)
+ * Method: GET
+ * Authentication: Bearer Token
+ * Authorization: Super Admin
+ */
+export const getAllBlogs = async (pageOrParams = 1, limit = 10) => {
+  let params = { page: 1, limit: 10 };
+  if (typeof pageOrParams === 'object' && pageOrParams !== null) {
+    params = { page: 1, limit: 10, ...pageOrParams };
+  } else if (pageOrParams !== undefined) {
+    params = { page: Number(pageOrParams) || 1, limit: Number(limit) || 10 };
+  }
+
+  const endpoints = ['/super-admin/blogs', '/superadmin/blogs', '/blogs'];
+  let lastError = null;
+  for (const endpoint of endpoints) {
+    try {
+      const response = await api.get(endpoint, { params });
+      if (response?.data) return response.data;
+    } catch (err) {
+      lastError = err;
+      const status = err.response?.status;
+      if (status !== 404 && status !== 405) {
+        throw err;
+      }
+    }
+  }
+  return null;
+};
+
+/**
+ * Get Blog By ID (GET /api/super-admin/blogs/:id)
+ * Method: GET
+ * Authentication: Bearer Token
+ * Authorization: Super Admin
+ */
+export const getBlogById = async (id) => {
+  const cleanId = String(id || '').trim();
+  if (!cleanId) throw new Error('Blog ID is required');
+
+  const endpoints = [
+    `/super-admin/blogs/${cleanId}`,
+    `/superadmin/blogs/${cleanId}`,
+    `/blogs/${cleanId}`
+  ];
+  let lastError = null;
+  for (const endpoint of endpoints) {
+    try {
+      const response = await api.get(endpoint);
+      if (response?.data) return response.data;
+    } catch (err) {
+      lastError = err;
+      const status = err.response?.status;
+      if (status !== 404 && status !== 405) {
+        throw err;
+      }
+    }
+  }
+  throw lastError || new Error(`Blog with ID ${cleanId} not found`);
+};
+
+/**
+ * Update Blog By ID (PUT /api/super-admin/blogs/:id)
+ * Method: PUT
+ * Endpoint: /api/super-admin/blogs/:id
+ * Authentication: Bearer Token
+ * Authorization: Super Admin
+ */
+export const updateBlog = async (id, blogData) => {
+  const cleanId = String(id || '').trim();
+  if (!cleanId) throw new Error('Blog ID is required for update');
+
+  let payload;
+  let headers = {};
+
+  const hasFile =
+    blogData instanceof FormData ||
+    blogData?.coverImage instanceof File ||
+    blogData?.coverImage instanceof Blob ||
+    blogData?.coverFile instanceof File ||
+    blogData?.coverFile instanceof Blob;
+
+  if (blogData instanceof FormData) {
+    payload = blogData;
+    headers['Content-Type'] = 'multipart/form-data';
+  } else if (hasFile) {
+    const fd = new FormData();
+    Object.entries(blogData).forEach(([key, val]) => {
+      if (val !== undefined && val !== null) {
+        if (key === 'coverImage' || key === 'coverFile') {
+          const fileObj = ensureBlobOrFile(val);
+          if (fileObj) fd.append('coverImage', fileObj);
+        } else if (key === 'tags') {
+          const tagsVal = Array.isArray(val) ? JSON.stringify(val) : String(val);
+          fd.append('tags', tagsVal);
+        } else {
+          fd.append(key, typeof val === 'object' ? JSON.stringify(val) : String(val));
+        }
+      }
+    });
+    payload = fd;
+    headers['Content-Type'] = 'multipart/form-data';
+  } else {
+    // Pure JSON payload (e.g. { title: "..." })
+    payload = { ...blogData };
+    headers['Content-Type'] = 'application/json';
+  }
+
+  // Primary method is PUT as specified in the contract
+  const endpoints = [
+    { method: 'put', url: `/super-admin/blogs/${cleanId}` },
+    { method: 'patch', url: `/super-admin/blogs/${cleanId}` },
+    { method: 'put', url: `/superadmin/blogs/${cleanId}` },
+    { method: 'patch', url: `/superadmin/blogs/${cleanId}` },
+    { method: 'put', url: `/blogs/${cleanId}` }
+  ];
+
+  let lastError = null;
+  for (const ep of endpoints) {
+    try {
+      const response = await api[ep.method](ep.url, payload, { headers });
+      if (response?.data) return response.data;
+    } catch (err) {
+      lastError = err;
+      const status = err.response?.status;
+      if (status !== 404 && status !== 405) {
+        throw err;
+      }
+    }
+  }
+  throw lastError || new Error(`Failed to update blog ${cleanId}`);
+};
+
+/**
+ * Update Blog Status (PATCH /api/super-admin/blogs/:id/status)
+ * Method: PATCH
+ * Endpoint: /api/super-admin/blogs/:id/status
+ * Authentication: Bearer Token
+ * Authorization: Super Admin
+ * Request: { status: "PUBLISHED" | "DRAFT" }
+ */
+export const updateBlogStatus = async (id, status) => {
+  const cleanId = String(id || '').trim();
+  if (!cleanId) throw new Error('Blog ID is required');
+
+  const formattedStatus = String(status || 'PUBLISHED').trim().toUpperCase();
+  const payload = { status: formattedStatus === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT' };
+
+  const endpoints = [
+    { method: 'patch', url: `/super-admin/blogs/${cleanId}/status` },
+    { method: 'patch', url: `/superadmin/blogs/${cleanId}/status` },
+    { method: 'patch', url: `/blogs/${cleanId}/status` },
+    { method: 'put', url: `/super-admin/blogs/${cleanId}/status` },
+    { method: 'put', url: `/super-admin/blogs/${cleanId}` },
+  ];
+
+  let lastError = null;
+  for (const ep of endpoints) {
+    try {
+      const response = await api[ep.method](ep.url, payload);
+      if (response?.data) return response.data;
+    } catch (err) {
+      lastError = err;
+      const statusCode = err.response?.status;
+      if (statusCode !== 404 && statusCode !== 405) {
+        throw err;
+      }
+    }
+  }
+  throw lastError || new Error(`Failed to update status for blog ${cleanId}`);
+};
+
+/**
+ * Delete Blog By Id (DELETE /api/super-admin/blogs/:id)
+ * Method: DELETE
+ * Endpoint: /api/super-admin/blogs/:id
+ * Authentication: Bearer Token
+ * Authorization: Super Admin
+ * Response: { status: true }
+ */
+export const deleteBlog = async (id) => {
+  const cleanId = String(id || '').trim();
+  if (!cleanId) throw new Error('Blog ID is required for delete');
+
+  const endpoints = [
+    `/super-admin/blogs/${cleanId}`,
+    `/superadmin/blogs/${cleanId}`,
+    `/blogs/${cleanId}`
+  ];
+  let lastError = null;
+  for (const endpoint of endpoints) {
+    try {
+      const response = await api.delete(endpoint);
+      if (response?.data) return response.data;
+    } catch (err) {
+      lastError = err;
+      const status = err.response?.status;
+      if (status !== 404 && status !== 405) {
+        throw err;
+      }
+    }
+  }
+  throw lastError || new Error(`Failed to delete blog ${cleanId}`);
+};
+
 export default {
   createSuperAdmin,
   loginSuperAdmin,
@@ -1960,6 +2269,12 @@ export default {
   refundOrderPayment,
   getCloudVendorSync,
   saveCloudVendorSync,
+  createBlog,
+  getAllBlogs,
+  getBlogById,
+  updateBlog,
+  updateBlogStatus,
+  deleteBlog,
 };
 
 
