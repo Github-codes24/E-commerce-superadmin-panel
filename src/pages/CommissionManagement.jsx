@@ -440,7 +440,7 @@ function CommissionManagement() {
       categoryId: '',
       category: '',
       rate: '',
-      productPrice: String(benchmarkPrice || 1000),
+      productPrice: '1000',
       vendors: '0',
       status: 'ACTIVE',
     })
@@ -461,7 +461,7 @@ function CommissionManagement() {
       categoryId: foundCatId || item.category || '',
       category: item.category || '',
       rate: String(item.rate).replace('%', ''),
-      productPrice: String(item.productPrice || benchmarkPrice || 1000),
+      productPrice: String(item.productPrice || 1000),
       vendors: item.vendors !== undefined ? String(item.vendors) : '0',
       status: item.status ? item.status.toUpperCase() : 'ACTIVE',
     })
@@ -624,7 +624,7 @@ function CommissionManagement() {
         }
       }
 
-      const cleanProductPrice = parseFloat(formData.productPrice) || benchmarkPrice || 1000
+      const cleanProductPrice = parseFloat(formData.productPrice) || 1000
       try {
         const stored = JSON.parse(localStorage.getItem('commission_product_prices') || '{}')
         if (catId) stored[String(catId).trim()] = cleanProductPrice
