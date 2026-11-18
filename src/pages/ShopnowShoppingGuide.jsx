@@ -28,7 +28,7 @@ import {
   CheckSquare
 } from 'lucide-react'
 import './ShopnowShoppingGuide.css'
-import { createBlog, getAllBlogs, getBlogById, updateBlog, updateBlogStatus, deleteBlog } from '../services/superAdminService'
+import { createBlog, getAllBlogs, getBlogById, updateBlog, updateBlogStatus, deleteBlog, extractBlogCoverImage } from '../services/superAdminService'
 
 // Import asset images
 import blog1Img from '../assets/Blog 1.jpeg'
@@ -686,7 +686,7 @@ export default function ShopnowShoppingGuide() {
           category: b.category || 'Health',
           author: b.author || 'Super Admin',
           readTime: b.readTime || '4 min read',
-          coverImage: b.coverImage || blog1Img,
+          coverImage: extractBlogCoverImage(b) || b.coverImage || '',
           coverImageKey: b.coverImageKey,
           excerpt: b.shortDescription || b.excerpt || (b.content ? b.content.slice(0, 160) + '...' : ''),
           shortDescription: b.shortDescription || '',
@@ -890,8 +890,7 @@ export default function ShopnowShoppingGuide() {
 
     setIsSubmittingBlog(true)
 
-    const defaultImages = [blog1Img, blog2Img, blog3Img, blog4Img, blog5Img]
-    const imageToUse = formCoverImage.trim() || defaultImages[Math.floor(Math.random() * defaultImages.length)]
+    const imageToUse = formCoverImage.trim() || ''
     const dateStr = new Date().toISOString().split('T')[0]
     const slugStr = formTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
@@ -941,7 +940,7 @@ export default function ShopnowShoppingGuide() {
                 category: updatedBackendBlog?.category || formCategory,
                 author: updatedBackendBlog?.author || finalAuthor,
                 readTime: formReadTime.trim() || '4 min read',
-                coverImage: updatedBackendBlog?.coverImage || formCoverImage || g.coverImage,
+                coverImage: updatedBackendBlog?.coverImage || formCoverImage || g.coverImage || '',
                 coverImageKey: updatedBackendBlog?.coverImageKey || g.coverImageKey,
                 excerpt: updatedBackendBlog?.shortDescription || finalShortDesc,
                 shortDescription: updatedBackendBlog?.shortDescription || finalShortDesc,
@@ -996,7 +995,7 @@ export default function ShopnowShoppingGuide() {
           category: createdBackendBlog?.category || formCategory,
           author: createdBackendBlog?.author || finalAuthor,
           authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150&h=150',
-          coverImage: createdBackendBlog?.coverImage || imageToUse,
+          coverImage: createdBackendBlog?.coverImage || formCoverImage || '',
           readTime: formReadTime.trim() || '4 min read',
           publishedDate: createdBackendBlog?.publishedAt ? createdBackendBlog.publishedAt.split('T')[0] : dateStr,
           status: (createdBackendBlog?.status || blogStatus) === 'PUBLISHED' ? 'Published' : 'Draft',
@@ -1355,11 +1354,12 @@ export default function ShopnowShoppingGuide() {
             <div key={guide.id} className="sg-card">
               <div className="sg-card-thumbnail-wrap">
                 <img
-                  src={guide.coverImage}
+                  src={guide.coverImage || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="250" viewBox="0 0 400 250" fill="%23f1f5f9"><rect width="400" height="250" fill="%23f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-family="sans-serif" font-size="14">No Image</text></svg>'}
                   alt={guide.title}
                   className="sg-card-img"
                   onError={(e) => {
-                    e.target.src = blog1Img
+                    e.target.onerror = null;
+                    e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="250" viewBox="0 0 400 250" fill="%23f1f5f9"><rect width="400" height="250" fill="%23f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-family="sans-serif" font-size="14">No Image</text></svg>';
                   }}
                 />
                 <div className="sg-card-badges">
@@ -1478,11 +1478,12 @@ export default function ShopnowShoppingGuide() {
                     <td>
                       <div className="sg-table-blog-cell">
                         <img
-                          src={guide.coverImage}
+                          src={guide.coverImage || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="%23f1f5f9"><rect width="100" height="100" fill="%23f1f5f9"/></svg>'}
                           alt={guide.title}
                           className="sg-table-thumbnail"
                           onError={(e) => {
-                            e.target.src = blog1Img
+                            e.target.onerror = null;
+                            e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="%23f1f5f9"><rect width="100" height="100" fill="%23f1f5f9"/></svg>';
                           }}
                         />
                         <div>
@@ -1740,40 +1741,14 @@ export default function ShopnowShoppingGuide() {
                       </div>
                     )}
 
-                    {/* Presets from Assets */}
-                    <div style={{ marginTop: '10px' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '6px' }}>
-                        Or choose from project asset covers:
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        {ASSET_IMAGES.map((item, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => setFormCoverImage(item.img)}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              padding: '5px 10px',
-                              border: formCoverImage === item.img ? '2px solid #84cc16' : '1px solid #cbd5e1',
-                              borderRadius: '8px',
-                              background: formCoverImage === item.img ? '#f7fee7' : '#ffffff',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <img src={item.img} alt={item.name} style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '4px' }} />
-                            <span style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>{item.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={{ marginTop: '8px' }}>
+                    <div style={{ marginTop: '12px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '4px' }}>
+                        Or enter direct image URL:
+                      </label>
                       <input
                         type="url"
                         className="sg-input"
-                        placeholder="Or enter direct image URL (e.g. https://images.unsplash.com/...)"
+                        placeholder="https://images.unsplash.com/... or S3 image URL"
                         value={formCoverImage}
                         onChange={(e) => setFormCoverImage(e.target.value)}
                       />
@@ -1944,11 +1919,12 @@ export default function ShopnowShoppingGuide() {
             <div className="sg-modal-body" style={{ padding: 0 }}>
               <div className="sg-preview-hero">
                 <img
-                  src={previewGuide.coverImage}
+                  src={previewGuide.coverImage || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" viewBox="0 0 600 300" fill="%23f1f5f9"><rect width="600" height="300" fill="%23f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-family="sans-serif" font-size="16">No Image</text></svg>'}
                   alt={previewGuide.title}
                   className="sg-preview-hero-img"
                   onError={(e) => {
-                    e.target.src = blog1Img
+                    e.target.onerror = null;
+                    e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" viewBox="0 0 600 300" fill="%23f1f5f9"><rect width="600" height="300" fill="%23f1f5f9"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-family="sans-serif" font-size="16">No Image</text></svg>';
                   }}
                 />
               </div>

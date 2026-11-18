@@ -1881,6 +1881,54 @@ const ensureBlobOrFile = (val, filename = 'coverImage.jpg') => {
 };
 
 /**
+ * Universal helper to extract the genuine cover image URL from any blog object
+ * Extracts from direct coverImage, HTML content (comment/img), seoDescription, or localStorage
+ */
+export const extractBlogCoverImage = (blog) => {
+  if (!blog) return '';
+  // 1. Direct coverImage property if it's a valid remote URL or data URL
+  if (typeof blog.coverImage === 'string' && blog.coverImage.trim() !== '') {
+    const trimmed = blog.coverImage.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+      return trimmed;
+    }
+  }
+  // 2. Extract from content (embedded comment <!--coverImage:...-->, data attribute, or img src)
+  if (typeof blog.content === 'string' && blog.content) {
+    const commentMatch = blog.content.match(/<!--coverImage:(https?:\/\/[^\s>]+)-->/);
+    if (commentMatch && commentMatch[1]) return commentMatch[1].trim();
+
+    const dataAttrMatch = blog.content.match(/data-cover-image=["'](https?:\/\/[^"']+)["']/);
+    if (dataAttrMatch && dataAttrMatch[1]) return dataAttrMatch[1].trim();
+
+    const imgMatch = blog.content.match(/<img[^>]+src=["'](https?:\/\/[^"']+)["']/);
+    if (imgMatch && imgMatch[1]) return imgMatch[1].trim();
+  }
+  // 3. Extract from seoDescription or shortDescription
+  for (const field of [blog.seoDescription, blog.shortDescription, blog.excerpt]) {
+    if (typeof field === 'string' && field) {
+      const match = field.match(/<!--coverImage:(https?:\/\/[^\s>]+)-->/);
+      if (match && match[1]) return match[1].trim();
+    }
+  }
+  // 4. Check localStorage map (shopnow4u_blog_images)
+  try {
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      const mapRaw = localStorage.getItem('shopnow4u_blog_images');
+      if (mapRaw) {
+        const map = JSON.parse(mapRaw);
+        const idKey = String(blog._id || blog.id || '');
+        const slugKey = String(blog.slug || '').toLowerCase();
+        if (idKey && map[idKey]) return map[idKey];
+        if (slugKey && map[slugKey]) return map[slugKey];
+      }
+    }
+  } catch (_) {}
+
+  return '';
+};
+
+/**
  * 76. Create Blog (POST /api/super-admin/blogs)
  * Method: POST
  * Authentication: Bearer Token
@@ -1891,10 +1939,10 @@ export const createBlog = async (blogData) => {
   let coverImageUrl = '';
   const fileCandidate = blogData.coverImage || blogData.coverFile || blogData.file;
 
-  // 1. If an image file/blob is provided, attempt direct S3 upload first so it gets a real S3 URL
+  // 1. If an image file/blob or URL is provided, upload directly to S3
   if (fileCandidate) {
     if (typeof fileCandidate === 'string' && (fileCandidate.startsWith('http://') || fileCandidate.startsWith('https://'))) {
-      coverImageUrl = fileCandidate;
+      coverImageUrl = fileCandidate.trim();
     } else {
       try {
         const s3Res = await uploadToS3(fileCandidate, 'blogs');
@@ -1926,16 +1974,30 @@ export const createBlog = async (blogData) => {
   const rawStatus = (blogData.status || 'DRAFT').toUpperCase();
   const initialStatus = rawStatus === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT';
 
+  // Embed coverImageUrl into content so it is permanently stored in MongoDB
+  let finalContent = (blogData.content || '').trim();
+  if (coverImageUrl) {
+    const coverMarker = `<!--coverImage:${coverImageUrl}-->\n<div class="blog-lead-cover-wrap" data-cover-image="${coverImageUrl}"><img src="${coverImageUrl}" alt="${blogData.title || 'Blog'}" class="blog-lead-cover-img" /></div>\n`;
+    if (!finalContent.includes(coverImageUrl)) {
+      finalContent = `${coverMarker}${finalContent}`;
+    }
+  }
+
+  let finalSeoDesc = (blogData.seoDescription || shortDesc || '').trim();
+  if (coverImageUrl && !finalSeoDesc.includes('<!--coverImage:')) {
+    finalSeoDesc = `${finalSeoDesc} <!--coverImage:${coverImageUrl}-->`;
+  }
+
   const jsonPayload = {
     title: (blogData.title || '').trim(),
     shortDescription: shortDesc.trim(),
-    content: (blogData.content || '').trim(),
+    content: finalContent,
     category: (blogData.category || 'Health').trim(),
     tags: tagsArray,
     author: (blogData.author || 'Super Admin').trim(),
     status: initialStatus,
     seoTitle: (blogData.seoTitle || blogData.title || '').trim(),
-    seoDescription: (blogData.seoDescription || shortDesc || '').trim(),
+    seoDescription: finalSeoDesc,
     coverImage: coverImageUrl || ''
   };
 
@@ -2008,6 +2070,27 @@ export const createBlog = async (blogData) => {
     }
   }
 
+  // Attach extracted or uploaded cover image to returned object & localStorage map
+  if (createdResponse?.data) {
+    if (coverImageUrl) {
+      createdResponse.data.coverImage = coverImageUrl;
+    } else {
+      createdResponse.data.coverImage = extractBlogCoverImage(createdResponse.data);
+    }
+
+    try {
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined' && coverImageUrl) {
+        const mapRaw = localStorage.getItem('shopnow4u_blog_images') || '{}';
+        const imgMap = JSON.parse(mapRaw);
+        if (newBlogId) imgMap[String(newBlogId)] = coverImageUrl;
+        if (createdResponse.data.slug) imgMap[String(createdResponse.data.slug).toLowerCase()] = coverImageUrl;
+        if (createdResponse.data.title) imgMap[String(createdResponse.data.title).toLowerCase()] = coverImageUrl;
+        localStorage.setItem('shopnow4u_blog_images', JSON.stringify(imgMap));
+        window.dispatchEvent(new Event('storage'));
+      }
+    } catch (_) {}
+  }
+
   return createdResponse;
 };
 
@@ -2030,7 +2113,16 @@ export const getAllBlogs = async (pageOrParams = 1, limit = 10) => {
   for (const endpoint of endpoints) {
     try {
       const response = await api.get(endpoint, { params });
-      if (response?.data) return response.data;
+      if (response?.data) {
+        const blogs = response.data?.data?.blogs || response.data?.blogs || [];
+        if (Array.isArray(blogs)) {
+          blogs.forEach(b => {
+            const ext = extractBlogCoverImage(b);
+            if (ext) b.coverImage = ext;
+          });
+        }
+        return response.data;
+      }
     } catch (err) {
       lastError = err;
       const status = err.response?.status;
@@ -2061,7 +2153,14 @@ export const getBlogById = async (id) => {
   for (const endpoint of endpoints) {
     try {
       const response = await api.get(endpoint);
-      if (response?.data) return response.data;
+      if (response?.data) {
+        const blogObj = response.data?.data || response.data?.blog || response.data;
+        if (blogObj && typeof blogObj === 'object') {
+          const ext = extractBlogCoverImage(blogObj);
+          if (ext) blogObj.coverImage = ext;
+        }
+        return response.data;
+      }
     } catch (err) {
       lastError = err;
       const status = err.response?.status;
@@ -2084,39 +2183,44 @@ export const updateBlog = async (id, blogData) => {
   const cleanId = String(id || '').trim();
   if (!cleanId) throw new Error('Blog ID is required for update');
 
-  let payload;
-  let headers = {};
+  let coverImageUrl = '';
+  const fileCandidate = blogData.coverImage || blogData.coverFile || blogData.file;
 
-  const hasFile =
-    blogData instanceof FormData ||
-    blogData?.coverImage instanceof File ||
-    blogData?.coverImage instanceof Blob ||
-    blogData?.coverFile instanceof File ||
-    blogData?.coverFile instanceof Blob;
-
-  if (blogData instanceof FormData) {
-    payload = blogData;
-  } else if (hasFile) {
-    const fd = new FormData();
-    Object.entries(blogData).forEach(([key, val]) => {
-      if (val !== undefined && val !== null) {
-        if (key === 'coverImage' || key === 'coverFile') {
-          const fileObj = ensureBlobOrFile(val);
-          if (fileObj) fd.append('coverImage', fileObj);
-        } else if (key === 'tags') {
-          const tagsVal = Array.isArray(val) ? JSON.stringify(val) : String(val);
-          fd.append('tags', tagsVal);
-        } else {
-          fd.append(key, typeof val === 'object' ? JSON.stringify(val) : String(val));
+  if (fileCandidate) {
+    if (typeof fileCandidate === 'string' && (fileCandidate.startsWith('http://') || fileCandidate.startsWith('https://'))) {
+      coverImageUrl = fileCandidate.trim();
+    } else {
+      try {
+        const s3Res = await uploadToS3(fileCandidate, 'blogs');
+        if (s3Res?.url) {
+          coverImageUrl = s3Res.url;
         }
+      } catch (s3Err) {
+        console.warn('Direct S3 upload note on blog update:', s3Err?.message || s3Err);
       }
-    });
-    payload = fd;
-  } else {
-    // Pure JSON payload (e.g. { title: "..." })
-    payload = { ...blogData };
-    headers['Content-Type'] = 'application/json';
+    }
   }
+
+  const plainBlogData = blogData instanceof FormData ? {} : { ...blogData };
+
+  // Embed coverImageUrl into content if available
+  if (coverImageUrl && plainBlogData.content) {
+    const coverMarker = `<!--coverImage:${coverImageUrl}-->\n<div class="blog-lead-cover-wrap" data-cover-image="${coverImageUrl}"><img src="${coverImageUrl}" alt="${plainBlogData.title || 'Blog'}" class="blog-lead-cover-img" /></div>\n`;
+    if (!plainBlogData.content.includes(coverImageUrl)) {
+      plainBlogData.content = `${coverMarker}${plainBlogData.content}`;
+    }
+  }
+
+  if (coverImageUrl) {
+    let finalSeoDesc = (plainBlogData.seoDescription || plainBlogData.shortDescription || '').trim();
+    if (!finalSeoDesc.includes('<!--coverImage:')) {
+      plainBlogData.seoDescription = `${finalSeoDesc} <!--coverImage:${coverImageUrl}-->`.trim();
+    }
+    plainBlogData.coverImage = coverImageUrl;
+  }
+
+  const payload = plainBlogData;
+  const headers = { 'Content-Type': 'application/json' };
 
   // Primary method is PUT as specified in the contract
   const endpoints = [
@@ -2145,15 +2249,37 @@ export const updateBlog = async (id, blogData) => {
     }
   }
 
-  if (blogData?.status && cleanId) {
+  // Auto-sync status if status was provided in blogData
+  if (blogData.status && (blogData.status === 'PUBLISHED' || blogData.status === 'DRAFT')) {
     try {
-      const st = String(blogData.status).toUpperCase();
-      await api.patch(`/super-admin/blogs/${cleanId}/status`, { status: st });
+      await api.patch(`/super-admin/blogs/${cleanId}/status`, { status: blogData.status });
+    } catch (statusErr) {
+      console.warn('Status patch note on updateBlog:', statusErr?.message);
+    }
+  }
+
+  if (updateResult?.data) {
+    if (coverImageUrl) {
+      updateResult.data.coverImage = coverImageUrl;
+    } else {
+      updateResult.data.coverImage = extractBlogCoverImage(updateResult.data);
+    }
+
+    try {
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined' && coverImageUrl) {
+        const mapRaw = localStorage.getItem('shopnow4u_blog_images') || '{}';
+        const imgMap = JSON.parse(mapRaw);
+        imgMap[cleanId] = coverImageUrl;
+        if (updateResult.data.slug) imgMap[String(updateResult.data.slug).toLowerCase()] = coverImageUrl;
+        if (updateResult.data.title) imgMap[String(updateResult.data.title).toLowerCase()] = coverImageUrl;
+        localStorage.setItem('shopnow4u_blog_images', JSON.stringify(imgMap));
+        window.dispatchEvent(new Event('storage'));
+      }
     } catch (_) {}
   }
 
-  if (updateResult) return updateResult;
-  throw lastError || new Error(`Failed to update blog ${cleanId}`);
+  if (!updateResult) throw lastError;
+  return updateResult;
 };
 
 /**
@@ -2343,6 +2469,7 @@ export default {
   updateBlog,
   updateBlogStatus,
   deleteBlog,
+  extractBlogCoverImage,
 };
 
 
