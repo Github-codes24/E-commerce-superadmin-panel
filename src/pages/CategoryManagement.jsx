@@ -1138,40 +1138,71 @@ function CategoryManagement() {
     if (!category) return
 
     const catId = category.rawId || category._id || category.id
-    const isCurrentlyActive = category.status === 'active'
+    const isCurrentlyActive = category.status === 'active' || category.isActive === true
     const nextIsActive = !isCurrentlyActive
     const nextStatus = nextIsActive ? 'active' : 'inactive'
+
+    // Optimistic UI update: immediately flip status so toggle responds instantly
+    setCategoriesList(prev => prev.map(c => {
+      if (c.id === category.id || c.rawId === catId || c._id === catId) {
+        return { ...c, status: nextStatus, isActive: nextIsActive }
+      }
+      return c
+    }))
+
+    if (viewedCategory && (viewedCategory.id === category.id || viewedCategory.rawId === catId || viewedCategory._id === catId)) {
+      setViewedCategory(prev => prev ? ({ ...prev, status: nextStatus, isActive: nextIsActive }) : null)
+    }
+
+    // Also update custom categories in localStorage if present
+    try {
+      const storedCustom = getStoredCustomCategories()
+      if (storedCustom && storedCustom.length > 0) {
+        const updatedCustom = storedCustom.map(c => {
+          if (c.id === category.id || c.rawId === catId || c._id === catId) {
+            return { ...c, status: nextStatus, isActive: nextIsActive }
+          }
+          return c
+        })
+        saveCustomCategories(updatedCustom)
+      }
+    } catch (e) {
+      console.warn('Failed to update custom category in localStorage:', e)
+    }
 
     try {
       setStatusUpdatingId(catId)
 
       if (catId && typeof catId !== 'number' && !catId.toString().startsWith('cat-')) {
         const res = await updateCategoryStatus(catId, nextIsActive)
-        const successMsg = res?.message || (nextIsActive ? 'Category activated successfully.' : 'Category deactivated successfully.')
-        setSuccessToast(successMsg)
+        const successMsg = typeof res?.message === 'string'
+          ? res.message
+          : (typeof res?.data?.message === 'string'
+              ? res.data.message
+              : (nextIsActive ? 'Category activated successfully.' : 'Category deactivated successfully.'))
+        setSuccessToast(toSafeString(successMsg, nextIsActive ? 'Category activated successfully.' : 'Category deactivated successfully.'))
         setTimeout(() => setSuccessToast(''), 4000)
       } else {
         const successMsg = nextIsActive ? 'Category activated successfully.' : 'Category deactivated successfully.'
         setSuccessToast(successMsg)
         setTimeout(() => setSuccessToast(''), 4000)
       }
-
-      // Update categoriesList state
+    } catch (err) {
+      console.error('Failed to update category status:', err)
+      // Rollback optimistic update on error
       setCategoriesList(prev => prev.map(c => {
         if (c.id === category.id || c.rawId === catId || c._id === catId) {
-          return { ...c, status: nextStatus, isActive: nextIsActive }
+          return { ...c, status: category.status, isActive: category.isActive }
         }
         return c
       }))
-
-      // Update viewedCategory if opened
       if (viewedCategory && (viewedCategory.id === category.id || viewedCategory.rawId === catId || viewedCategory._id === catId)) {
-        setViewedCategory(prev => prev ? ({ ...prev, status: nextStatus, isActive: nextIsActive }) : null)
+        setViewedCategory(prev => prev ? ({ ...prev, status: category.status, isActive: category.isActive }) : null)
       }
-    } catch (err) {
-      console.error('Failed to update category status:', err)
-      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update category status.'
-      setFetchError(errorMsg)
+      const errorMsg = typeof err?.response?.data?.message === 'string'
+        ? err.response.data.message
+        : (typeof err?.message === 'string' ? err.message : 'Failed to update category status.')
+      setFetchError(toSafeString(errorMsg, 'Failed to update category status.'))
       setTimeout(() => setFetchError(null), 5000)
     } finally {
       setStatusUpdatingId(null)
@@ -1220,7 +1251,12 @@ function CategoryManagement() {
         const storedCustom = getStoredCustomCategories()
         saveCustomCategories(storedCustom.filter(c => c.id !== deletingCategoryId && c.rawId !== catId && c._id !== catId))
 
-        setSuccessToast(res?.message || 'Category deleted successfully.')
+        const successMsg = typeof res?.message === 'string'
+          ? res.message
+          : (typeof res?.data?.message === 'string'
+              ? res.data.message
+              : 'Category deleted successfully.')
+        setSuccessToast(toSafeString(successMsg, 'Category deleted successfully.'))
         setTimeout(() => setSuccessToast(''), 4000)
 
         if (viewedCategory && (viewedCategory.id === deletingCategoryId || viewedCategory.rawId === catId || viewedCategory._id === catId)) {
@@ -1579,7 +1615,7 @@ function CategoryManagement() {
         }}
       >
         <CheckCircle2 style={{ width: '18px', height: '18px' }} />
-        <span>{successToast}</span>
+        <span>{toSafeString(successToast)}</span>
         <button
           type="button"
           onClick={() => setSuccessToast('')}
@@ -2455,7 +2491,7 @@ function CategoryManagement() {
               border: '1px solid #ffcdd2'
             }}>
               <AlertCircle style={{ width: '18px', height: '18px', flexShrink: 0 }} />
-              <span>{formError}</span>
+              <span>{toSafeString(formError)}</span>
             </div>
           )}
 
@@ -2608,7 +2644,7 @@ function CategoryManagement() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <CheckCircle2 style={{ width: '18px', height: '18px', color: '#2e7d32' }} />
-            <span><strong>Success:</strong> {successToast}</span>
+            <span><strong>Success:</strong> {toSafeString(successToast)}</span>
           </div>
           <button
             type="button"
@@ -2672,7 +2708,7 @@ function CategoryManagement() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <AlertCircle style={{ width: '18px', height: '18px', flexShrink: 0 }} />
-            <span><strong>Notice:</strong> {fetchError.includes('jwt expired') ? 'Login session expired (jwt expired). Showing fallback categories. Please log in again to sync live data.' : fetchError}</span>
+            <span><strong>Notice:</strong> {toSafeString(fetchError).includes('jwt expired') ? 'Login session expired (jwt expired). Showing fallback categories. Please log in again to sync live data.' : toSafeString(fetchError)}</span>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
@@ -2953,7 +2989,7 @@ function CategoryManagement() {
                 lineHeight: '1.4'
               }}>
                 <AlertCircle style={{ width: '16px', height: '16px', flexShrink: 0 }} />
-                <span>{deleteError}</span>
+                <span>{toSafeString(deleteError)}</span>
               </div>
             )}
 
