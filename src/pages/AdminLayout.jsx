@@ -115,14 +115,14 @@ function AdminLayout({ onLogout }) {
   const menuItems = [
     { name: 'Dashboard', icon: LayoutGrid },
     { name: 'Reports', icon: BarChart3 },
-    { name: 'Admins Management', icon: UserCheck },
-    { name: 'Vendors Management', icon: Store },
+    { name: 'Admin Management', icon: UserCheck },
+    { name: 'Vendor Management', icon: Store },
     { name: 'Vendor Business Plans', icon: Briefcase },
-    { name: 'Customers Management', icon: Users },
+    { name: 'Customer Management', icon: Users },
     { name: 'Product Management', icon: Package },
     { name: 'Category Management', icon: Layers },
-    { name: 'Orders Management', icon: ClipboardList },
-    { name: 'Permissions Management', icon: Key }, // lowercase 'p' as in screenshot
+    { name: 'Order Management', icon: ClipboardList },
+    { name: 'Permission Management', icon: Key }, // lowercase 'p' as in screenshot
     { name: 'Offers & Coupons', icon: Percent },
     { name: 'Commission Management', icon: Coins },
     { name: 'Payment Monitoring', icon: CreditCard },
