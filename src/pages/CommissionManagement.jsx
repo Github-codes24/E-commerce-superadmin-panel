@@ -99,11 +99,30 @@ function CommissionManagement() {
     }, 4000)
   }
 
+  // Benchmark product price (₹1,000 by default, used to calculate commission amount)
+  const [benchmarkPrice, setBenchmarkPrice] = useState(() => {
+    try {
+      const stored = localStorage.getItem('commission_benchmark_price')
+      return stored ? Math.max(1, Number(stored)) : 1000
+    } catch {
+      return 1000
+    }
+  })
+
+  const handleBenchmarkPriceChange = (val) => {
+    const num = Math.max(1, Number(val) || 0)
+    setBenchmarkPrice(num)
+    try {
+      localStorage.setItem('commission_benchmark_price', String(num))
+    } catch {}
+  }
+
   // Form states
   const [formData, setFormData] = useState({
     categoryId: '',
     category: '',
     rate: '',
+    productPrice: '1000',
     vendors: '0',
     status: 'ACTIVE',
   })
@@ -117,15 +136,39 @@ function CommissionManagement() {
       'General'
     
     let rawRate = '0%'
+    let numRate = 0
     if (item.rate !== undefined && item.rate !== null) {
-      const numRate = typeof item.rate === 'number' ? item.rate : parseFloat(item.rate)
-      rawRate = !isNaN(numRate) ? `${numRate}%` : String(item.rate)
+      numRate = typeof item.rate === 'number' ? item.rate : parseFloat(String(item.rate).replace('%', ''))
+      if (isNaN(numRate)) numRate = 0
+      rawRate = `${numRate}%`
     }
 
     const rawVendors = item.vendors !== undefined ? Number(item.vendors) : 0
     const rawStatus = item.status
       ? (item.status.toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE')
       : 'ACTIVE'
+
+    // Retrieve per-category or per-item stored product price
+    const storedPrices = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('commission_product_prices') || '{}')
+      } catch {
+        return {}
+      }
+    })()
+
+    const catKey = String(rawCategory || '').toLowerCase().trim()
+    const idKey = String(rawId || '').trim()
+    const productPrice = Number(
+      item.productPrice ||
+      item.price ||
+      storedPrices[idKey] ||
+      storedPrices[catKey] ||
+      benchmarkPrice ||
+      1000
+    )
+
+    const commissionPrice = (productPrice * numRate) / 100
 
     return {
       _id: item._id || item.id,
@@ -134,7 +177,9 @@ function CommissionManagement() {
       categoryId: typeof item.categoryId === 'object' ? item.categoryId?._id : item.categoryId,
       category: rawCategory,
       rate: rawRate,
-      rawRateNumber: typeof item.rate === 'number' ? item.rate : parseFloat(item.rate) || 0,
+      rawRateNumber: numRate,
+      productPrice: productPrice,
+      commissionPrice: commissionPrice,
       vendors: rawVendors,
       status: rawStatus,
       createdAt: item.createdAt,
@@ -379,6 +424,7 @@ function CommissionManagement() {
       categoryId: '',
       category: '',
       rate: '',
+      productPrice: String(benchmarkPrice || 1000),
       vendors: '0',
       status: 'ACTIVE',
     })
@@ -399,6 +445,7 @@ function CommissionManagement() {
       categoryId: foundCatId || item.category || '',
       category: item.category || '',
       rate: String(item.rate).replace('%', ''),
+      productPrice: String(item.productPrice || benchmarkPrice || 1000),
       vendors: item.vendors !== undefined ? String(item.vendors) : '0',
       status: item.status ? item.status.toUpperCase() : 'ACTIVE',
     })
@@ -453,6 +500,15 @@ function CommissionManagement() {
         }
       }
 
+      const cleanProductPrice = parseFloat(formData.productPrice) || benchmarkPrice || 1000
+      try {
+        const stored = JSON.parse(localStorage.getItem('commission_product_prices') || '{}')
+        if (catId) stored[String(catId).trim()] = cleanProductPrice
+        if (catName) stored[String(catName).toLowerCase().trim()] = cleanProductPrice
+        if (res?.data?._id) stored[String(res.data._id).trim()] = cleanProductPrice
+        localStorage.setItem('commission_product_prices', JSON.stringify(stored))
+      } catch {}
+
       // Add to local state
       const newCommission = {
         _id: res?.data?._id || `comm-${Date.now()}`,
@@ -462,6 +518,8 @@ function CommissionManagement() {
         category: catName,
         rate: `${cleanRate}%`,
         rawRateNumber: cleanRate,
+        productPrice: cleanProductPrice,
+        commissionPrice: (cleanProductPrice * cleanRate) / 100,
         vendors: Number(formData.vendors) || 0,
         status: formData.status || 'ACTIVE',
         createdAt: new Date().toISOString()
@@ -542,6 +600,15 @@ function CommissionManagement() {
         }
       }
 
+      const cleanProductPrice = parseFloat(formData.productPrice) || benchmarkPrice || 1000
+      try {
+        const stored = JSON.parse(localStorage.getItem('commission_product_prices') || '{}')
+        if (catId) stored[String(catId).trim()] = cleanProductPrice
+        if (catName) stored[String(catName).toLowerCase().trim()] = cleanProductPrice
+        if (commissionId) stored[String(commissionId).trim()] = cleanProductPrice
+        localStorage.setItem('commission_product_prices', JSON.stringify(stored))
+      } catch {}
+
       setCommissionsList(prev => prev.map(item => {
         if ((item._id && item._id === commissionId) || item.id === commissionId) {
           return {
@@ -550,6 +617,8 @@ function CommissionManagement() {
             category: catName,
             rate: `${cleanRate}%`,
             rawRateNumber: cleanRate,
+            productPrice: cleanProductPrice,
+            commissionPrice: (cleanProductPrice * cleanRate) / 100,
             status: formData.status || 'ACTIVE',
             updatedAt: new Date().toISOString()
           }
@@ -706,6 +775,40 @@ function CommissionManagement() {
           </div>
 
           <div className="filter-actions-right">
+            {/* Benchmark Product Price input */}
+            <div
+              className="orders-select-wrapper"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#f8fafc',
+                padding: '7px 12px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1'
+              }}
+              title="Set benchmark product price to calculate commission across categories"
+            >
+              <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Base Price:</span>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>₹</span>
+              <input
+                type="number"
+                min="1"
+                step="100"
+                value={benchmarkPrice}
+                onChange={(e) => handleBenchmarkPriceChange(e.target.value)}
+                style={{
+                  width: '75px',
+                  border: 'none',
+                  background: 'transparent',
+                  fontWeight: '700',
+                  fontSize: '13px',
+                  color: '#0f172a',
+                  outline: 'none'
+                }}
+              />
+            </div>
+
             <div className="orders-select-wrapper">
               <select
                 className="status-select"
@@ -734,18 +837,20 @@ function CommissionManagement() {
           <table className="admins-table commission-table">
             <thead>
               <tr>
-                <th style={{ width: '80px' }}>Sr.No.</th>
+                <th style={{ width: '70px' }}>Sr.No.</th>
                 <th>Category</th>
-                <th>Rate</th>
-                <th>Vendors</th>
-                <th>Status</th>
+                <th style={{ width: '90px' }}>Rate</th>
+                <th style={{ width: '130px' }}>Product Price</th>
+                <th style={{ width: '170px' }}>Commission Price</th>
+                <th style={{ width: '90px' }}>Vendors</th>
+                <th style={{ width: '110px' }}>Status</th>
                 <th style={{ width: '120px', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '48px 24px' }}>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '48px 24px' }}>
                     <div className="commission-loading-state">
                       <RotateCw className="spin-icon" style={{ width: '24px', height: '24px', color: '#7cb342' }} />
                       <span>Loading live commission data...</span>
@@ -755,11 +860,39 @@ function CommissionManagement() {
               ) : displayList.length > 0 ? (
                 displayList.map((item, idx) => {
                   const isActive = (item.status || '').toUpperCase() === 'ACTIVE'
+                  const itemProdPrice = Number(item.productPrice || benchmarkPrice || 1000)
+                  const itemRateNum = item.rawRateNumber !== undefined ? item.rawRateNumber : (parseFloat(String(item.rate).replace('%', '')) || 0)
+                  const calculatedCommPrice = item.commissionPrice !== undefined ? item.commissionPrice : (itemProdPrice * itemRateNum) / 100
+
                   return (
                     <tr key={item._id || item.id || idx}>
                       <td style={{ fontWeight: '500' }}>{item.srNo || idx + 1}</td>
                       <td style={{ fontWeight: '600', color: 'var(--text-dark)' }}>{item.category}</td>
                       <td style={{ fontWeight: '600', color: '#2e7d32' }}>{item.rate}</td>
+                      <td style={{ fontWeight: '600', color: '#334155' }}>
+                        ₹{itemProdPrice.toLocaleString('en-IN')}
+                      </td>
+                      <td>
+                        <div style={{ display: 'inline-flex', flexDirection: 'column' }}>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            backgroundColor: '#e8f5e9',
+                            color: '#1b5e20',
+                            fontWeight: '700',
+                            fontSize: '13px',
+                            border: '1px solid #c8e6c9'
+                          }}>
+                            ₹{Number(calculatedCommPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                            ({item.rate} of ₹{itemProdPrice.toLocaleString('en-IN')})
+                          </span>
+                        </div>
+                      </td>
                       <td style={{ fontWeight: '500' }}>{item.vendors}</td>
                       <td>
                         <span className={`commission-status-badge ${isActive ? 'active' : 'inactive'}`}>
@@ -799,7 +932,7 @@ function CommissionManagement() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '40px 24px', color: '#90a4ae' }}>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '40px 24px', color: '#90a4ae' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                       <AlertCircle style={{ width: '28px', height: '28px', color: '#b0bec5' }} />
                       <span style={{ fontSize: '14px', fontWeight: '600' }}>No commission records found.</span>
@@ -969,6 +1102,18 @@ function CommissionManagement() {
                 </div>
 
                 <div className="commission-modal-field flex-1">
+                  <label>Product Price (₹) <span style={{ color: '#64748b', fontSize: '11px' }}>(Base Price)</span></label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="e.g. 1000"
+                    value={formData.productPrice}
+                    onChange={(e) => setFormData({ ...formData, productPrice: e.target.value })}
+                  />
+                </div>
+
+                <div className="commission-modal-field flex-1">
                   <label>Vendors Count</label>
                   <input
                     type="number"
@@ -979,6 +1124,30 @@ function CommissionManagement() {
                     disabled={isAdding}
                     title={isAdding ? 'Vendors count is dynamically calculated by backend' : ''}
                   />
+                </div>
+              </div>
+
+              {/* Live Calculation Preview Card */}
+              <div style={{
+                margin: '10px 0 16px 0',
+                padding: '12px 16px',
+                background: '#f1f8e9',
+                border: '1px solid #c5e1a5',
+                borderRadius: '8px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#558b2f', fontWeight: '700', textTransform: 'uppercase' }}>
+                    Calculated Commission Price
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#33691e', marginTop: '2px' }}>
+                    {formData.rate || 0}% of ₹{Number(formData.productPrice || benchmarkPrice || 1000).toLocaleString('en-IN')} product price
+                  </div>
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#2e7d32' }}>
+                  ₹{(((Number(formData.productPrice || benchmarkPrice || 1000)) * (parseFloat(formData.rate) || 0)) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               </div>
 
@@ -1088,6 +1257,21 @@ function CommissionManagement() {
                   <span className="view-label">Rate</span>
                   <span className="view-value" style={{ fontWeight: '700', color: '#2e7d32' }}>
                     {viewedItem.rate}
+                  </span>
+                </div>
+                <div className="commission-view-row">
+                  <span className="view-label">Product Price</span>
+                  <span className="view-value" style={{ fontWeight: '700' }}>
+                    ₹{Number(viewedItem.productPrice || benchmarkPrice || 1000).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <div className="commission-view-row">
+                  <span className="view-label">Commission Price</span>
+                  <span className="view-value" style={{ fontWeight: '800', color: '#2e7d32', fontSize: '15px' }}>
+                    ₹{Number(viewedItem.commissionPrice !== undefined ? viewedItem.commissionPrice : ((Number(viewedItem.productPrice || benchmarkPrice || 1000) * (viewedItem.rawRateNumber || 0)) / 100)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <span style={{ fontSize: '11px', fontWeight: '500', color: '#64748b', marginLeft: '6px' }}>
+                      ({viewedItem.rate} of Product Price)
+                    </span>
                   </span>
                 </div>
                 <div className="commission-view-row">
