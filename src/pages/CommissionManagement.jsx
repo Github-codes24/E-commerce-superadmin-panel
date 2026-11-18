@@ -99,23 +99,16 @@ function CommissionManagement() {
     }, 4000)
   }
 
-  // Benchmark product price (₹1,000 by default, used to calculate commission amount)
-  const [benchmarkPrice, setBenchmarkPrice] = useState(() => {
+  // Reset accidental contaminated prices on mount
+  useEffect(() => {
     try {
-      const stored = localStorage.getItem('commission_benchmark_price')
-      return stored ? Math.max(1, Number(stored)) : 1000
-    } catch {
-      return 1000
-    }
-  })
-
-  const handleBenchmarkPriceChange = (val) => {
-    const num = Math.max(1, Number(val) || 0)
-    setBenchmarkPrice(num)
-    try {
-      localStorage.setItem('commission_benchmark_price', String(num))
+      localStorage.removeItem('commission_benchmark_price')
+      const stored = JSON.parse(localStorage.getItem('commission_product_prices') || '{}')
+      if (stored['electronic items'] === 5901) delete stored['electronic items']
+      if (stored['fashion'] === 5901) delete stored['fashion']
+      localStorage.setItem('commission_product_prices', JSON.stringify(stored))
     } catch {}
-  }
+  }, [])
 
   // Form states
   const [formData, setFormData] = useState({
@@ -159,14 +152,16 @@ function CommissionManagement() {
 
     const catKey = String(rawCategory || '').toLowerCase().trim()
     const idKey = String(rawId || '').trim()
-    const productPrice = Number(
-      item.productPrice ||
-      item.price ||
-      storedPrices[idKey] ||
-      storedPrices[catKey] ||
-      benchmarkPrice ||
-      1000
-    )
+
+    // Each row strictly has its own product price (default ₹1,000)
+    let productPrice = 1000
+    if (item.productPrice !== undefined && item.productPrice !== null && !isNaN(Number(item.productPrice))) {
+      productPrice = Number(item.productPrice)
+    } else if (storedPrices[idKey] !== undefined && !isNaN(Number(storedPrices[idKey]))) {
+      productPrice = Number(storedPrices[idKey])
+    } else if (storedPrices[catKey] !== undefined && !isNaN(Number(storedPrices[catKey]))) {
+      productPrice = Number(storedPrices[catKey])
+    }
 
     const commissionPrice = (productPrice * numRate) / 100
 
@@ -327,35 +322,56 @@ function CommissionManagement() {
         rawList = res
       }
 
-      if (rawList && rawList.length > 0) {
+      // Read local custom commissions from localStorage
+      let customCommissions = []
+      try {
+        const storedCustom = localStorage.getItem('custom_commissions_list')
+        if (storedCustom) customCommissions = JSON.parse(storedCustom)
+      } catch {}
+
+      // Combine backend and custom commissions
+      const backendIds = new Set(rawList.map(r => String(r._id || r.id)))
+      const backendCats = new Set(rawList.map(r => String(r.category || (r.categoryId?.name) || '').toLowerCase().trim()))
+
+      const nonDupCustom = customCommissions.filter(c => {
+        const idMatch = backendIds.has(String(c._id || c.id))
+        const catMatch = c.category && backendCats.has(String(c.category).toLowerCase().trim())
+        return !idMatch && !catMatch
+      })
+
+      const combined = [...nonDupCustom, ...rawList]
+
+      if (combined && combined.length > 0) {
         const pageOffset = (currentPage - 1) * itemsPerPage
-        const formatted = rawList.map((item, idx) => formatCommissionItem(item, idx, pageOffset))
+        const formatted = combined.map((item, idx) => formatCommissionItem(item, idx, pageOffset))
         setCommissionsList(formatted)
         setIsApiLoaded(true)
-      } else if (res?.success && rawList.length === 0) {
+      } else if (res?.success && combined.length === 0) {
         // API returned valid empty list
         setCommissionsList([])
         setIsApiLoaded(true)
       } else {
         // Fallback if data structure is unexpected
-        setCommissionsList(FALLBACK_COMMISSIONS)
+        setCommissionsList(FALLBACK_COMMISSIONS.map((item, idx) => formatCommissionItem(item, idx, 0)))
       }
+
+      const totalCalculated = combined.length || (res?.pagination?.total !== undefined ? res.pagination.total : 0)
 
       if (res?.pagination) {
         setPaginationInfo({
-          total: res.pagination.total !== undefined ? res.pagination.total : rawList.length,
+          total: totalCalculated,
           page: res.pagination.page || currentPage,
           limit: res.pagination.limit || itemsPerPage,
-          totalPages: res.pagination.totalPages || Math.ceil((res.pagination.total || rawList.length) / itemsPerPage) || 1,
+          totalPages: Math.ceil(totalCalculated / itemsPerPage) || 1,
           hasNextPage: !!res.pagination.hasNextPage,
           hasPreviousPage: !!res.pagination.hasPreviousPage,
         })
       } else {
         setPaginationInfo({
-          total: rawList.length,
+          total: totalCalculated,
           page: currentPage,
           limit: itemsPerPage,
-          totalPages: Math.ceil(rawList.length / itemsPerPage) || 1,
+          totalPages: Math.ceil(totalCalculated / itemsPerPage) || 1,
           hasNextPage: false,
           hasPreviousPage: false,
         })
@@ -500,20 +516,22 @@ function CommissionManagement() {
         }
       }
 
-      const cleanProductPrice = parseFloat(formData.productPrice) || benchmarkPrice || 1000
+      const cleanProductPrice = parseFloat(formData.productPrice) || 1000
+      const newCommissionId = res?.data?._id || `comm-${Date.now()}`
+
       try {
         const stored = JSON.parse(localStorage.getItem('commission_product_prices') || '{}')
+        stored[String(newCommissionId).trim()] = cleanProductPrice
         if (catId) stored[String(catId).trim()] = cleanProductPrice
         if (catName) stored[String(catName).toLowerCase().trim()] = cleanProductPrice
-        if (res?.data?._id) stored[String(res.data._id).trim()] = cleanProductPrice
         localStorage.setItem('commission_product_prices', JSON.stringify(stored))
       } catch {}
 
-      // Add to local state
+      // Add to local state & persist to custom_commissions_list
       const newCommission = {
-        _id: res?.data?._id || `comm-${Date.now()}`,
-        id: res?.data?._id || `comm-${Date.now()}`,
-        srNo: commissionsList.length + 1,
+        _id: newCommissionId,
+        id: newCommissionId,
+        srNo: 1,
         categoryId: catId,
         category: catName,
         rate: `${cleanRate}%`,
@@ -524,6 +542,12 @@ function CommissionManagement() {
         status: formData.status || 'ACTIVE',
         createdAt: new Date().toISOString()
       }
+
+      try {
+        const existingCustom = JSON.parse(localStorage.getItem('custom_commissions_list') || '[]')
+        const updatedCustom = [newCommission, ...existingCustom.filter(c => String(c._id || c.id) !== String(newCommissionId) && (c.category || '').toLowerCase().trim() !== (catName || '').toLowerCase().trim())]
+        localStorage.setItem('custom_commissions_list', JSON.stringify(updatedCustom))
+      } catch {}
 
       setCommissionsList(prev => [newCommission, ...prev])
       showToast(res?.message || `Commission for "${catName}" added successfully.`, 'success')
@@ -651,6 +675,12 @@ function CommissionManagement() {
         const res = await deleteCommission(id)
         console.log('Delete commission response:', res)
 
+        try {
+          const storedCustom = JSON.parse(localStorage.getItem('custom_commissions_list') || '[]')
+          const updatedCustom = storedCustom.filter(c => String(c._id || c.id) !== String(id))
+          localStorage.setItem('custom_commissions_list', JSON.stringify(updatedCustom))
+        } catch {}
+
         showToast(res?.message || 'Commission deleted successfully.', 'success')
         setDeletingItem(null)
         fetchCommissions()
@@ -662,6 +692,12 @@ function CommissionManagement() {
         setDeletingLoading(false)
       }
     } else {
+      try {
+        const storedCustom = JSON.parse(localStorage.getItem('custom_commissions_list') || '[]')
+        const updatedCustom = storedCustom.filter(c => String(c._id || c.id) !== String(id))
+        localStorage.setItem('custom_commissions_list', JSON.stringify(updatedCustom))
+      } catch {}
+
       setCommissionsList(
         commissionsList.filter((item) =>
           item._id ? item._id !== deletingItem._id : item.id !== deletingItem.id
@@ -775,40 +811,6 @@ function CommissionManagement() {
           </div>
 
           <div className="filter-actions-right">
-            {/* Benchmark Product Price input */}
-            <div
-              className="orders-select-wrapper"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: '#f8fafc',
-                padding: '7px 12px',
-                borderRadius: '8px',
-                border: '1px solid #cbd5e1'
-              }}
-              title="Set benchmark product price to calculate commission across categories"
-            >
-              <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>Base Price:</span>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>₹</span>
-              <input
-                type="number"
-                min="1"
-                step="100"
-                value={benchmarkPrice}
-                onChange={(e) => handleBenchmarkPriceChange(e.target.value)}
-                style={{
-                  width: '75px',
-                  border: 'none',
-                  background: 'transparent',
-                  fontWeight: '700',
-                  fontSize: '13px',
-                  color: '#0f172a',
-                  outline: 'none'
-                }}
-              />
-            </div>
-
             <div className="orders-select-wrapper">
               <select
                 className="status-select"
@@ -860,7 +862,7 @@ function CommissionManagement() {
               ) : displayList.length > 0 ? (
                 displayList.map((item, idx) => {
                   const isActive = (item.status || '').toUpperCase() === 'ACTIVE'
-                  const itemProdPrice = Number(item.productPrice || benchmarkPrice || 1000)
+                  const itemProdPrice = Number(item.productPrice || 1000)
                   const itemRateNum = item.rawRateNumber !== undefined ? item.rawRateNumber : (parseFloat(String(item.rate).replace('%', '')) || 0)
                   const calculatedCommPrice = item.commissionPrice !== undefined ? item.commissionPrice : (itemProdPrice * itemRateNum) / 100
 
@@ -1143,11 +1145,11 @@ function CommissionManagement() {
                     Calculated Commission Price
                   </div>
                   <div style={{ fontSize: '12px', color: '#33691e', marginTop: '2px' }}>
-                    {formData.rate || 0}% of ₹{Number(formData.productPrice || benchmarkPrice || 1000).toLocaleString('en-IN')} product price
+                    {formData.rate || 0}% of ₹{Number(formData.productPrice || 1000).toLocaleString('en-IN')} product price
                   </div>
                 </div>
                 <div style={{ fontSize: '18px', fontWeight: '800', color: '#2e7d32' }}>
-                  ₹{(((Number(formData.productPrice || benchmarkPrice || 1000)) * (parseFloat(formData.rate) || 0)) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ₹{(((Number(formData.productPrice || 1000)) * (parseFloat(formData.rate) || 0)) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               </div>
 
@@ -1262,13 +1264,13 @@ function CommissionManagement() {
                 <div className="commission-view-row">
                   <span className="view-label">Product Price</span>
                   <span className="view-value" style={{ fontWeight: '700' }}>
-                    ₹{Number(viewedItem.productPrice || benchmarkPrice || 1000).toLocaleString('en-IN')}
+                    ₹{Number(viewedItem.productPrice || 1000).toLocaleString('en-IN')}
                   </span>
                 </div>
                 <div className="commission-view-row">
                   <span className="view-label">Commission Price</span>
                   <span className="view-value" style={{ fontWeight: '800', color: '#2e7d32', fontSize: '15px' }}>
-                    ₹{Number(viewedItem.commissionPrice !== undefined ? viewedItem.commissionPrice : ((Number(viewedItem.productPrice || benchmarkPrice || 1000) * (viewedItem.rawRateNumber || 0)) / 100)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ₹{Number(viewedItem.commissionPrice !== undefined ? viewedItem.commissionPrice : ((Number(viewedItem.productPrice || 1000) * (viewedItem.rawRateNumber || 0)) / 100)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     <span style={{ fontSize: '11px', fontWeight: '500', color: '#64748b', marginLeft: '6px' }}>
                       ({viewedItem.rate} of Product Price)
                     </span>
