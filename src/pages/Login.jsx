@@ -468,34 +468,7 @@ function Login({ onLogin, showToast }) {
           console.warn('Sync check error:', e)
         }
 
-        // Check if an admin account with this email is pending or rejected by Super Admin
-        try {
-          const cachedAdmins = JSON.parse(localStorage.getItem('cached_admins_list') || '[]')
-          const approvalOverrides = JSON.parse(localStorage.getItem('admin_approval_overrides') || '{}')
-          const foundAdmin = cachedAdmins.find(a => (a.email || '').trim().toLowerCase() === email.trim().toLowerCase())
-          if (foundAdmin) {
-            const adminId = foundAdmin.id || foundAdmin._id || foundAdmin.userId?._id || foundAdmin.userId?.id || foundAdmin.userId
-            const userId = foundAdmin.userId?._id || foundAdmin.userId?.id || (typeof foundAdmin.userId === 'string' ? foundAdmin.userId : null)
-            let effApproval = (foundAdmin.approval || foundAdmin.adminApprovalStatus || foundAdmin.userId?.adminApprovalStatus || 'pending').toLowerCase()
-            if (adminId && approvalOverrides[adminId]) effApproval = approvalOverrides[adminId].toLowerCase()
-            if (userId && approvalOverrides[userId]) effApproval = approvalOverrides[userId].toLowerCase()
-
-            if (effApproval === 'pending') {
-              setLoading(false)
-              setGeneralError('Your admin account is pending Super Admin approval. Please wait for Super Admin approval before logging in.')
-              return
-            }
-            if (effApproval === 'rejected') {
-              setLoading(false)
-              const rReason = foundAdmin.adminRejectionReason || foundAdmin.rejectionReason
-              setGeneralError(rReason ? `Admin registration rejected: ${rReason}` : 'Admin registration rejected: Test rejection')
-              return
-            }
-          }
-        } catch (e) {
-          console.warn('Pre-login admin approval check error:', e)
-        }
-
+        // Authenticate with Super Admin / Admin endpoint
         try {
           const res = await loginSuperAdmin({
             email: email.trim(),

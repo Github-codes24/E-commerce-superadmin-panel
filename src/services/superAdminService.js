@@ -67,6 +67,10 @@ export const loginSuperAdmin = async ({ email, password }) => {
       lastError = err;
       const status = err.response?.status;
       const msg = (err.response?.data?.message || (typeof err.response?.data === 'string' ? err.response?.data : '') || err.message || '').toLowerCase();
+      // If super-admin/login found the user but password was invalid, do not fall through to admin/login
+      if (endpoint === '/super-admin/login' && (msg.includes('invalid password') || (status === 401 && !msg.includes('not found')))) {
+        throw err;
+      }
       // If the backend specifically responds that approval is pending/waiting/rejected, abort fallback loop and throw
       if (msg.includes('approval') || msg.includes('pending') || msg.includes('reject') || msg.includes('waiting')) {
         throw err;
