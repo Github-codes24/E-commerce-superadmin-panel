@@ -129,10 +129,24 @@ function AdminLayout({ onLogout }) {
     { name: 'Shopnow4u Shopping Guide', icon: BookOpen }
   ]
 
+  const normalizeTabName = (tab) => {
+    if (!tab) return 'Dashboard'
+    if (tab === 'Admins Management') return 'Admin Management'
+    if (tab === 'Vendors Management') return 'Vendor Management'
+    if (tab === 'Customers Management') return 'Customer Management'
+    if (tab === 'Orders Management') return 'Order Management'
+    if (tab === 'Permissions Management') return 'Permission Management'
+    if (tab === 'Products Management') return 'Product Management'
+    if (tab === 'Categories Management') return 'Category Management'
+    if (tab === 'Business Plans') return 'Vendor Business Plans'
+    return tab
+  }
+
   const handleTabClick = (tabName) => {
-    if (tabName !== activeTab) {
+    const normalized = normalizeTabName(tabName)
+    if (normalized !== activeTab) {
       setPrevTab(activeTab)
-      setActiveTab(tabName)
+      setActiveTab(normalized)
     }
     setShowProfileDropdown(false)
   }
@@ -140,24 +154,31 @@ function AdminLayout({ onLogout }) {
   const renderContent = () => {
     switch (activeTab) {
       case 'Dashboard':
-        return <Dashboard onViewAllOrders={() => handleTabClick('Orders Management')} onNavigate={handleTabClick} />
+        return <Dashboard onViewAllOrders={() => handleTabClick('Order Management')} onNavigate={handleTabClick} />
       case 'Reports':
         return <Reports />
+      case 'Admin Management':
       case 'Admins Management':
         return <AdminsManagement />
+      case 'Vendor Management':
       case 'Vendors Management':
         return <VendorsManagement onNavigateToPlans={() => handleTabClick('Vendor Business Plans')} />
       case 'Vendor Business Plans':
       case 'Business Plans':
         return <BusinessPlansManagement onNavigate={handleTabClick} />
+      case 'Customer Management':
       case 'Customers Management':
         return <CustomersManagement />
       case 'Product Management':
+      case 'Products Management':
         return <ProductManagement />
       case 'Category Management':
+      case 'Categories Management':
         return <CategoryManagement />
+      case 'Order Management':
       case 'Orders Management':
         return <OrdersManagement initialSearchQuery={searchQuery} />
+      case 'Permission Management':
       case 'Permissions Management':
         return <PermissionsManagement />
       case 'Offers & Coupons':
@@ -221,7 +242,7 @@ function AdminLayout({ onLogout }) {
         <ul className="sidebar-menu">
           {menuItems.map((item) => {
             const IconComponent = item.icon
-            const isTabActive = activeTab === item.name
+            const isTabActive = normalizeTabName(activeTab) === normalizeTabName(item.name)
             return (
               <li
                 key={item.name}
@@ -258,7 +279,7 @@ function AdminLayout({ onLogout }) {
               <Search
                 className="search-icon-header"
                 onClick={() => {
-                  if (searchQuery.trim()) handleTabClick('Orders Management')
+                  if (searchQuery.trim()) handleTabClick('Order Management')
                 }}
                 style={{ cursor: 'pointer' }}
               />
@@ -269,7 +290,7 @@ function AdminLayout({ onLogout }) {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && searchQuery.trim()) {
-                    handleTabClick('Orders Management')
+                    handleTabClick('Order Management')
                   }
                 }}
               />
