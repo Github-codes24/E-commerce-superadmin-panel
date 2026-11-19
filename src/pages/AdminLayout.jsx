@@ -19,7 +19,8 @@ import {
   UserRound,
   LockKeyhole,
   BookOpen,
-  Briefcase
+  Briefcase,
+  X
 } from 'lucide-react'
 import './admin.css'
 import Dashboard from './Dashboard'
@@ -256,6 +257,19 @@ function AdminLayout({ onLogout }) {
             )
           })}
         </ul>
+
+        {/* Bottom Sidebar Logout Button */}
+        <div className="sidebar-footer">
+          <button
+            type="button"
+            className="sidebar-logout-btn"
+            onClick={() => setShowLogoutConfirmModal(true)}
+            title={isSidebarCollapsed ? "Logout" : undefined}
+          >
+            <LogOut className="sidebar-item-icon" />
+            {!isSidebarCollapsed && <span className="sidebar-item-text">Logout</span>}
+          </button>
+        </div>
       </aside>
 
       {/* Main Panel Viewport */}
@@ -387,23 +401,34 @@ function AdminLayout({ onLogout }) {
 
       {/* Logout Overlay */}
       {showLogoutConfirmModal && (
-        <div className="modal-overlay">
-          <div className="modal-card logout-modal">
-            <h3 className="modal-title font-large">Logout</h3>
+        <div className="modal-overlay" onClick={() => setShowLogoutConfirmModal(false)}>
+          <div className="modal-card logout-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="logout-modal-close"
+              onClick={() => setShowLogoutConfirmModal(false)}
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+
+            <h3 className="modal-title">Logout</h3>
 
             <p className="modal-text">
-              Are your sure you want to <span className="text-danger">Logout</span> ?
+              Are you sure you want to <span className="text-danger">Logout</span> ?
             </p>
 
             <div className="modal-actions">
               <button
-                className="modal-btn cancel-btn"
+                type="button"
+                className="logout-btn-cancel"
                 onClick={() => setShowLogoutConfirmModal(false)}
               >
                 Cancel
               </button>
               <button
-                className="modal-btn submit-btn"
+                type="button"
+                className="logout-btn-confirm"
                 onClick={() => {
                   setShowLogoutConfirmModal(false);
                   onLogout();
