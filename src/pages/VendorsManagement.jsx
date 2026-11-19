@@ -2775,7 +2775,8 @@ function VendorsManagement({ onNavigateToPlans }) {
             <h2>View Vendor</h2>
           </div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {viewedVendor.approval !== 'approved' && (
+            {/* Approve / Reject Vendor buttons commented out as approval is not needed currently */}
+            {/* {viewedVendor.approval !== 'approved' && (
               <button
                 type="button"
                 className="edit-profile-btn"
@@ -2823,7 +2824,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                 )}
                 {rejectingVendorId === (viewedVendor._id || viewedVendor.id) ? 'Rejecting...' : 'Reject Vendor'}
               </button>
-            )}
+            )} */}
             <button
               type="button"
               className="edit-profile-btn"
@@ -2930,9 +2931,10 @@ function VendorsManagement({ onNavigateToPlans }) {
               </div>
             </div>
 
-            <span className={`vendor-badge ${viewedVendor.approval}`} style={{ padding: '6px 16px', fontSize: '12px' }}>
+            {/* Approval badge commented out as approval is not needed currently */}
+            {/* <span className={`vendor-badge ${viewedVendor.approval}`} style={{ padding: '6px 16px', fontSize: '12px' }}>
               {viewedVendor.approval}
-            </span>
+            </span> */}
           </div>
         </div>
 
@@ -3206,9 +3208,9 @@ function VendorsManagement({ onNavigateToPlans }) {
             </div>
           </div>
 
-          {/* Right Column Audit Panels */}
+          {/* Right Column Audit Panels - Approval cards commented out */}
           <div>
-            {viewedVendor.approval === 'approved' && (
+            {/* {viewedVendor.approval === 'approved' && (
               <div className="vendor-audit-card approved">
                 <span className="vendor-audit-title">Approved By</span>
                 <div className="audit-user-row">
@@ -3240,7 +3242,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                   </div>
                 </div>
               </div>
-            )}
+            )} */}
           </div>
         </div>
 
@@ -3429,7 +3431,8 @@ function VendorsManagement({ onNavigateToPlans }) {
           </div>
 
           <div style={{ display: 'flex', gap: '12px' }}>
-            <select
+            {/* Approval Filter commented out as approval is not needed currently */}
+            {/* <select
               className="status-select"
               value={approvalFilter}
               onChange={(e) => setApprovalFilter(e.target.value)}
@@ -3438,7 +3441,7 @@ function VendorsManagement({ onNavigateToPlans }) {
               <option value="approved">Approved</option>
               <option value="pending">Pending</option>
               <option value="rejected">Rejected</option>
-            </select>
+            </select> */}
 
             <select
               className="status-select"
@@ -3480,7 +3483,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                   <th>Product</th>
                   <th>Orders</th>
                   <th>Joined On</th>
-                  <th>Approval</th>
+                  {/* <th>Approval</th> */}
                   <th>Account</th>
                   <th style={{ width: '80px', textAlign: 'center' }}>Actions</th>
                 </tr>
@@ -3509,11 +3512,11 @@ function VendorsManagement({ onNavigateToPlans }) {
                       <td>{vendor.products}</td>
                       <td>{vendor.orders}</td>
                       <td>{vendor.joinedOn}</td>
-                      <td>
+                      {/* <td>
                         <span className={`vendor-badge ${vendor.approval}`}>
                           {vendor.approval}
                         </span>
-                      </td>
+                      </td> */}
                       <td>
                         <span
                           className={`vendor-badge ${vendor.status}`}
@@ -3540,7 +3543,8 @@ function VendorsManagement({ onNavigateToPlans }) {
 
                             {activeActionMenuId === vendor.id && (
                               <div className="action-menu-dropdown" onClick={(e) => e.stopPropagation()}>
-                                {vendor.approval !== 'approved' && (
+                                {/* Approve and Reject actions commented out as approval is not needed currently */}
+                                {/* {vendor.approval !== 'approved' && (
                                   <button
                                     className="action-dropdown-item"
                                     style={{ color: '#2ecc71' }}
@@ -3567,7 +3571,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                                     <XCircle style={{ width: '14px', height: '14px' }} />
                                     {rejectingVendorId === (vendor._id || vendor.id) ? 'Rejecting...' : 'Reject'}
                                   </button>
-                                )}
+                                )} */}
                                 <button
                                   className="action-dropdown-item"
                                   onClick={() => {
