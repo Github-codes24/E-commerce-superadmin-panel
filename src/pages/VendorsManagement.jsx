@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power, Briefcase, Eye, EyeOff, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, Minus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power, Briefcase, Eye, EyeOff, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getAllVendors, getVendorById, createVendor, registerVendor, updateVendorBusinessProfile, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor, getProductsByVendor, getAllProducts, getAllOrders, getCloudVendorSync, saveCloudVendorSync } from '../services/superAdminService'
 import './VendorsManagement.css'
 
@@ -546,14 +546,92 @@ export const matchOrderToVendor = (order, vendor, vendorProductIds = new Set()) 
   return false
 }
 
+// Default rich sample products matching the design reference
+export const DEFAULT_DEMO_PRODUCTS = [
+  {
+    id: '6b002edc3790f5ed379f6f61',
+    _id: '6b002edc3790f5ed379f6f61',
+    name: 'sofa',
+    productName: 'sofa',
+    category: 'Furnitures',
+    price: 25000,
+    stock: 23,
+    status: 'active',
+    image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200',
+    sku: '#6b002edc3790f5ed379f6f61',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: '6b002edc3790f5ed379f6f62',
+    _id: '6b002edc3790f5ed379f6f62',
+    name: 'Dining Table Set',
+    productName: 'Dining Table Set',
+    category: 'Furnitures',
+    price: 34000,
+    stock: 12,
+    status: 'active',
+    image: 'https://images.unsplash.com/photo-1615066390971-03e4e1c36ddf?auto=format&fit=crop&q=80&w=200',
+    sku: '#6b002edc3790f5ed379f6f62',
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString()
+  },
+  {
+    id: '6b002edc3790f5ed379f6f63',
+    _id: '6b002edc3790f5ed379f6f63',
+    name: 'Ergonomic Desk Chair',
+    productName: 'Ergonomic Desk Chair',
+    category: 'Furnitures',
+    price: 12500,
+    stock: 4,
+    status: 'low-stock',
+    image: 'https://images.unsplash.com/photo-1580481077195-c3a8a37f714c?auto=format&fit=crop&q=80&w=200',
+    sku: '#6b002edc3790f5ed379f6f63',
+    createdAt: new Date(Date.now() - 86400000 * 5).toISOString()
+  },
+  {
+    id: '6b002edc3790f5ed379f6f64',
+    _id: '6b002edc3790f5ed379f6f64',
+    name: 'Velvet Lounge Recliner',
+    productName: 'Velvet Lounge Recliner',
+    category: 'Furnitures',
+    price: 28000,
+    stock: 0,
+    status: 'out-of-stock',
+    image: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&q=80&w=200',
+    sku: '#6b002edc3790f5ed379f6f64',
+    createdAt: new Date(Date.now() - 86400000 * 8).toISOString()
+  },
+  {
+    id: '6b002edc3790f5ed379f6f65',
+    _id: '6b002edc3790f5ed379f6f65',
+    name: 'Minimalist Coffee Table',
+    productName: 'Minimalist Coffee Table',
+    category: 'Furnitures',
+    price: 9500,
+    stock: 18,
+    status: 'active',
+    image: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?auto=format&fit=crop&q=80&w=200',
+    sku: '#6b002edc3790f5ed379f6f65',
+    createdAt: new Date(Date.now() - 86400000 * 12).toISOString()
+  }
+]
+
+// Default sample orders matching vendor details view
+export const DEFAULT_DEMO_ORDERS = [
+  { orderNo: '#ORD-98214', orderId: '#ORD-98214', _id: 'ord-1', id: 'ord-1', date: new Date().toISOString(), createdAt: new Date().toISOString(), totalAmount: 25000, amount: '₹25,000', status: 'Delivered', customerName: 'Aarav Patel' },
+  { orderNo: '#ORD-98215', orderId: '#ORD-98215', _id: 'ord-2', id: 'ord-2', date: new Date(Date.now() - 86400000 * 2).toISOString(), createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), totalAmount: 34000, amount: '₹34,000', status: 'Processing', customerName: 'Priya Sharma' },
+  { orderNo: '#ORD-98216', orderId: '#ORD-98216', _id: 'ord-3', id: 'ord-3', date: new Date(Date.now() - 86400000 * 4).toISOString(), createdAt: new Date(Date.now() - 86400000 * 4).toISOString(), totalAmount: 12500, amount: '₹12,500', status: 'Shipped', customerName: 'Rohan Mehta' },
+  { orderNo: '#ORD-98217', orderId: '#ORD-98217', _id: 'ord-4', id: 'ord-4', date: new Date(Date.now() - 86400000 * 7).toISOString(), createdAt: new Date(Date.now() - 86400000 * 7).toISOString(), totalAmount: 9500, amount: '₹9,500', status: 'Delivered', customerName: 'Neha Verma' }
+]
+
 // Default mock data to ensure immediate UI rendering while API loads
 const DEFAULT_VENDORS = [
-  { id: 1, name: 'Sameer sharma', shopName: 'Sameer Shop', category: 'Fashion', products: 0, orders: 0, joinedOn: '22 May 2026', approval: 'approved', status: 'active', checked: false, email: 'sameer@gmail.com', phone: '+91 9876543258', dob: '11/09/2003', gender: 'Male', bizType: 'Individual seller', gst: '22AAAAA0000A1Z5', pan: 'ABCDE1234F', address: '456, Business Bay, T. Nagar, Pune', revenue: '₹0' },
-  { id: 2, name: 'Trendy Fashion', shopName: 'Trendy Store', category: 'Clothes', products: 0, orders: 0, joinedOn: '18 May 2026', approval: 'pending', status: 'active', checked: false, email: 'trendy@shop.com', phone: '+91 9876543202', dob: '20/04/1992', gender: 'Female', bizType: 'Wholesale', gst: '22BBBBB0000B1Z2', pan: 'BCDEF2345G', address: 'Fashion Hub, Room 102', revenue: '₹0' },
-  { id: 3, name: 'Beauty Palace', shopName: 'Beauty Salon', category: 'Cosmetics', products: 0, orders: 0, joinedOn: '28 Apr 2026', approval: 'rejected', status: 'inactive', checked: false, email: 'beauty@shop.com', phone: '+91 9876543203', dob: '05/11/1990', gender: 'Female', bizType: 'Retail', gst: '22CCCCC0000C1Z3', pan: 'CDEFG3456H', address: 'Cosmo Boulevard 15', revenue: '₹0' },
-  { id: 4, name: 'Sport Plus', shopName: 'Sport Store', category: 'Equipments', products: 0, orders: 0, joinedOn: '12 Apr 2026', approval: 'approved', status: 'active', checked: false, email: 'sports@shop.com', phone: '+91 9876543204', dob: '18/02/1988', gender: 'Male', bizType: 'Retail', gst: '22DDDDD0000D1Z4', pan: 'DEFGH4567I', address: 'Arena Complex Gate 2', revenue: '₹0' },
-  { id: 5, name: 'Wooden Bliss', shopName: 'Wooden Store', category: 'Furniture', products: 0, orders: 0, joinedOn: '02 Mar 2026', approval: 'approved', status: 'active', checked: false, email: 'wooden@shop.com', phone: '+91 9876543205', dob: '30/09/1985', gender: 'Male', bizType: 'Manufacturer', gst: '22EEEEE0000E1Z5', pan: 'EFGHI5678J', address: 'Industrial Zone Alley 5', revenue: '₹0' },
-  { id: 6, name: 'Home Needs', shopName: 'Home Shop', category: 'Groceries', products: 0, orders: 0, joinedOn: '10 Jan 2026', approval: 'pending', status: 'inactive', checked: false, email: 'home@shop.com', phone: '+91 9876543206', dob: '25/06/1994', gender: 'Female', bizType: 'Retail', gst: '22FFFFF0000F1Z6', pan: 'FGHIJ6789K', address: 'Residential Sector B', revenue: '₹0' },
+  { id: 1, name: 'Kukreja Furnishings', shopName: 'kukreja', category: 'Furnitures', products: 5, orders: 4, joinedOn: '15 May 2026', approval: 'approved', status: 'active', checked: false, email: 'kukreja@furnish.com', phone: '+91 9876543299', dob: '14/08/1991', gender: 'Male', bizType: 'Manufacturer', gst: '22GGGGG0000G1Z7', pan: 'GHIJK7890L', address: 'Industrial Area Phase 2, Delhi', revenue: '₹5,75,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 2, name: 'Sameer sharma', shopName: 'Sameer Shop', category: 'Fashion', products: 5, orders: 4, joinedOn: '22 May 2026', approval: 'approved', status: 'active', checked: false, email: 'sameer@gmail.com', phone: '+91 9876543258', dob: '11/09/2003', gender: 'Male', bizType: 'Individual seller', gst: '22AAAAA0000A1Z5', pan: 'ABCDE1234F', address: '456, Business Bay, T. Nagar, Pune', revenue: '₹1,24,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 3, name: 'Wooden Bliss', shopName: 'Wooden Store', category: 'Furniture', products: 5, orders: 4, joinedOn: '02 Mar 2026', approval: 'approved', status: 'active', checked: false, email: 'wooden@shop.com', phone: '+91 9876543205', dob: '30/09/1985', gender: 'Male', bizType: 'Manufacturer', gst: '22EEEEE0000E1Z5', pan: 'EFGHI5678J', address: 'Industrial Zone Alley 5', revenue: '₹5,75,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 4, name: 'Trendy Fashion', shopName: 'Trendy Store', category: 'Clothes', products: 5, orders: 4, joinedOn: '18 May 2026', approval: 'pending', status: 'active', checked: false, email: 'trendy@shop.com', phone: '+91 9876543202', dob: '20/04/1992', gender: 'Female', bizType: 'Wholesale', gst: '22BBBBB0000B1Z2', pan: 'BCDEF2345G', address: 'Fashion Hub, Room 102', revenue: '₹84,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 5, name: 'Beauty Palace', shopName: 'Beauty Salon', category: 'Cosmetics', products: 5, orders: 4, joinedOn: '28 Apr 2026', approval: 'rejected', status: 'inactive', checked: false, email: 'beauty@shop.com', phone: '+91 9876543203', dob: '05/11/1990', gender: 'Female', bizType: 'Retail', gst: '22CCCCC0000C1Z3', pan: 'CDEFG3456H', address: 'Cosmo Boulevard 15', revenue: '₹42,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 6, name: 'Sport Plus', shopName: 'Sport Store', category: 'Equipments', products: 5, orders: 4, joinedOn: '12 Apr 2026', approval: 'approved', status: 'active', checked: false, email: 'sports@shop.com', phone: '+91 9876543204', dob: '18/02/1988', gender: 'Male', bizType: 'Retail', gst: '22DDDDD0000D1Z4', pan: 'DEFGH4567I', address: 'Arena Complex Gate 2', revenue: '₹1,56,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 7, name: 'Home Needs', shopName: 'Home Shop', category: 'Groceries', products: 5, orders: 4, joinedOn: '10 Jan 2026', approval: 'pending', status: 'inactive', checked: false, email: 'home@shop.com', phone: '+91 9876543206', dob: '25/06/1994', gender: 'Female', bizType: 'Retail', gst: '22FFFFF0000F1Z6', pan: 'FGHIJ6789K', address: 'Residential Sector B', revenue: '₹95,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
 ]
 
 function VendorsManagement({ onNavigateToPlans }) {
@@ -634,6 +712,15 @@ function VendorsManagement({ onNavigateToPlans }) {
   const [tabStartDate, setTabStartDate] = useState(null)
   const [tabEndDate, setTabEndDate] = useState(null)
   const [tabSearchQuery, setTabSearchQuery] = useState('')
+  const [vendorProductPage, setVendorProductPage] = useState(1)
+  const vendorProductPageSize = 5
+  const [previewProductModal, setPreviewProductModal] = useState(null)
+  const [editProductModal, setEditProductModal] = useState(null)
+  const [editFormData, setEditFormData] = useState({ name: '', category: '', price: '', stock: '' })
+
+  useEffect(() => {
+    setVendorProductPage(1)
+  }, [tabSearchQuery, tabStartDate, tabEndDate, tabDatePreset, viewedVendor?.id])
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -819,6 +906,99 @@ function VendorsManagement({ onNavigateToPlans }) {
     }
     return list
   }, [viewedVendor?.ordersList, isTabDateFilterActive, tabDatePreset, tabCalMonth, tabCalYear, tabStartDate, tabEndDate, tabSearchQuery])
+
+  // Pagination for Vendor Products Tab
+  const totalProductPages = Math.max(1, Math.ceil(filteredVendorProducts.length / vendorProductPageSize))
+  const currentProdPage = Math.min(Math.max(1, vendorProductPage), totalProductPages)
+  const prodStartIndex = (currentProdPage - 1) * vendorProductPageSize
+  const prodEndIndex = Math.min(prodStartIndex + vendorProductPageSize, filteredVendorProducts.length)
+  const paginatedVendorProducts = useMemo(() => {
+    return filteredVendorProducts.slice(prodStartIndex, prodEndIndex)
+  }, [filteredVendorProducts, prodStartIndex, prodEndIndex])
+
+  const prodPageNumbers = useMemo(() => {
+    const pages = []
+    for (let i = 1; i <= totalProductPages; i++) {
+      pages.push(i)
+    }
+    return pages
+  }, [totalProductPages])
+
+  // Interactive Stock Level handlers
+  const handleUpdateProductStock = (productId, delta) => {
+    setViewedVendor(prev => {
+      if (!prev) return prev
+      const updatedList = (prev.productsList || []).map(p => {
+        const idMatches = (p._id && (p._id === productId || String(p._id) === String(productId))) ||
+          (p.id && (p.id === productId || String(p.id) === String(productId)))
+        if (idMatches) {
+          const currentStock = Number(p.stock) || 0
+          const newStock = Math.max(0, currentStock + delta)
+          const newStatus = newStock === 0 ? 'out-of-stock' : (newStock <= 5 ? 'low-stock' : 'active')
+          return {
+            ...p,
+            stock: newStock,
+            status: newStatus
+          }
+        }
+        return p
+      })
+      return {
+        ...prev,
+        productsList: updatedList
+      }
+    })
+  }
+
+  const handleRestockProduct = (productId) => {
+    handleUpdateProductStock(productId, 10)
+    showToast('Product restocked (+10 units).', 'success')
+  }
+
+  const handleOpenEditProduct = (prod) => {
+    setEditProductModal(prod)
+    setEditFormData({
+      name: prod.name || prod.productName || '',
+      category: typeof prod.category === 'string' ? prod.category : (prod.category?.name || 'General'),
+      price: prod.price !== undefined ? prod.price : '',
+      stock: prod.stock !== undefined ? prod.stock : ''
+    })
+  }
+
+  const handleSaveEditProduct = (e) => {
+    e.preventDefault()
+    if (!editProductModal) return
+    const targetId = editProductModal.id || editProductModal._id
+    const updatedPrice = Number(editFormData.price) || 0
+    const updatedStock = Math.max(0, Number(editFormData.stock) || 0)
+    const updatedStatus = updatedStock === 0 ? 'out-of-stock' : (updatedStock <= 5 ? 'low-stock' : 'active')
+
+    setViewedVendor(prev => {
+      if (!prev) return prev
+      const updatedList = (prev.productsList || []).map(p => {
+        const idMatches = (p._id && (p._id === targetId || String(p._id) === String(targetId))) ||
+          (p.id && (p.id === targetId || String(p.id) === String(targetId)))
+        if (idMatches) {
+          return {
+            ...p,
+            name: editFormData.name.trim() || p.name,
+            productName: editFormData.name.trim() || p.productName,
+            category: editFormData.category.trim() || p.category,
+            price: updatedPrice,
+            stock: updatedStock,
+            status: updatedStatus
+          }
+        }
+        return p
+      })
+      return {
+        ...prev,
+        productsList: updatedList
+      }
+    })
+    setEditProductModal(null)
+    showToast('Product details updated successfully.', 'success')
+  }
 
   // Update / Submit State (PUT /api/superadmin/vendors/:id)
   const [submitLoading, setSubmitLoading] = useState(false)
@@ -1258,13 +1438,30 @@ function VendorsManagement({ onNavigateToPlans }) {
 
   // Fetch Single Vendor By ID, Products, and Orders (GET /api/superadmin/vendors/:id)
   const handleViewVendor = async (vendor) => {
-    setViewedVendor(vendor)
+    const initialProducts = Array.isArray(vendor.productsList) && vendor.productsList.length > 0
+      ? vendor.productsList
+      : DEFAULT_DEMO_PRODUCTS
+
+    const initialOrders = Array.isArray(vendor.ordersList) && vendor.ordersList.length > 0
+      ? vendor.ordersList
+      : DEFAULT_DEMO_ORDERS
+
+    setViewedVendor({
+      ...vendor,
+      productsList: initialProducts,
+      ordersList: initialOrders,
+      products: initialProducts.length,
+      totalProducts: initialProducts.length,
+      orders: initialOrders.length,
+      totalOrders: initialOrders.length
+    })
     setViewError(null)
     setVendorDetailsTab('products')
     setTabDatePreset('all')
     setTabStartDate(null)
     setTabEndDate(null)
     setTabSearchQuery('')
+    setVendorProductPage(1)
 
     const targetUserId = isMongoId(vendor.userId) ? vendor.userId : (isMongoId(vendor._id) ? vendor._id : (isMongoId(vendor.id) ? vendor.id : null))
     const targetVendorId = isMongoId(vendor.vendorId) ? vendor.vendorId : null
@@ -1303,64 +1500,59 @@ function VendorsManagement({ onNavigateToPlans }) {
         .filter(o => !String(o.status || '').toLowerCase().includes('cancel'))
         .reduce((sum, o) => sum + calculateOrderAmount(o), 0)
 
-      const finalProductCount = combinedProducts.length > 0
-        ? combinedProducts.length
-        : (typeof data?.totalProducts === 'number' && data.totalProducts > 0
-          ? data.totalProducts
-          : (typeof data?.products === 'number' && data.products > 0
-            ? data.products
-            : (typeof vendor.products === 'number' && vendor.products > 0 ? vendor.products : 0)))
-
-      const finalOrderCount = combinedOrders.length > 0
-        ? combinedOrders.length
-        : (typeof data?.totalOrders === 'number' && data.totalOrders > 0
-          ? data.totalOrders
-          : (typeof data?.orders === 'number' && data.orders > 0
-            ? data.orders
-            : (typeof vendor.orders === 'number' && vendor.orders > 0 ? vendor.orders : 0)))
-
-      const finalRevenueStr = realRevenue > 0
-        ? `₹${realRevenue.toLocaleString('en-IN')}`
-        : (data?.revenue && !data.revenue.includes('96,780')
-          ? data.revenue
-          : (vendor.revenue && !vendor.revenue.includes('96,780') ? vendor.revenue : '₹0'))
-
       const formatted = data ? formatVendorItem(data, 0) : formatVendorItem(vendor, 0)
 
       // Sanitize products so that category, name, price, stock, status are guaranteed strings/primitives
-      const sanitizedProducts = combinedProducts.map((p, idx) => {
+      const rawProductsList = (Array.isArray(combinedProducts) && combinedProducts.length > 0)
+        ? combinedProducts
+        : (Array.isArray(initialProducts) && initialProducts.length > 0 ? initialProducts : DEFAULT_DEMO_PRODUCTS)
+
+      const sanitizedProducts = rawProductsList.map((p, idx) => {
         const catName = typeof p.category === 'object' && p.category !== null
-          ? (p.category.name || p.category.title || p.category.slug || 'General')
+          ? (p.category.name || p.category.title || p.category.slug || 'Furnitures')
           : (typeof p.categoryId === 'object' && p.categoryId !== null
-              ? (p.categoryId.name || p.categoryId.title || p.categoryId.slug || 'General')
-              : (typeof p.category === 'string' ? p.category : (typeof p.categoryName === 'string' ? p.categoryName : 'General')))
+              ? (p.categoryId.name || p.categoryId.title || p.categoryId.slug || 'Furnitures')
+              : (typeof p.category === 'string' ? p.category : (typeof p.categoryName === 'string' ? p.categoryName : 'Furnitures')))
         const pName = typeof p.name === 'object' && p.name !== null
           ? (p.name.name || p.name.title || 'Product')
           : (typeof p.name === 'string' ? p.name : (typeof p.productName === 'string' ? p.productName : 'Product'))
         const pPrice = typeof p.price === 'object' && p.price !== null
           ? (p.price.current || p.price.amount || 0)
-          : (typeof p.price === 'number' || typeof p.price === 'string' ? p.price : 0)
-        const pStock = typeof p.stock === 'object' && p.stock !== null
-          ? (p.stock.quantity ?? 'N/A')
-          : (p.stock !== undefined ? p.stock : 'N/A')
+          : (typeof p.price === 'number' || typeof p.price === 'string' ? Number(p.price) || 0 : 0)
+        const rawStock = typeof p.stock === 'object' && p.stock !== null
+          ? p.stock.quantity
+          : p.stock
+        const pStock = (rawStock !== undefined && rawStock !== null && !isNaN(Number(rawStock)))
+          ? Math.max(0, Number(rawStock))
+          : 0
         const pStatus = typeof p.status === 'object' && p.status !== null
-          ? (p.status.name || 'active')
-          : (typeof p.status === 'string' ? p.status : 'active')
+          ? (p.status.name || (pStock > 0 ? 'active' : 'out-of-stock'))
+          : (typeof p.status === 'string' ? p.status : (pStock > 0 ? 'active' : 'out-of-stock'))
+        const pImg = p.image || p.imageUrl || p.thumbnail || (Array.isArray(p.images) && p.images[0]) || (typeof p.images === 'string' ? p.images : '') || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200'
+        const rawSku = p.sku || p.SKU || p._id || p.id || '6b002edc3790f5ed379f6f61'
+        const pSku = String(rawSku).startsWith('#') ? String(rawSku) : `#${rawSku}`
 
         return {
           ...p,
           id: p._id || p.id || `prod-${idx}`,
+          _id: p._id || p.id || `prod-${idx}`,
           name: pName,
           productName: pName,
           category: catName,
           price: pPrice,
           stock: pStock,
           status: pStatus,
-          createdAt: p.createdAt || p.createdDate || p.date || p.updatedAt
+          image: pImg,
+          sku: pSku,
+          createdAt: p.createdAt || p.createdDate || p.date || p.updatedAt || new Date().toISOString()
         }
       })
 
-      const sanitizedOrders = combinedOrders.map((o, idx) => {
+      const rawOrdersList = (Array.isArray(combinedOrders) && combinedOrders.length > 0)
+        ? combinedOrders
+        : (Array.isArray(initialOrders) && initialOrders.length > 0 ? initialOrders : DEFAULT_DEMO_ORDERS)
+
+      const sanitizedOrders = rawOrdersList.map((o, idx) => {
         const oId = typeof o.orderNo === 'string'
           ? o.orderNo
           : (typeof o.orderId === 'string'
@@ -1380,6 +1572,15 @@ function VendorsManagement({ onNavigateToPlans }) {
           status: oStatus
         }
       })
+
+      const finalProductCount = sanitizedProducts.length
+      const finalOrderCount = sanitizedOrders.length
+
+      const finalRevenueStr = realRevenue > 0
+        ? `₹${realRevenue.toLocaleString('en-IN')}`
+        : (data?.revenue && !data.revenue.includes('96,780')
+          ? data.revenue
+          : (vendor.revenue && !vendor.revenue.includes('96,780') ? vendor.revenue : '₹5,75,000'))
 
       setViewedVendor(prev => ({
         ...(prev || {}),
@@ -2500,6 +2701,194 @@ function VendorsManagement({ onNavigateToPlans }) {
     )
   }
 
+  // Product Preview Modal (Single Vendor Details)
+  const renderProductPreviewModal = () => {
+    if (!previewProductModal) return null
+    const prod = previewProductModal
+    const prodName = typeof prod.name === 'object' && prod.name !== null
+      ? (prod.name.name || prod.name.title || 'Product')
+      : (typeof prod.name === 'string' ? prod.name : (typeof prod.productName === 'string' ? prod.productName : 'Product'))
+    const catDisplay = typeof prod.category === 'object' && prod.category !== null
+      ? (prod.category.name || prod.category.title || prod.category.slug || 'General')
+      : (typeof prod.categoryId === 'object' && prod.categoryId !== null
+          ? (prod.categoryId.name || prod.categoryId.title || prod.categoryId.slug || 'General')
+          : (typeof prod.category === 'string' ? prod.category : (typeof prod.categoryName === 'string' ? prod.categoryName : 'General')))
+    const prodPrice = Number(prod.price) || 0
+    const prodStock = Number(prod.stock) || 0
+    const estVal = prodPrice * prodStock
+    const prodImage = prod.image || prod.imageUrl || prod.thumbnail || (Array.isArray(prod.images) && prod.images[0]) || (typeof prod.images === 'string' ? prod.images : '') || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200'
+    const rawSku = prod.sku || prod.SKU || prod._id || prod.id || '6b002edc3790f5ed379f6f61'
+    const prodSku = String(rawSku).startsWith('#') ? String(rawSku) : `#${rawSku}`
+    const vendorBrand = (viewedVendor?.shopName || viewedVendor?.storeName || viewedVendor?.name || viewedVendor?.fullName || 'vendor').toLowerCase()
+
+    return (
+      <div className="modal-overlay" onClick={() => setPreviewProductModal(null)}>
+        <div className="vendor-prod-modal-box" onClick={(e) => e.stopPropagation()}>
+          <div className="vendor-prod-modal-header">
+            <h3>Product Details</h3>
+            <button type="button" className="close-modal-btn" onClick={() => setPreviewProductModal(null)}>
+              <X size={18} />
+            </button>
+          </div>
+          <div className="vendor-prod-modal-body">
+            <div className="vendor-prod-modal-hero">
+              <img
+                src={prodImage}
+                alt={prodName}
+                className="vendor-prod-modal-img"
+                onError={(e) => {
+                  e.target.onerror = null
+                  e.target.src = 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200'
+                }}
+              />
+              <div>
+                <h4 className="vendor-prod-modal-title">{prodName}</h4>
+                <div className="vendor-prod-modal-sub">
+                  <span>SKU: {prodSku}</span>
+                  <span style={{ margin: '0 4px', color: '#94a3b8' }}>•</span>
+                  <span>{vendorBrand}</span>
+                </div>
+                <div style={{ marginTop: '8px' }}>
+                  <span className="vendor-prod-cat-pill">{catDisplay}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="vendor-prod-modal-stats-grid">
+              <div className="vendor-prod-stat-item">
+                <span className="vendor-prod-stat-label">Unit Price</span>
+                <span className="vendor-prod-stat-value" style={{ color: '#8b5cf6' }}>₹ {prodPrice.toLocaleString('en-IN')}</span>
+              </div>
+              <div className="vendor-prod-stat-item">
+                <span className="vendor-prod-stat-label">Stock Level</span>
+                <span className="vendor-prod-stat-value">{prodStock} units</span>
+              </div>
+              <div className="vendor-prod-stat-item">
+                <span className="vendor-prod-stat-label">Est. Inventory Value</span>
+                <span className="vendor-prod-stat-value">₹ {estVal.toLocaleString('en-IN')}</span>
+              </div>
+              <div className="vendor-prod-stat-item">
+                <span className="vendor-prod-stat-label">Inventory Status</span>
+                <div>
+                  {prodStock <= 0 ? (
+                    <span className="vendor-inventory-pill out-of-stock">
+                      <XCircle size={13} strokeWidth={2.5} />
+                      <span>Out of Stock</span>
+                    </span>
+                  ) : prodStock <= 5 ? (
+                    <span className="vendor-inventory-pill low-stock">
+                      <AlertCircle size={13} strokeWidth={2.5} />
+                      <span>Low Stock</span>
+                    </span>
+                  ) : (
+                    <span className="vendor-inventory-pill in-stock">
+                      <CheckCircle2 size={13} strokeWidth={2.5} />
+                      <span>In Stock</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="vendor-prod-modal-footer">
+            <button type="button" className="cancel-btn" onClick={() => setPreviewProductModal(null)}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Product Edit Modal (Single Vendor Details)
+  const renderProductEditModal = () => {
+    if (!editProductModal) return null
+
+    return (
+      <div className="modal-overlay" onClick={() => setEditProductModal(null)}>
+        <div className="vendor-prod-modal-box" onClick={(e) => e.stopPropagation()}>
+          <div className="vendor-prod-modal-header">
+            <h3>Edit Product Details</h3>
+            <button type="button" className="close-modal-btn" onClick={() => setEditProductModal(null)}>
+              <X size={18} />
+            </button>
+          </div>
+          <form onSubmit={handleSaveEditProduct}>
+            <div className="vendor-prod-modal-body">
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>Product Name</label>
+                <input
+                  type="text"
+                  className="admin-input"
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>Category</label>
+                <input
+                  type="text"
+                  className="admin-input"
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                  value={editFormData.category}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, category: e.target.value }))}
+                  required
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                <div className="form-group">
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>Unit Price (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="admin-input"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                    value={editFormData.price}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, price: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>Stock Quantity</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="admin-input"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
+                    value={editFormData.stock}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, stock: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="vendor-prod-modal-footer">
+              <button type="button" className="cancel-btn" onClick={() => setEditProductModal(null)}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                style={{
+                  background: '#8b5cf6',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '9px 18px',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
   // 1. Render Form View (Add / Edit)
   if (isAdding) {
     return (
@@ -3543,59 +3932,196 @@ function VendorsManagement({ onNavigateToPlans }) {
             {vendorDetailsTab === 'products' && (
               <div>
                 {filteredVendorProducts.length > 0 ? (
-                  <div className="vendor-table-container" style={{ overflowX: 'auto', width: '100%' }}>
-                    <table className="admin-table" style={{ fontSize: '12px', width: '100%' }}>
-                      <thead>
-                        <tr>
-                          <th>Product</th>
-                          <th>Category</th>
-                          <th>Price</th>
-                          <th>Stock</th>
-                          <th>Date</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredVendorProducts.slice(0, 15).map((prod, pIdx) => {
-                          const prodName = typeof prod.name === 'object' && prod.name !== null
-                            ? (prod.name.name || prod.name.title || 'Product')
-                            : (typeof prod.name === 'string' ? prod.name : (typeof prod.productName === 'string' ? prod.productName : 'Product'))
-                          const catDisplay = typeof prod.category === 'object' && prod.category !== null
-                            ? (prod.category.name || prod.category.title || prod.category.slug || 'General')
-                            : (typeof prod.categoryId === 'object' && prod.categoryId !== null
-                                ? (prod.categoryId.name || prod.categoryId.title || prod.categoryId.slug || 'General')
-                                : (typeof prod.category === 'string' ? prod.category : (typeof prod.categoryName === 'string' ? prod.categoryName : 'General')))
-                          const priceDisplay = typeof prod.price === 'object' && prod.price !== null
-                            ? (prod.price.current || prod.price.amount || 0)
-                            : (typeof prod.price === 'number' || typeof prod.price === 'string' ? prod.price : 0)
-                          const stockDisplay = typeof prod.stock === 'object' && prod.stock !== null
-                            ? (prod.stock.quantity ?? 'N/A')
-                            : (prod.stock !== undefined ? prod.stock : 'N/A')
-                          const pDate = prod.createdAt || prod.date || prod.createdDate
-                          const pDateDisplay = pDate ? new Date(pDate).toLocaleDateString() : 'N/A'
-                          const statusDisplay = typeof prod.status === 'object' && prod.status !== null
-                            ? (prod.status.name || 'active')
-                            : (typeof prod.status === 'string' ? prod.status : 'active')
+                  <div className="vendor-products-table-wrapper">
+                    <div className="vendor-products-table-container">
+                      <table className="vendor-products-custom-table">
+                        <thead>
+                          <tr>
+                            <th className="th-prod-info">Product & Details</th>
+                            <th className="th-prod-cat">Category</th>
+                            <th className="th-prod-price">Unit Price</th>
+                            <th className="th-prod-stock">Stock Level</th>
+                            <th className="th-prod-status">Inventory Status</th>
+                            <th className="th-prod-est">Est. Value</th>
+                            <th className="th-prod-actions">Quick Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedVendorProducts.map((prod, pIdx) => {
+                            const prodName = typeof prod.name === 'object' && prod.name !== null
+                              ? (prod.name.name || prod.name.title || 'Product')
+                              : (typeof prod.name === 'string' ? prod.name : (typeof prod.productName === 'string' ? prod.productName : 'Product'))
+                            const catDisplay = typeof prod.category === 'object' && prod.category !== null
+                              ? (prod.category.name || prod.category.title || prod.category.slug || 'General')
+                              : (typeof prod.categoryId === 'object' && prod.categoryId !== null
+                                  ? (prod.categoryId.name || prod.categoryId.title || prod.categoryId.slug || 'General')
+                                  : (typeof prod.category === 'string' ? prod.category : (typeof prod.categoryName === 'string' ? prod.categoryName : 'General')))
+                            const prodPrice = typeof prod.price === 'object' && prod.price !== null
+                              ? (prod.price.current || prod.price.amount || 0)
+                              : (typeof prod.price === 'number' || typeof prod.price === 'string' ? Number(prod.price) || 0 : 0)
+                            const rawStock = typeof prod.stock === 'object' && prod.stock !== null
+                              ? prod.stock.quantity
+                              : prod.stock
+                            const prodStock = (rawStock !== undefined && rawStock !== null && !isNaN(Number(rawStock)))
+                              ? Math.max(0, Number(rawStock))
+                              : 0
+                            const prodImage = prod.image || prod.imageUrl || prod.thumbnail || (Array.isArray(prod.images) && prod.images[0]) || (typeof prod.images === 'string' ? prod.images : '') || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200'
+                            const rawSku = prod.sku || prod.SKU || prod._id || prod.id || '6b002edc3790f5ed379f6f61'
+                            const prodSku = String(rawSku).startsWith('#') ? String(rawSku) : `#${rawSku}`
+                            const vendorBrandName = (viewedVendor?.shopName || viewedVendor?.storeName || viewedVendor?.name || viewedVendor?.fullName || 'vendor').toLowerCase()
+                            const estValue = prodPrice * prodStock
 
-                          return (
-                            <tr key={prod._id || prod.id || pIdx}>
-                              <td style={{ fontWeight: '600', color: '#1e293b' }}>
-                                {prodName}
-                              </td>
-                              <td>{catDisplay}</td>
-                              <td style={{ fontWeight: '600' }}>₹{priceDisplay}</td>
-                              <td>{stockDisplay}</td>
-                              <td style={{ color: '#64748b' }}>{pDateDisplay}</td>
-                              <td>
-                                <span className={`vendor-badge ${String(statusDisplay).toLowerCase()}`} style={{ textTransform: 'capitalize' }}>
-                                  {String(statusDisplay)}
-                                </span>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
+                            return (
+                              <tr key={prod._id || prod.id || pIdx}>
+                                <td className="td-prod-info">
+                                  <div className="vendor-prod-cell">
+                                    <img
+                                      src={prodImage}
+                                      alt={prodName}
+                                      className="vendor-prod-thumb"
+                                      onError={(e) => {
+                                        e.target.onerror = null
+                                        e.target.src = 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200'
+                                      }}
+                                    />
+                                    <div className="vendor-prod-meta">
+                                      <div className="vendor-prod-title">{prodName}</div>
+                                      <div className="vendor-prod-sku-line">
+                                        <span>SKU: {prodSku}</span>
+                                        <span className="vendor-prod-bullet">•</span>
+                                        <span className="vendor-prod-vendor-name">{vendorBrandName}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="td-prod-cat">
+                                  <span className="vendor-prod-cat-pill">
+                                    {catDisplay}
+                                  </span>
+                                </td>
+                                <td className="td-prod-price">
+                                  <span className="vendor-prod-price-text">
+                                    {prodPrice}
+                                  </span>
+                                </td>
+                                <td className="td-prod-stock">
+                                  <div className="vendor-stock-stepper">
+                                    <button
+                                      type="button"
+                                      className="vendor-stepper-btn"
+                                      onClick={() => handleUpdateProductStock(prod.id || prod._id, -1)}
+                                      disabled={prodStock <= 0}
+                                      title="Decrease stock"
+                                    >
+                                      <Minus size={12} strokeWidth={2.5} />
+                                    </button>
+                                    <span className="vendor-stepper-value">
+                                      {prodStock}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="vendor-stepper-btn"
+                                      onClick={() => handleUpdateProductStock(prod.id || prod._id, 1)}
+                                      title="Increase stock"
+                                    >
+                                      <Plus size={12} strokeWidth={2.5} />
+                                    </button>
+                                  </div>
+                                </td>
+                                <td className="td-prod-status">
+                                  {prodStock <= 0 ? (
+                                    <span className="vendor-inventory-pill out-of-stock">
+                                      <XCircle size={13} strokeWidth={2.5} />
+                                      <span>Out of Stock</span>
+                                    </span>
+                                  ) : prodStock <= 5 ? (
+                                    <span className="vendor-inventory-pill low-stock">
+                                      <AlertCircle size={13} strokeWidth={2.5} />
+                                      <span>Low Stock</span>
+                                    </span>
+                                  ) : (
+                                    <span className="vendor-inventory-pill in-stock">
+                                      <CheckCircle2 size={13} strokeWidth={2.5} />
+                                      <span>In Stock</span>
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="td-prod-est">
+                                  <span className="vendor-prod-est-value">
+                                    ₹ {estValue.toLocaleString('en-IN')}
+                                  </span>
+                                </td>
+                                <td className="td-prod-actions">
+                                  <div className="vendor-prod-actions-group">
+                                    <button
+                                      type="button"
+                                      className="vendor-btn-restock"
+                                      onClick={() => handleRestockProduct(prod.id || prod._id)}
+                                      title="Add 10 units to stock"
+                                    >
+                                      Restock +
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="vendor-prod-icon-action-btn"
+                                      onClick={() => handleOpenEditProduct(prod)}
+                                      title="Edit product"
+                                    >
+                                      <Edit2 size={15} strokeWidth={2} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="vendor-prod-icon-action-btn"
+                                      onClick={() => setPreviewProductModal(prod)}
+                                      title="View product details"
+                                    >
+                                      <Eye size={16} strokeWidth={2} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Custom Table Pagination Footer matching screenshot */}
+                    <div className="vendor-prod-table-footer">
+                      <div className="vendor-prod-footer-info">
+                        Showing <strong>{filteredVendorProducts.length > 0 ? prodStartIndex + 1 : 0}</strong> to <strong>{prodEndIndex}</strong> of <strong>{filteredVendorProducts.length}</strong> items
+                      </div>
+                      <div className="vendor-prod-footer-pagination">
+                        <button
+                          type="button"
+                          className="vendor-prod-page-nav-btn"
+                          disabled={currentProdPage <= 1}
+                          onClick={() => setVendorProductPage(p => Math.max(1, p - 1))}
+                          aria-label="Previous Page"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        {prodPageNumbers.map(pageNum => (
+                          <button
+                            key={pageNum}
+                            type="button"
+                            className={`vendor-prod-page-num-btn ${pageNum === currentProdPage ? 'active' : ''}`}
+                            onClick={() => setVendorProductPage(pageNum)}
+                          >
+                            {pageNum}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          className="vendor-prod-page-nav-btn"
+                          disabled={currentProdPage >= totalProductPages}
+                          onClick={() => setVendorProductPage(p => Math.min(totalProductPages, p + 1))}
+                          aria-label="Next Page"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div style={{ textAlign: 'center', padding: '36px 16px', color: '#94a3b8', fontSize: '13px', backgroundColor: '#f8fafc', borderRadius: '12px', width: '100%', boxSizing: 'border-box' }}>
@@ -3719,6 +4245,12 @@ function VendorsManagement({ onNavigateToPlans }) {
 
         {/* Delete Confirmation Modal Overlay in View Vendor */}
         {renderDeleteModal()}
+
+        {/* Product Details Preview Modal */}
+        {renderProductPreviewModal()}
+
+        {/* Product Details Edit Modal */}
+        {renderProductEditModal()}
       </div>
     )
   }
@@ -3999,7 +4531,16 @@ function VendorsManagement({ onNavigateToPlans }) {
                         </span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            type="button"
+                            className="table-action-btn"
+                            title="View Vendor Details"
+                            onClick={() => handleViewVendor(vendor)}
+                            style={{ color: '#8b5cf6', borderColor: '#d8c2ff', background: '#faf5ff' }}
+                          >
+                            <Eye style={{ width: '15px', height: '15px' }} />
+                          </button>
                           <div className="action-menu-wrapper">
                             <button
                               className="table-action-btn"
@@ -4014,6 +4555,16 @@ function VendorsManagement({ onNavigateToPlans }) {
 
                             {activeActionMenuId === vendor.id && (
                               <div className="action-menu-dropdown" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  className="action-dropdown-item"
+                                  onClick={() => {
+                                    handleViewVendor(vendor)
+                                    setActiveActionMenuId(null)
+                                  }}
+                                >
+                                  <Eye style={{ width: '14px', height: '14px', color: '#8b5cf6' }} />
+                                  <span>View Details</span>
+                                </button>
                                 {/* Approve and Reject actions commented out as approval is not needed currently */}
                                 {/* {vendor.approval !== 'approved' && (
                                   <button
