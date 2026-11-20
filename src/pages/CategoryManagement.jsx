@@ -2756,7 +2756,6 @@ function CategoryManagement() {
             <div
               key={stat.id}
               className={`stat-card clickable ${isActive ? 'active-filter' : ''}`}
-              style={{ backgroundColor: stat.background, borderColor: stat.color, color: stat.color }}
               onClick={() => {
                 if (stat.filterVal !== 'products') {
                   setStatusFilter(stat.filterVal)
@@ -2765,14 +2764,11 @@ function CategoryManagement() {
               }}
               title={`Click to filter by ${stat.label}`}
             >
-              <div
-                className="stat-icon-wrapper"
-                style={{ backgroundColor: 'rgba(255,255,255,0.7)', color: stat.color }}
-              >
+              <div className="stat-icon-wrapper">
                 <Icon />
               </div>
-              <div className="stat-value" style={{ fontSize: '24px', fontWeight: '700' }}>{stat.value.toLocaleString()}</div>
-              <div className="stat-label" style={{ color: '#546e7a', fontWeight: '500' }}>{stat.label}</div>
+              <div className="stat-label">{stat.label}</div>
+              <div className="stat-value">{stat.value.toLocaleString()}</div>
             </div>
           )
         })}

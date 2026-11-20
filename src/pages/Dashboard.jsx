@@ -203,46 +203,54 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
 
   const statSections = [
     {
-      title: "Reports Metrics",
-      items: [
-        { id: 'total-revenue', label: 'Total Revenue', value: '₹ 5,56,879', icon: TrendingUp, colorClass: 'green' },
-        { id: 'total-sales', label: 'Total Sales', value: '₹ 1,88,879', icon: FileText, colorClass: 'green' },
-        { 
-          id: 'reports-total-order', 
-          label: 'Total Order', 
-          value: statsData?.totalOrders !== undefined ? Number(statsData.totalOrders).toLocaleString() : '320', 
-          icon: ShoppingBag, 
-          colorClass: 'blue' 
-        }
-      ]
-    },
-    {
-      title: "Orders & Payments Metrics",
+      title: "Orders",
       items: [
         { 
           id: 'total-orders', 
           label: 'Total Orders', 
           value: statsData?.totalOrders !== undefined ? Number(statsData.totalOrders).toLocaleString() : '320', 
-          icon: ShoppingCart, 
-          colorClass: 'blue' 
+          icon: ShoppingBag, 
+          colorClass: 'plum' 
         },
-        { id: 'delivered-orders', label: 'Delivered Orders', value: '10,245', icon: CheckCircle2, colorClass: 'green' },
-        { id: 'processing-orders', label: 'Processing Orders', value: '1,823', icon: RefreshCw, colorClass: 'blue' },
-        { id: 'cancelled-orders', label: 'Cancelled Orders', value: '377', icon: XCircle, colorClass: 'red' },
-        { id: 'total-payments', label: 'Total Payments', value: '120', icon: DollarSign, colorClass: 'blue' },
-        { id: 'success-payments', label: 'Success Payments', value: '110', icon: CheckCircle2, colorClass: 'green' },
-        { id: 'refunded-payments', label: 'Refunded Payments', value: '10', icon: AlertTriangle, colorClass: 'red' }
+        { 
+          id: 'pending-orders', 
+          label: 'Pending Orders', 
+          value: statsData?.pendingOrders !== undefined ? Number(statsData.pendingOrders).toLocaleString() : '412', 
+          icon: Clock, 
+          colorClass: 'plum' 
+        },
+        { 
+          id: 'processing-orders', 
+          label: 'Processing Orders', 
+          value: statsData?.processingOrders !== undefined ? Number(statsData.processingOrders).toLocaleString() : '1,823', 
+          icon: Package, 
+          colorClass: 'plum' 
+        },
+        { 
+          id: 'delivered-orders', 
+          label: 'Delivered Orders', 
+          value: statsData?.deliveredOrders !== undefined ? Number(statsData.deliveredOrders).toLocaleString() : '10,245', 
+          icon: CheckCircle2, 
+          colorClass: 'plum' 
+        },
+        { 
+          id: 'cancelled-orders', 
+          label: 'Cancelled Orders', 
+          value: statsData?.cancelledOrders !== undefined ? Number(statsData.cancelledOrders).toLocaleString() : '377', 
+          icon: XCircle, 
+          colorClass: 'plum' 
+        }
       ]
     },
     {
-      title: "Catalog & Inventory Metrics",
+      title: "Products",
       items: [
         { 
           id: 'total-products', 
           label: 'Total Products', 
           value: productCounts?.total !== undefined ? Number(productCounts.total).toLocaleString() : (statsData?.totalProducts !== undefined ? Number(statsData.totalProducts).toLocaleString() : '500'), 
           icon: Package, 
-          colorClass: 'blue',
+          colorClass: 'plum',
           filterVal: 'all',
           targetPage: 'Product Management',
           clickable: true
@@ -252,7 +260,7 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
           label: 'Active Products', 
           value: productCounts?.active !== undefined ? Number(productCounts.active).toLocaleString() : (statsData?.activeProducts !== undefined ? Number(statsData.activeProducts).toLocaleString() : '448'), 
           icon: CheckCircle2, 
-          colorClass: 'green',
+          colorClass: 'plum',
           filterVal: 'active',
           targetPage: 'Product Management',
           clickable: true
@@ -261,8 +269,8 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
           id: 'inactive-products', 
           label: 'Inactive Products', 
           value: productCounts?.inactive !== undefined ? Number(productCounts.inactive).toLocaleString() : (statsData?.inactiveProducts !== undefined ? Number(statsData.inactiveProducts).toLocaleString() : '3'), 
-          icon: PackageX, 
-          colorClass: 'red',
+          icon: Clock, 
+          colorClass: 'plum',
           filterVal: 'inactive',
           targetPage: 'Product Management',
           clickable: true
@@ -271,27 +279,56 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
           id: 'outofstock-products', 
           label: 'Out Of Stock', 
           value: productCounts?.outOfStock !== undefined ? Number(productCounts.outOfStock).toLocaleString() : (statsData?.outOfStockProducts !== undefined ? Number(statsData.outOfStockProducts).toLocaleString() : '49'), 
-          icon: ShieldAlert, 
-          colorClass: 'red',
+          icon: XCircle, 
+          colorClass: 'plum',
           filterVal: 'out-of-stock',
           targetPage: 'Product Management',
           clickable: true
-        },
-        { id: 'product-category', label: 'Product Category', value: '20', icon: LayoutGrid, colorClass: 'blue' },
-        { id: 'total-categories', label: 'Total Categories', value: '19', icon: Layers, colorClass: 'blue' },
-        { id: 'active-categories', label: 'Active Categories', value: '17', icon: CheckSquare, colorClass: 'green' },
-        { id: 'inactive-categories', label: 'Inactive Categories', value: '1', icon: AlertTriangle, colorClass: 'red' }
+        }
       ]
     },
     {
-      title: "User & Vendor Metrics",
+      title: "Inventory",
+      items: [
+        { 
+          id: 'total-skus', 
+          label: 'Total SKUs', 
+          value: productCounts?.total !== undefined ? Number(productCounts.total).toLocaleString() : (statsData?.totalProducts !== undefined ? Number(statsData.totalProducts).toLocaleString() : '500'), 
+          icon: Package, 
+          colorClass: 'plum' 
+        },
+        { 
+          id: 'low-stock', 
+          label: 'Low Stock', 
+          value: '18', 
+          icon: Clock, 
+          colorClass: 'plum' 
+        },
+        { 
+          id: 'out-of-stock-inv', 
+          label: 'Out of Stock', 
+          value: productCounts?.outOfStock !== undefined ? Number(productCounts.outOfStock).toLocaleString() : (statsData?.outOfStockProducts !== undefined ? Number(statsData.outOfStockProducts).toLocaleString() : '49'), 
+          icon: XCircle, 
+          colorClass: 'plum' 
+        },
+        { 
+          id: 'total-categories', 
+          label: 'Total Categories', 
+          value: '19', 
+          icon: Layers, 
+          colorClass: 'plum' 
+        }
+      ]
+    },
+    {
+      title: "Users & Vendors",
       items: [
         { 
           id: 'total-customers', 
           label: 'Total Customers', 
           value: customerCounts?.total !== undefined ? Number(customerCounts.total).toLocaleString() : (statsData?.totalCustomers !== undefined ? Number(statsData.totalCustomers).toLocaleString() : '30'), 
           icon: Users, 
-          colorClass: 'blue',
+          colorClass: 'plum',
           filterVal: 'all',
           clickable: true
         },
@@ -300,7 +337,7 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
           label: 'Active Customers', 
           value: customerCounts?.active !== undefined ? Number(customerCounts.active).toLocaleString() : '16', 
           icon: UserCheck, 
-          colorClass: 'green',
+          colorClass: 'plum',
           filterVal: 'active',
           clickable: true
         },
@@ -309,7 +346,7 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
           label: 'Blocked Customers', 
           value: customerCounts?.blocked !== undefined ? Number(customerCounts.blocked).toLocaleString() : '14', 
           icon: ShieldAlert, 
-          colorClass: 'red',
+          colorClass: 'plum',
           filterVal: 'blocked',
           clickable: true
         },
@@ -318,40 +355,43 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
           label: 'Total Vendors', 
           value: statsData?.totalVendors !== undefined ? Number(statsData.totalVendors).toLocaleString() : '25', 
           icon: Store, 
-          colorClass: 'blue' 
+          colorClass: 'plum' 
         },
-        { id: 'active-vendors', label: 'Active Vendors', value: '196', icon: UserCheck, colorClass: 'green' },
-        { id: 'inactive-vendors', label: 'Inactive Vendors', value: '13', icon: UserMinus, colorClass: 'red' },
+        { id: 'active-vendors', label: 'Active Vendors', value: '196', icon: UserCheck, colorClass: 'plum' },
+        { id: 'inactive-vendors', label: 'Inactive Vendors', value: '13', icon: UserMinus, colorClass: 'plum' },
         { 
           id: 'total-admins', 
           label: 'Total Admins', 
           value: adminCounts?.total !== undefined ? Number(adminCounts.total).toLocaleString() : (statsData?.totalAdmins !== undefined ? Number(statsData.totalAdmins).toLocaleString() : '32'), 
           icon: Users, 
-          colorClass: 'blue' 
+          colorClass: 'plum' 
         },
         { 
           id: 'active-admins', 
           label: 'Active Admins', 
           value: adminCounts?.active !== undefined ? Number(adminCounts.active).toLocaleString() : '25', 
           icon: UserCheck, 
-          colorClass: 'green' 
-        },
-        { 
-          id: 'inactive-admins', 
-          label: 'Inactive Admins', 
-          value: adminCounts?.inactive !== undefined ? Number(adminCounts.inactive).toLocaleString() : '7', 
-          icon: UserMinus, 
-          colorClass: 'red' 
+          colorClass: 'plum' 
         }
       ]
     },
     {
-      title: "Offers & Coupons Metrics",
+      title: "Offers & Coupons",
       items: [
-        { id: 'total-offers', label: 'Total Offers', value: '8', icon: Tag, colorClass: 'blue' },
-        { id: 'total-coupons', label: 'Total Coupons', value: '8', icon: Ticket, colorClass: 'blue' },
-        { id: 'active-offers', label: 'Active Offers', value: '3', icon: CheckCircle2, colorClass: 'green' },
-        { id: 'active-coupons', label: 'Active Coupons', value: '3', icon: Clock, colorClass: 'green' }
+        { id: 'total-offers', label: 'Total Offers', value: '8', icon: Tag, colorClass: 'plum' },
+        { id: 'active-offers', label: 'Active Offers', value: '3', icon: CheckCircle2, colorClass: 'plum' },
+        { id: 'total-coupons', label: 'Total Coupons', value: '8', icon: Ticket, colorClass: 'plum' },
+        { id: 'active-coupons', label: 'Active Coupons', value: '3', icon: Clock, colorClass: 'plum' }
+      ]
+    },
+    {
+      title: "Reports & Payments",
+      items: [
+        { id: 'total-revenue', label: 'Total Revenue', value: '₹ 5,56,879', icon: TrendingUp, colorClass: 'plum' },
+        { id: 'total-sales', label: 'Total Sales', value: '₹ 1,88,879', icon: FileText, colorClass: 'plum' },
+        { id: 'total-payments', label: 'Total Payments', value: '120', icon: DollarSign, colorClass: 'plum' },
+        { id: 'success-payments', label: 'Success Payments', value: '110', icon: CheckCircle2, colorClass: 'plum' },
+        { id: 'refunded-payments', label: 'Refunded Payments', value: '10', icon: AlertTriangle, colorClass: 'plum' }
       ]
     }
   ]
@@ -435,8 +475,8 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
 
       {/* Render all metrics grouped by section */}
       {statSections.map((section, idx) => (
-        <div key={idx} className="dashboard-section-block" style={{ marginBottom: '32px' }}>
-          <h2 className="section-subtitle" style={{ fontSize: '16px', fontWeight: '700', marginBottom: '16px', color: 'var(--text-dark)' }}>
+        <div key={idx} className="dashboard-section-block" style={{ marginBottom: '28px' }}>
+          <h2 className="section-subtitle" style={{ fontSize: '16px', fontWeight: '600', marginBottom: '14px', color: '#0f172a' }}>
             {section.title}
           </h2>
           <div className="stats-grid">
