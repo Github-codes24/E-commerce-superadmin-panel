@@ -2701,7 +2701,6 @@ function AdminsManagement() {
             <div
               key={stat.id}
               className={`stat-card clickable ${isActive ? 'active-filter' : ''}`}
-              style={{ backgroundColor: stat.background, color: stat.color }}
               onClick={() => {
                 if (stat.filterType === 'approval') {
                   setApprovalFilter(approvalFilter === stat.filterVal ? 'all' : stat.filterVal)
@@ -2713,14 +2712,11 @@ function AdminsManagement() {
               }}
               title={`Click to filter by ${stat.label}`}
             >
-              <div
-                className="stat-icon-wrapper"
-                style={{ backgroundColor: 'rgba(255,255,255,0.7)', color: stat.color }}
-              >
+              <div className="stat-icon-wrapper">
                 <Icon />
               </div>
-              <div className="stat-value" style={{ fontSize: '24px', fontWeight: '700' }}>{stat.value}</div>
-              <div className="stat-label" style={{ color: '#546e7a', fontWeight: '500' }}>{stat.label}</div>
+              <div className="stat-label">{stat.label}</div>
+              <div className="stat-value">{stat.value}</div>
             </div>
           )
         })}

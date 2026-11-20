@@ -3824,18 +3824,13 @@ function VendorsManagement({ onNavigateToPlans }) {
               <div
                 key={stat.id}
                 className="stat-card"
-                style={{ backgroundColor: stat.background, padding: '16px 20px', flexDirection: 'row', alignItems: 'center', gap: '16px', boxSizing: 'border-box', width: '100%' }}
+                style={{ width: '100%', boxSizing: 'border-box' }}
               >
-                <div
-                  className="stat-icon-wrapper"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.75)', color: stat.color, width: '40px', height: '40px' }}
-                >
-                  <Icon style={{ width: '20px', height: '20px' }} />
+                <div className="stat-icon-wrapper">
+                  <Icon style={{ width: '22px', height: '22px' }} />
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <div className="stat-label" style={{ color: '#555555', fontSize: '12px', fontWeight: '500' }}>{stat.label}</div>
-                  <div className="stat-value" style={{ fontSize: '20px', fontWeight: '800', color: '#000000' }}>{stat.value}</div>
-                </div>
+                <div className="stat-label">{stat.label}</div>
+                <div className="stat-value">{stat.value}</div>
               </div>
             )
           })}
@@ -4767,18 +4762,14 @@ function VendorsManagement({ onNavigateToPlans }) {
             <div
               key={stat.id}
               className={`stat-card clickable ${isActive ? 'active-filter' : ''}`}
-              style={{ backgroundColor: stat.background, borderColor: stat.color, color: stat.color }}
               onClick={() => setAccountFilter(stat.filterVal)}
               title={`Click to filter by ${stat.label}`}
             >
-              <div
-                className="stat-icon-wrapper"
-                style={{ backgroundColor: 'rgba(255,255,255,0.7)', color: stat.color }}
-              >
+              <div className="stat-icon-wrapper">
                 <Icon />
               </div>
-              <div className="stat-value" style={{ fontSize: '24px', fontWeight: '700' }}>{stat.value}</div>
-              <div className="stat-label" style={{ color: '#546e7a', fontWeight: '500' }}>{stat.label}</div>
+              <div className="stat-label">{stat.label}</div>
+              <div className="stat-value">{stat.value}</div>
             </div>
           )
         })}

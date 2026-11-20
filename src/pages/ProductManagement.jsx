@@ -4988,16 +4988,16 @@ function ProductManagement() {
               key={stat.id}
               className={`stat-card-shopnow clickable ${isActive ? 'active-filter' : ''}`}
               style={{
-                backgroundColor: stat.background,
-                border: isActive ? '1.5px solid #1e1b4b' : '1px solid rgba(0,0,0,0.04)',
+                backgroundColor: '#ffffff',
+                border: isActive ? '1.5px solid #a36da6' : '1px solid #eef2f6',
                 borderRadius: '16px',
-                padding: '18px 20px',
+                padding: '16px 20px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '6px',
+                gap: '4px',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                boxShadow: isActive ? '0 6px 16px rgba(0,0,0,0.06)' : '0 2px 6px rgba(0,0,0,0.02)'
+                boxShadow: isActive ? '0 6px 16px rgba(163,109,166,0.15)' : '0 2px 8px rgba(0,0,0,0.02)'
               }}
               onClick={() => {
                 if (stat.filterVal !== 'category') {
@@ -5006,24 +5006,24 @@ function ProductManagement() {
               }}
               title={`Click to filter by ${stat.label}`}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                <div style={{ backgroundColor: '#ffffff', color: stat.iconColor || stat.color, width: '38px', height: '38px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                  <Icon style={{ width: '20px', height: '20px' }} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                <div style={{ backgroundColor: '#a36da6', color: '#ffffff', width: '44px', height: '44px', borderRadius: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(163,109,166,0.22)' }}>
+                  <Icon style={{ width: '22px', height: '22px' }} />
                 </div>
                 {stat.pill && (
-                  <span style={{ backgroundColor: '#ffffff', color: '#475569', fontSize: '11px', fontWeight: '600', padding: '3px 10px', borderRadius: '9999px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                  <span style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '11px', fontWeight: '600', padding: '3px 10px', borderRadius: '9999px', border: '1px solid #e2e8f0', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                     {stat.pill}
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: '26px', fontWeight: '800', color: '#0f172a', lineHeight: 1.2, marginTop: '8px' }}>
-                {stat.value}
-              </div>
-              <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>
+              <div style={{ fontSize: '13.5px', fontWeight: '500', color: '#64748b', marginTop: '4px' }}>
                 {stat.label}
               </div>
+              <div style={{ fontSize: '24px', fontWeight: '700', color: '#0f172a', lineHeight: 1.2 }}>
+                {stat.value}
+              </div>
               {stat.subtitle && (
-                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {stat.subtitle}
                 </div>
               )}
