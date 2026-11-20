@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, Minus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power, Briefcase, Eye, EyeOff, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, Minus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power, Briefcase, Eye, EyeOff, ChevronDown, ChevronLeft, ChevronRight, FileText, ExternalLink } from 'lucide-react'
 import { getAllVendors, getVendorById, createVendor, registerVendor, updateVendorBusinessProfile, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor, getProductsByVendor, getAllProducts, getAllOrders, getCloudVendorSync, saveCloudVendorSync } from '../services/superAdminService'
 import './VendorsManagement.css'
 
@@ -617,21 +617,117 @@ export const DEFAULT_DEMO_PRODUCTS = [
 
 // Default sample orders matching vendor details view
 export const DEFAULT_DEMO_ORDERS = [
-  { orderNo: '#ORD-98214', orderId: '#ORD-98214', _id: 'ord-1', id: 'ord-1', date: new Date().toISOString(), createdAt: new Date().toISOString(), totalAmount: 25000, amount: '₹25,000', status: 'Delivered', customerName: 'Aarav Patel' },
-  { orderNo: '#ORD-98215', orderId: '#ORD-98215', _id: 'ord-2', id: 'ord-2', date: new Date(Date.now() - 86400000 * 2).toISOString(), createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), totalAmount: 34000, amount: '₹34,000', status: 'Processing', customerName: 'Priya Sharma' },
-  { orderNo: '#ORD-98216', orderId: '#ORD-98216', _id: 'ord-3', id: 'ord-3', date: new Date(Date.now() - 86400000 * 4).toISOString(), createdAt: new Date(Date.now() - 86400000 * 4).toISOString(), totalAmount: 12500, amount: '₹12,500', status: 'Shipped', customerName: 'Rohan Mehta' },
-  { orderNo: '#ORD-98217', orderId: '#ORD-98217', _id: 'ord-4', id: 'ord-4', date: new Date(Date.now() - 86400000 * 7).toISOString(), createdAt: new Date(Date.now() - 86400000 * 7).toISOString(), totalAmount: 9500, amount: '₹9,500', status: 'Delivered', customerName: 'Neha Verma' }
+  {
+    id: 'ord-1',
+    _id: 'ord-1',
+    orderNo: '#ORD-98214',
+    orderId: '#ORD-98214',
+    customerName: 'Aarav Patel',
+    customerEmail: 'aarav.patel@gmail.com',
+    customerCity: 'New Delhi',
+    productName: 'sofa',
+    itemsCount: 1,
+    itemsSummary: '1x sofa (Furnitures)',
+    image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200',
+    totalAmount: 25000,
+    amount: 25000,
+    paymentMethod: 'UPI / Razorpay',
+    paymentStatus: 'Paid',
+    status: 'Delivered',
+    date: new Date().toISOString(),
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'ord-2',
+    _id: 'ord-2',
+    orderNo: '#ORD-98215',
+    orderId: '#ORD-98215',
+    customerName: 'Priya Sharma',
+    customerEmail: 'priya.sharma@yahoo.com',
+    customerCity: 'Mumbai',
+    productName: 'Dining Table Set',
+    itemsCount: 2,
+    itemsSummary: '1x Dining Table Set, 2x Chairs',
+    image: 'https://images.unsplash.com/photo-1615066390971-03e4e1c36ddf?auto=format&fit=crop&q=80&w=200',
+    totalAmount: 34000,
+    amount: 34000,
+    paymentMethod: 'Credit Card',
+    paymentStatus: 'Paid',
+    status: 'Processing',
+    date: new Date(Date.now() - 86400000 * 2).toISOString(),
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString()
+  },
+  {
+    id: 'ord-3',
+    _id: 'ord-3',
+    orderNo: '#ORD-98216',
+    orderId: '#ORD-98216',
+    customerName: 'Rohan Mehta',
+    customerEmail: 'rohan.mehta@outlook.com',
+    customerCity: 'Bangalore',
+    productName: 'Ergonomic Desk Chair',
+    itemsCount: 1,
+    itemsSummary: '1x Ergonomic Desk Chair',
+    image: 'https://images.unsplash.com/photo-1580481077195-c3a8a37f714c?auto=format&fit=crop&q=80&w=200',
+    totalAmount: 12500,
+    amount: 12500,
+    paymentMethod: 'Net Banking',
+    paymentStatus: 'Paid',
+    status: 'Shipped',
+    date: new Date(Date.now() - 86400000 * 4).toISOString(),
+    createdAt: new Date(Date.now() - 86400000 * 4).toISOString()
+  },
+  {
+    id: 'ord-4',
+    _id: 'ord-4',
+    orderNo: '#ORD-98217',
+    orderId: '#ORD-98217',
+    customerName: 'Neha Verma',
+    customerEmail: 'neha.verma@gmail.com',
+    customerCity: 'Pune',
+    productName: 'Minimalist Coffee Table',
+    itemsCount: 1,
+    itemsSummary: '1x Minimalist Coffee Table',
+    image: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?auto=format&fit=crop&q=80&w=200',
+    totalAmount: 9500,
+    amount: 9500,
+    paymentMethod: 'Cash On Delivery',
+    paymentStatus: 'Pending',
+    status: 'Delivered',
+    date: new Date(Date.now() - 86400000 * 7).toISOString(),
+    createdAt: new Date(Date.now() - 86400000 * 7).toISOString()
+  },
+  {
+    id: 'ord-5',
+    _id: 'ord-5',
+    orderNo: '#ORD-98218',
+    orderId: '#ORD-98218',
+    customerName: 'Vikram Malhotra',
+    customerEmail: 'vikram.m@gmail.com',
+    customerCity: 'Hyderabad',
+    productName: 'Velvet Lounge Recliner',
+    itemsCount: 1,
+    itemsSummary: '1x Velvet Lounge Recliner',
+    image: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&q=80&w=200',
+    totalAmount: 28000,
+    amount: 28000,
+    paymentMethod: 'UPI',
+    paymentStatus: 'Refunded',
+    status: 'Cancelled',
+    date: new Date(Date.now() - 86400000 * 10).toISOString(),
+    createdAt: new Date(Date.now() - 86400000 * 10).toISOString()
+  }
 ]
 
 // Default mock data to ensure immediate UI rendering while API loads
 const DEFAULT_VENDORS = [
-  { id: 1, name: 'Kukreja Furnishings', shopName: 'kukreja', category: 'Furnitures', products: 5, orders: 4, joinedOn: '15 May 2026', approval: 'approved', status: 'active', checked: false, email: 'kukreja@furnish.com', phone: '+91 9876543299', dob: '14/08/1991', gender: 'Male', bizType: 'Manufacturer', gst: '22GGGGG0000G1Z7', pan: 'GHIJK7890L', address: 'Industrial Area Phase 2, Delhi', revenue: '₹5,75,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
-  { id: 2, name: 'Sameer sharma', shopName: 'Sameer Shop', category: 'Fashion', products: 5, orders: 4, joinedOn: '22 May 2026', approval: 'approved', status: 'active', checked: false, email: 'sameer@gmail.com', phone: '+91 9876543258', dob: '11/09/2003', gender: 'Male', bizType: 'Individual seller', gst: '22AAAAA0000A1Z5', pan: 'ABCDE1234F', address: '456, Business Bay, T. Nagar, Pune', revenue: '₹1,24,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
-  { id: 3, name: 'Wooden Bliss', shopName: 'Wooden Store', category: 'Furniture', products: 5, orders: 4, joinedOn: '02 Mar 2026', approval: 'approved', status: 'active', checked: false, email: 'wooden@shop.com', phone: '+91 9876543205', dob: '30/09/1985', gender: 'Male', bizType: 'Manufacturer', gst: '22EEEEE0000E1Z5', pan: 'EFGHI5678J', address: 'Industrial Zone Alley 5', revenue: '₹5,75,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
-  { id: 4, name: 'Trendy Fashion', shopName: 'Trendy Store', category: 'Clothes', products: 5, orders: 4, joinedOn: '18 May 2026', approval: 'pending', status: 'active', checked: false, email: 'trendy@shop.com', phone: '+91 9876543202', dob: '20/04/1992', gender: 'Female', bizType: 'Wholesale', gst: '22BBBBB0000B1Z2', pan: 'BCDEF2345G', address: 'Fashion Hub, Room 102', revenue: '₹84,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
-  { id: 5, name: 'Beauty Palace', shopName: 'Beauty Salon', category: 'Cosmetics', products: 5, orders: 4, joinedOn: '28 Apr 2026', approval: 'rejected', status: 'inactive', checked: false, email: 'beauty@shop.com', phone: '+91 9876543203', dob: '05/11/1990', gender: 'Female', bizType: 'Retail', gst: '22CCCCC0000C1Z3', pan: 'CDEFG3456H', address: 'Cosmo Boulevard 15', revenue: '₹42,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
-  { id: 6, name: 'Sport Plus', shopName: 'Sport Store', category: 'Equipments', products: 5, orders: 4, joinedOn: '12 Apr 2026', approval: 'approved', status: 'active', checked: false, email: 'sports@shop.com', phone: '+91 9876543204', dob: '18/02/1988', gender: 'Male', bizType: 'Retail', gst: '22DDDDD0000D1Z4', pan: 'DEFGH4567I', address: 'Arena Complex Gate 2', revenue: '₹1,56,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
-  { id: 7, name: 'Home Needs', shopName: 'Home Shop', category: 'Groceries', products: 5, orders: 4, joinedOn: '10 Jan 2026', approval: 'pending', status: 'inactive', checked: false, email: 'home@shop.com', phone: '+91 9876543206', dob: '25/06/1994', gender: 'Female', bizType: 'Retail', gst: '22FFFFF0000F1Z6', pan: 'FGHIJ6789K', address: 'Residential Sector B', revenue: '₹95,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 1, name: 'Kukreja Furnishings', shopName: 'kukreja', category: 'Furnitures', products: 5, orders: 5, joinedOn: '15 May 2026', approval: 'approved', status: 'active', checked: false, email: 'kukreja@furnish.com', phone: '+91 9876543299', dob: '14/08/1991', gender: 'Male', bizType: 'Manufacturer', gst: '22GGGGG0000G1Z7', pan: 'GHIJK7890L', address: 'Industrial Area Phase 2, Delhi', revenue: '₹5,75,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 2, name: 'Sameer sharma', shopName: 'Sameer Shop', category: 'Fashion', products: 5, orders: 5, joinedOn: '22 May 2026', approval: 'approved', status: 'active', checked: false, email: 'sameer@gmail.com', phone: '+91 9876543258', dob: '11/09/2003', gender: 'Male', bizType: 'Individual seller', gst: '22AAAAA0000A1Z5', pan: 'ABCDE1234F', address: '456, Business Bay, T. Nagar, Pune', revenue: '₹1,24,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 3, name: 'Wooden Bliss', shopName: 'Wooden Store', category: 'Furniture', products: 5, orders: 5, joinedOn: '02 Mar 2026', approval: 'approved', status: 'active', checked: false, email: 'wooden@shop.com', phone: '+91 9876543205', dob: '30/09/1985', gender: 'Male', bizType: 'Manufacturer', gst: '22EEEEE0000E1Z5', pan: 'EFGHI5678J', address: 'Industrial Zone Alley 5', revenue: '₹5,75,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 4, name: 'Trendy Fashion', shopName: 'Trendy Store', category: 'Clothes', products: 5, orders: 5, joinedOn: '18 May 2026', approval: 'pending', status: 'active', checked: false, email: 'trendy@shop.com', phone: '+91 9876543202', dob: '20/04/1992', gender: 'Female', bizType: 'Wholesale', gst: '22BBBBB0000B1Z2', pan: 'BCDEF2345G', address: 'Fashion Hub, Room 102', revenue: '₹84,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 5, name: 'Beauty Palace', shopName: 'Beauty Salon', category: 'Cosmetics', products: 5, orders: 5, joinedOn: '28 Apr 2026', approval: 'rejected', status: 'inactive', checked: false, email: 'beauty@shop.com', phone: '+91 9876543203', dob: '05/11/1990', gender: 'Female', bizType: 'Retail', gst: '22CCCCC0000C1Z3', pan: 'CDEFG3456H', address: 'Cosmo Boulevard 15', revenue: '₹42,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 6, name: 'Sport Plus', shopName: 'Sport Store', category: 'Equipments', products: 5, orders: 5, joinedOn: '12 Apr 2026', approval: 'approved', status: 'active', checked: false, email: 'sports@shop.com', phone: '+91 9876543204', dob: '18/02/1988', gender: 'Male', bizType: 'Retail', gst: '22DDDDD0000D1Z4', pan: 'DEFGH4567I', address: 'Arena Complex Gate 2', revenue: '₹1,56,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 7, name: 'Home Needs', shopName: 'Home Shop', category: 'Groceries', products: 5, orders: 5, joinedOn: '10 Jan 2026', approval: 'pending', status: 'inactive', checked: false, email: 'home@shop.com', phone: '+91 9876543206', dob: '25/06/1994', gender: 'Female', bizType: 'Retail', gst: '22FFFFF0000F1Z6', pan: 'FGHIJ6789K', address: 'Residential Sector B', revenue: '₹95,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
 ]
 
 function VendorsManagement({ onNavigateToPlans }) {
@@ -714,12 +810,16 @@ function VendorsManagement({ onNavigateToPlans }) {
   const [tabSearchQuery, setTabSearchQuery] = useState('')
   const [vendorProductPage, setVendorProductPage] = useState(1)
   const vendorProductPageSize = 5
+  const [vendorOrderPage, setVendorOrderPage] = useState(1)
+  const vendorOrderPageSize = 5
   const [previewProductModal, setPreviewProductModal] = useState(null)
+  const [previewOrderModal, setPreviewOrderModal] = useState(null)
   const [editProductModal, setEditProductModal] = useState(null)
   const [editFormData, setEditFormData] = useState({ name: '', category: '', price: '', stock: '' })
 
   useEffect(() => {
     setVendorProductPage(1)
+    setVendorOrderPage(1)
   }, [tabSearchQuery, tabStartDate, tabEndDate, tabDatePreset, viewedVendor?.id])
 
   useEffect(() => {
@@ -923,6 +1023,30 @@ function VendorsManagement({ onNavigateToPlans }) {
     }
     return pages
   }, [totalProductPages])
+
+  // Pagination for Vendor Orders Tab
+  const totalOrderPages = Math.max(1, Math.ceil(filteredVendorOrders.length / vendorOrderPageSize))
+  const currentOrdPage = Math.min(Math.max(1, vendorOrderPage), totalOrderPages)
+  const ordStartIndex = (currentOrdPage - 1) * vendorOrderPageSize
+  const ordEndIndex = Math.min(ordStartIndex + vendorOrderPageSize, filteredVendorOrders.length)
+  const paginatedVendorOrders = useMemo(() => {
+    return filteredVendorOrders.slice(ordStartIndex, ordEndIndex)
+  }, [filteredVendorOrders, ordStartIndex, ordEndIndex])
+
+  const ordPageNumbers = useMemo(() => {
+    const pages = []
+    for (let i = 1; i <= totalOrderPages; i++) {
+      pages.push(i)
+    }
+    return pages
+  }, [totalOrderPages])
+
+  const handleDownloadInvoice = (ordOrNo) => {
+    const no = typeof ordOrNo === 'object' && ordOrNo !== null
+      ? (ordOrNo.orderNo || ordOrNo.orderId || ordOrNo._id || '#ORD')
+      : ordOrNo
+    showToast(`Downloading invoice for order ${no}...`, 'info')
+  }
 
   // Interactive Stock Level handlers
   const handleUpdateProductStock = (productId, delta) => {
@@ -1563,13 +1687,39 @@ function VendorsManagement({ onNavigateToPlans }) {
                       ? o.id
                       : `#ORD-${idx + 1}`)))
         const oStatus = typeof o.status === 'object' && o.status !== null
-          ? (o.status.name || o.status.title || 'Pending')
-          : (typeof o.status === 'string' ? o.status : 'Pending')
+          ? (o.status.name || o.status.title || 'Delivered')
+          : (typeof o.status === 'string' ? o.status : 'Delivered')
+        const custName = o.customerName || (typeof o.customer === 'object' ? (o.customer?.name || o.customer?.fullName) : (typeof o.user === 'object' ? (o.user?.name || o.user?.fullName) : 'Customer')) || `Customer ${idx + 1}`
+        const custEmail = o.customerEmail || (typeof o.customer === 'object' ? o.customer?.email : (typeof o.user === 'object' ? o.user?.email : 'customer@gmail.com')) || 'customer@gmail.com'
+        const custCity = o.customerCity || (typeof o.shippingAddress === 'object' ? o.shippingAddress?.city : 'Delhi') || 'India'
+        const oAmount = typeof o.totalAmount === 'number'
+          ? o.totalAmount
+          : (typeof o.amount === 'number'
+              ? o.amount
+              : (!isNaN(Number(o.amount)) ? Number(o.amount) : calculateOrderAmount(o) || 25000))
+        const pMethod = o.paymentMethod || o.paymentMode || (typeof o.payment === 'object' ? o.payment?.method : 'UPI') || 'UPI'
+        const pStatus = o.paymentStatus || (typeof o.payment === 'object' ? o.payment?.status : 'Paid') || 'Paid'
+        const oImg = o.image || (Array.isArray(o.items) && o.items[0]?.image) || (Array.isArray(o.products) && o.products[0]?.image) || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200'
+        const iCount = o.itemsCount || (Array.isArray(o.items) ? o.items.length : (Array.isArray(o.products) ? o.products.length : 1))
+        const iSummary = o.itemsSummary || (Array.isArray(o.items) && o.items[0]?.name ? `${o.items[0].name} + ${Math.max(0, iCount - 1)} more` : `${iCount} items`)
 
         return {
           ...o,
+          id: o._id || o.id || `ord-${idx + 1}`,
+          _id: o._id || o.id || `ord-${idx + 1}`,
           orderNo: oId,
-          status: oStatus
+          status: oStatus,
+          customerName: custName,
+          customerEmail: custEmail,
+          customerCity: custCity,
+          totalAmount: oAmount,
+          amount: oAmount,
+          paymentMethod: pMethod,
+          paymentStatus: pStatus,
+          image: oImg,
+          itemsCount: iCount,
+          itemsSummary: iSummary,
+          createdAt: o.createdAt || o.createdDate || o.date || new Date().toISOString()
         }
       })
 
@@ -2889,6 +3039,130 @@ function VendorsManagement({ onNavigateToPlans }) {
     )
   }
 
+  // Order Preview Modal (Single Vendor Details)
+  const renderOrderPreviewModal = () => {
+    if (!previewOrderModal) return null
+    const ord = previewOrderModal
+    const ordNo = ord.orderNo || ord.orderId || ord._id || ord.id || '#ORD-98214'
+    const ordDate = ord.createdAt || ord.date || ord.orderDate
+    const ordDateDisplay = ordDate ? new Date(ordDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Nov 18, 2026'
+    const custName = ord.customerName || ord.customer?.name || (viewedVendor ? (viewedVendor.name || viewedVendor.fullName) : 'Customer')
+    const custEmail = ord.customerEmail || ord.customer?.email || (viewedVendor ? viewedVendor.email : 'customer@gmail.com')
+    const custCity = ord.customerCity || ord.customer?.city || (viewedVendor ? viewedVendor.city : 'Delhi')
+    const itemsCount = ord.itemsCount || (Array.isArray(ord.items) ? ord.items.length : 1)
+    const itemsSummary = ord.itemsSummary || ord.productName || 'Order Items'
+    const ordAmount = typeof ord.totalAmount === 'number'
+      ? ord.totalAmount
+      : (typeof ord.amount === 'number'
+          ? ord.amount
+          : (parseFloat(String(ord.amount || '').replace(/[^0-9.]/g, '')) || 25000))
+    const payMethod = ord.paymentMethod || 'Online (UPI / Card)'
+    const payStatus = ord.paymentStatus || 'Paid'
+    const ordStatus = typeof ord.status === 'object' && ord.status !== null
+      ? (ord.status.name || ord.status.title || 'Delivered')
+      : (typeof ord.status === 'string' ? ord.status : 'Delivered')
+    const statusLower = String(ordStatus).toLowerCase()
+    const ordImg = ord.image || ord.imageUrl || (Array.isArray(ord.items) && ord.items[0]?.image) || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200'
+
+    return (
+      <div className="modal-overlay" onClick={() => setPreviewOrderModal(null)}>
+        <div className="vendor-prod-modal-box" onClick={(e) => e.stopPropagation()}>
+          <div className="vendor-prod-modal-header">
+            <h3>Order Details</h3>
+            <button type="button" className="close-modal-btn" onClick={() => setPreviewOrderModal(null)}>
+              <X size={18} />
+            </button>
+          </div>
+          <div className="vendor-prod-modal-body">
+            <div className="vendor-prod-modal-hero">
+              <img
+                src={ordImg}
+                alt={ordNo}
+                className="vendor-prod-modal-img"
+                onError={(e) => {
+                  e.target.onerror = null
+                  e.target.src = 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200'
+                }}
+              />
+              <div>
+                <h4 className="vendor-prod-modal-title">{ordNo}</h4>
+                <div className="vendor-prod-modal-sub">
+                  <span>Placed on {ordDateDisplay}</span>
+                  <span style={{ margin: '0 4px', color: '#94a3b8' }}>•</span>
+                  <span>{itemsSummary}</span>
+                </div>
+                <div style={{ marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span className="vendor-prod-cat-pill">{itemsCount} {itemsCount === 1 ? 'item' : 'items'}</span>
+                  {statusLower.includes('cancel') ? (
+                    <span className="vendor-order-status-pill cancelled" style={{ padding: '2px 8px', fontSize: '11px' }}>
+                      <XCircle size={12} strokeWidth={2.5} />
+                      <span>Cancelled</span>
+                    </span>
+                  ) : statusLower.includes('process') || statusLower.includes('pending') ? (
+                    <span className="vendor-order-status-pill processing" style={{ padding: '2px 8px', fontSize: '11px' }}>
+                      <RotateCw size={12} strokeWidth={2.5} />
+                      <span>Processing</span>
+                    </span>
+                  ) : statusLower.includes('ship') ? (
+                    <span className="vendor-order-status-pill shipped" style={{ padding: '2px 8px', fontSize: '11px' }}>
+                      <CheckCircle2 size={12} strokeWidth={2.5} />
+                      <span>Shipped</span>
+                    </span>
+                  ) : (
+                    <span className="vendor-order-status-pill delivered" style={{ padding: '2px 8px', fontSize: '11px' }}>
+                      <CheckCircle2 size={12} strokeWidth={2.5} />
+                      <span>Delivered</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="vendor-prod-modal-stats-grid">
+              <div className="vendor-prod-stat-item">
+                <span className="vendor-prod-stat-label">Order Total</span>
+                <span className="vendor-prod-stat-value" style={{ color: '#8b5cf6' }}>₹ {ordAmount.toLocaleString('en-IN')}</span>
+              </div>
+              <div className="vendor-prod-stat-item">
+                <span className="vendor-prod-stat-label">Payment Status</span>
+                <span className="vendor-prod-stat-value" style={{ color: '#059669' }}>{payStatus}</span>
+              </div>
+              <div className="vendor-prod-stat-item">
+                <span className="vendor-prod-stat-label">Customer Name</span>
+                <span className="vendor-prod-stat-value">{custName}</span>
+              </div>
+              <div className="vendor-prod-stat-item">
+                <span className="vendor-prod-stat-label">Delivery Location</span>
+                <span className="vendor-prod-stat-value">{custCity}</span>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '16px', padding: '12px 14px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: '#334155' }}>Customer Contact & Method</div>
+                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>{custEmail} • {payMethod}</div>
+              </div>
+              <button
+                type="button"
+                className="vendor-btn-restock"
+                onClick={() => handleDownloadInvoice(ord)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <FileText size={14} />
+                <span>Invoice PDF</span>
+              </button>
+            </div>
+          </div>
+          <div className="vendor-prod-modal-footer">
+            <button type="button" className="cancel-btn" onClick={() => setPreviewOrderModal(null)}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // 1. Render Form View (Add / Edit)
   if (isAdding) {
     return (
@@ -4157,59 +4431,184 @@ function VendorsManagement({ onNavigateToPlans }) {
             {vendorDetailsTab === 'orders' && (
               <div>
                 {filteredVendorOrders.length > 0 ? (
-                  <div className="vendor-table-container" style={{ overflowX: 'auto', width: '100%' }}>
-                    <table className="admin-table" style={{ fontSize: '12px', width: '100%' }}>
-                      <thead>
-                        <tr>
-                          <th>Order ID</th>
-                          <th>Date</th>
-                          <th>Amount</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredVendorOrders.slice(0, 15).map((ord, oIdx) => {
-                          const ordNoDisplay = typeof ord.orderNo === 'string'
-                            ? ord.orderNo
-                            : (typeof ord.orderId === 'string'
-                                ? ord.orderId
-                                : (typeof ord._id === 'string'
-                                    ? ord._id
-                                    : (typeof ord.id === 'string'
-                                        ? ord.id
-                                        : `#ORD-${oIdx + 1}`)))
-                          const ordDate = ord.createdAt || ord.date || ord.orderDate
-                          const ordDateDisplay = ordDate ? new Date(ordDate).toLocaleDateString() : 'N/A'
-                          const ordAmountDisplay = typeof ord.totalAmount === 'number'
-                            ? `₹${ord.totalAmount.toLocaleString('en-IN')}`
-                            : (typeof ord.amount === 'number'
-                                ? `₹${ord.amount.toLocaleString('en-IN')}`
-                                : (typeof ord.amount === 'string'
-                                    ? ord.amount
-                                    : `₹${calculateOrderAmount(ord)}`))
-                          const ordStatusDisplay = typeof ord.status === 'object' && ord.status !== null
-                            ? (ord.status.name || ord.status.title || 'Pending')
-                            : (typeof ord.status === 'string' ? ord.status : 'Pending')
+                  <div className="vendor-products-table-wrapper">
+                    <div className="vendor-products-table-container">
+                      <table className="vendor-products-custom-table">
+                        <thead>
+                          <tr>
+                            <th className="th-prod-info">Order & Details</th>
+                            <th className="th-prod-cat">Customer</th>
+                            <th className="th-prod-price">Order Amount</th>
+                            <th className="th-prod-stock">Items</th>
+                            <th className="th-prod-status">Order Status</th>
+                            <th className="th-prod-est">Payment</th>
+                            <th className="th-prod-actions">Quick Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedVendorOrders.map((ord, oIdx) => {
+                            const ordNoDisplay = typeof ord.orderNo === 'string'
+                              ? ord.orderNo
+                              : (typeof ord.orderId === 'string'
+                                  ? ord.orderId
+                                  : (typeof ord._id === 'string'
+                                      ? ord._id
+                                      : (typeof ord.id === 'string'
+                                          ? ord.id
+                                          : `#ORD-${oIdx + 1}`)))
+                            const ordDate = ord.createdAt || ord.date || ord.orderDate
+                            const ordDateDisplay = ordDate ? new Date(ordDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Nov 18, 2026'
+                            const custName = ord.customerName || ord.customer?.name || (viewedVendor ? (viewedVendor.name || viewedVendor.fullName) : 'Customer')
+                            const custEmail = ord.customerEmail || ord.customer?.email || (viewedVendor ? viewedVendor.email : 'customer@gmail.com')
+                            const custCity = ord.customerCity || ord.customer?.city || (viewedVendor ? viewedVendor.city : 'Delhi')
+                            const itemsCount = ord.itemsCount || (Array.isArray(ord.items) ? ord.items.length : 1)
+                            const itemsSummary = ord.itemsSummary || ord.productName || 'Order Items'
+                            const ordAmountNum = typeof ord.totalAmount === 'number'
+                              ? ord.totalAmount
+                              : (typeof ord.amount === 'number'
+                                  ? ord.amount
+                                  : (parseFloat(String(ord.amount || '').replace(/[^0-9.]/g, '')) || 25000))
+                            const payMethod = ord.paymentMethod || 'Online'
+                            const payStatus = ord.paymentStatus || 'Paid'
+                            const ordStatusDisplay = typeof ord.status === 'object' && ord.status !== null
+                              ? (ord.status.name || ord.status.title || 'Delivered')
+                              : (typeof ord.status === 'string' ? ord.status : 'Delivered')
+                            const statusLower = String(ordStatusDisplay).toLowerCase()
+                            const ordImg = ord.image || ord.imageUrl || (Array.isArray(ord.items) && ord.items[0]?.image) || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200'
 
-                          return (
-                            <tr key={ord._id || ord.id || ord.orderNo || oIdx}>
-                              <td style={{ fontWeight: '600', color: '#1e293b' }}>
-                                {ordNoDisplay}
-                              </td>
-                              <td style={{ color: '#475569' }}>{ordDateDisplay}</td>
-                              <td style={{ fontWeight: '600', color: '#16a34a' }}>
-                                {ordAmountDisplay}
-                              </td>
-                              <td>
-                                <span className={`vendor-badge ${String(ordStatusDisplay).toLowerCase()}`} style={{ textTransform: 'capitalize' }}>
-                                  {String(ordStatusDisplay)}
-                                </span>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
+                            return (
+                              <tr key={ord._id || ord.id || ord.orderNo || oIdx}>
+                                <td className="td-prod-info">
+                                  <div className="vendor-prod-cell">
+                                    <img
+                                      src={ordImg}
+                                      alt={ordNoDisplay}
+                                      className="vendor-prod-thumb"
+                                      onError={(e) => {
+                                        e.target.onerror = null
+                                        e.target.src = 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200'
+                                      }}
+                                    />
+                                    <div className="vendor-prod-meta">
+                                      <span className="vendor-prod-title" style={{ textTransform: 'none' }}>
+                                        {ordNoDisplay}
+                                      </span>
+                                      <div className="vendor-prod-sku-line">
+                                        <span>Placed on {ordDateDisplay}</span>
+                                        <span className="vendor-prod-bullet">•</span>
+                                        <span className="vendor-prod-vendor-name">{itemsSummary}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="td-prod-cat">
+                                  <div className="vendor-ord-customer-cell">
+                                    <span className="vendor-ord-customer-name">{custName}</span>
+                                    <span className="vendor-ord-customer-sub">{custCity} • {custEmail}</span>
+                                  </div>
+                                </td>
+                                <td className="td-prod-price">
+                                  <span className="vendor-prod-price-text">
+                                    ₹ {ordAmountNum.toLocaleString('en-IN')}
+                                  </span>
+                                </td>
+                                <td className="td-prod-stock">
+                                  <span className="vendor-prod-cat-pill">
+                                    {itemsCount} {itemsCount === 1 ? 'item' : 'items'}
+                                  </span>
+                                </td>
+                                <td className="td-prod-status">
+                                  {statusLower.includes('cancel') ? (
+                                    <span className="vendor-order-status-pill cancelled">
+                                      <XCircle size={13} strokeWidth={2.5} />
+                                      <span>Cancelled</span>
+                                    </span>
+                                  ) : statusLower.includes('process') || statusLower.includes('pending') ? (
+                                    <span className="vendor-order-status-pill processing">
+                                      <RotateCw size={13} strokeWidth={2.5} />
+                                      <span>Processing</span>
+                                    </span>
+                                  ) : statusLower.includes('ship') ? (
+                                    <span className="vendor-order-status-pill shipped">
+                                      <CheckCircle2 size={13} strokeWidth={2.5} />
+                                      <span>Shipped</span>
+                                    </span>
+                                  ) : (
+                                    <span className="vendor-order-status-pill delivered">
+                                      <CheckCircle2 size={13} strokeWidth={2.5} />
+                                      <span>Delivered</span>
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="td-prod-est">
+                                  <div className="vendor-ord-payment-cell">
+                                    <span className="vendor-ord-payment-amount">₹ {ordAmountNum.toLocaleString('en-IN')}</span>
+                                    <span className="vendor-ord-payment-sub">{payStatus} • {payMethod}</span>
+                                  </div>
+                                </td>
+                                <td className="td-prod-actions">
+                                  <div className="vendor-prod-actions-group">
+                                    <button
+                                      type="button"
+                                      className="vendor-btn-restock"
+                                      onClick={() => handleDownloadInvoice(ord)}
+                                      title="Download Order Invoice PDF"
+                                    >
+                                      Invoice ↗
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="vendor-prod-icon-action-btn"
+                                      onClick={() => setPreviewOrderModal(ord)}
+                                      title="View order details"
+                                    >
+                                      <Eye size={16} strokeWidth={2} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Custom Table Pagination Footer matching screenshot */}
+                    <div className="vendor-prod-table-footer">
+                      <div className="vendor-prod-footer-info">
+                        Showing <strong>{filteredVendorOrders.length > 0 ? ordStartIndex + 1 : 0}</strong> to <strong>{ordEndIndex}</strong> of <strong>{filteredVendorOrders.length}</strong> items
+                      </div>
+                      <div className="vendor-prod-footer-pagination">
+                        <button
+                          type="button"
+                          className="vendor-prod-page-nav-btn"
+                          disabled={currentOrdPage <= 1}
+                          onClick={() => setVendorOrderPage(p => Math.max(1, p - 1))}
+                          aria-label="Previous Page"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        {ordPageNumbers.map(pageNum => (
+                          <button
+                            key={pageNum}
+                            type="button"
+                            className={`vendor-prod-page-num-btn ${pageNum === currentOrdPage ? 'active' : ''}`}
+                            onClick={() => setVendorOrderPage(pageNum)}
+                          >
+                            {pageNum}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          className="vendor-prod-page-nav-btn"
+                          disabled={currentOrdPage >= totalOrderPages}
+                          onClick={() => setVendorOrderPage(p => Math.min(totalOrderPages, p + 1))}
+                          aria-label="Next Page"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div style={{ textAlign: 'center', padding: '36px 16px', color: '#94a3b8', fontSize: '13px', backgroundColor: '#f8fafc', borderRadius: '12px', width: '100%', boxSizing: 'border-box' }}>
@@ -4251,6 +4650,9 @@ function VendorsManagement({ onNavigateToPlans }) {
 
         {/* Product Details Edit Modal */}
         {renderProductEditModal()}
+
+        {/* Order Details Preview Modal */}
+        {renderOrderPreviewModal()}
       </div>
     )
   }
