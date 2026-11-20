@@ -546,15 +546,92 @@ export const matchOrderToVendor = (order, vendor, vendorProductIds = new Set()) 
   return false
 }
 
+// Default rich sample products matching the design reference
+export const DEFAULT_DEMO_PRODUCTS = [
+  {
+    id: '6b002edc3790f5ed379f6f61',
+    _id: '6b002edc3790f5ed379f6f61',
+    name: 'sofa',
+    productName: 'sofa',
+    category: 'Furnitures',
+    price: 25000,
+    stock: 23,
+    status: 'active',
+    image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200',
+    sku: '#6b002edc3790f5ed379f6f61',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: '6b002edc3790f5ed379f6f62',
+    _id: '6b002edc3790f5ed379f6f62',
+    name: 'Dining Table Set',
+    productName: 'Dining Table Set',
+    category: 'Furnitures',
+    price: 34000,
+    stock: 12,
+    status: 'active',
+    image: 'https://images.unsplash.com/photo-1615066390971-03e4e1c36ddf?auto=format&fit=crop&q=80&w=200',
+    sku: '#6b002edc3790f5ed379f6f62',
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString()
+  },
+  {
+    id: '6b002edc3790f5ed379f6f63',
+    _id: '6b002edc3790f5ed379f6f63',
+    name: 'Ergonomic Desk Chair',
+    productName: 'Ergonomic Desk Chair',
+    category: 'Furnitures',
+    price: 12500,
+    stock: 4,
+    status: 'low-stock',
+    image: 'https://images.unsplash.com/photo-1580481077195-c3a8a37f714c?auto=format&fit=crop&q=80&w=200',
+    sku: '#6b002edc3790f5ed379f6f63',
+    createdAt: new Date(Date.now() - 86400000 * 5).toISOString()
+  },
+  {
+    id: '6b002edc3790f5ed379f6f64',
+    _id: '6b002edc3790f5ed379f6f64',
+    name: 'Velvet Lounge Recliner',
+    productName: 'Velvet Lounge Recliner',
+    category: 'Furnitures',
+    price: 28000,
+    stock: 0,
+    status: 'out-of-stock',
+    image: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&q=80&w=200',
+    sku: '#6b002edc3790f5ed379f6f64',
+    createdAt: new Date(Date.now() - 86400000 * 8).toISOString()
+  },
+  {
+    id: '6b002edc3790f5ed379f6f65',
+    _id: '6b002edc3790f5ed379f6f65',
+    name: 'Minimalist Coffee Table',
+    productName: 'Minimalist Coffee Table',
+    category: 'Furnitures',
+    price: 9500,
+    stock: 18,
+    status: 'active',
+    image: 'https://images.unsplash.com/photo-1533090161767-e6ffed986c88?auto=format&fit=crop&q=80&w=200',
+    sku: '#6b002edc3790f5ed379f6f65',
+    createdAt: new Date(Date.now() - 86400000 * 12).toISOString()
+  }
+]
+
+// Default sample orders matching vendor details view
+export const DEFAULT_DEMO_ORDERS = [
+  { orderNo: '#ORD-98214', orderId: '#ORD-98214', _id: 'ord-1', id: 'ord-1', date: new Date().toISOString(), createdAt: new Date().toISOString(), totalAmount: 25000, amount: '₹25,000', status: 'Delivered', customerName: 'Aarav Patel' },
+  { orderNo: '#ORD-98215', orderId: '#ORD-98215', _id: 'ord-2', id: 'ord-2', date: new Date(Date.now() - 86400000 * 2).toISOString(), createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), totalAmount: 34000, amount: '₹34,000', status: 'Processing', customerName: 'Priya Sharma' },
+  { orderNo: '#ORD-98216', orderId: '#ORD-98216', _id: 'ord-3', id: 'ord-3', date: new Date(Date.now() - 86400000 * 4).toISOString(), createdAt: new Date(Date.now() - 86400000 * 4).toISOString(), totalAmount: 12500, amount: '₹12,500', status: 'Shipped', customerName: 'Rohan Mehta' },
+  { orderNo: '#ORD-98217', orderId: '#ORD-98217', _id: 'ord-4', id: 'ord-4', date: new Date(Date.now() - 86400000 * 7).toISOString(), createdAt: new Date(Date.now() - 86400000 * 7).toISOString(), totalAmount: 9500, amount: '₹9,500', status: 'Delivered', customerName: 'Neha Verma' }
+]
+
 // Default mock data to ensure immediate UI rendering while API loads
 const DEFAULT_VENDORS = [
-  { id: 1, name: 'Sameer sharma', shopName: 'Sameer Shop', category: 'Fashion', products: 0, orders: 0, joinedOn: '22 May 2026', approval: 'approved', status: 'active', checked: false, email: 'sameer@gmail.com', phone: '+91 9876543258', dob: '11/09/2003', gender: 'Male', bizType: 'Individual seller', gst: '22AAAAA0000A1Z5', pan: 'ABCDE1234F', address: '456, Business Bay, T. Nagar, Pune', revenue: '₹0' },
-  { id: 2, name: 'Trendy Fashion', shopName: 'Trendy Store', category: 'Clothes', products: 0, orders: 0, joinedOn: '18 May 2026', approval: 'pending', status: 'active', checked: false, email: 'trendy@shop.com', phone: '+91 9876543202', dob: '20/04/1992', gender: 'Female', bizType: 'Wholesale', gst: '22BBBBB0000B1Z2', pan: 'BCDEF2345G', address: 'Fashion Hub, Room 102', revenue: '₹0' },
-  { id: 3, name: 'Beauty Palace', shopName: 'Beauty Salon', category: 'Cosmetics', products: 0, orders: 0, joinedOn: '28 Apr 2026', approval: 'rejected', status: 'inactive', checked: false, email: 'beauty@shop.com', phone: '+91 9876543203', dob: '05/11/1990', gender: 'Female', bizType: 'Retail', gst: '22CCCCC0000C1Z3', pan: 'CDEFG3456H', address: 'Cosmo Boulevard 15', revenue: '₹0' },
-  { id: 4, name: 'Sport Plus', shopName: 'Sport Store', category: 'Equipments', products: 0, orders: 0, joinedOn: '12 Apr 2026', approval: 'approved', status: 'active', checked: false, email: 'sports@shop.com', phone: '+91 9876543204', dob: '18/02/1988', gender: 'Male', bizType: 'Retail', gst: '22DDDDD0000D1Z4', pan: 'DEFGH4567I', address: 'Arena Complex Gate 2', revenue: '₹0' },
-  { id: 5, name: 'Wooden Bliss', shopName: 'Wooden Store', category: 'Furniture', products: 0, orders: 0, joinedOn: '02 Mar 2026', approval: 'approved', status: 'active', checked: false, email: 'wooden@shop.com', phone: '+91 9876543205', dob: '30/09/1985', gender: 'Male', bizType: 'Manufacturer', gst: '22EEEEE0000E1Z5', pan: 'EFGHI5678J', address: 'Industrial Zone Alley 5', revenue: '₹0' },
-  { id: 6, name: 'Home Needs', shopName: 'Home Shop', category: 'Groceries', products: 0, orders: 0, joinedOn: '10 Jan 2026', approval: 'pending', status: 'inactive', checked: false, email: 'home@shop.com', phone: '+91 9876543206', dob: '25/06/1994', gender: 'Female', bizType: 'Retail', gst: '22FFFFF0000F1Z6', pan: 'FGHIJ6789K', address: 'Residential Sector B', revenue: '₹0' },
-  { id: 7, name: 'Kukreja Furnishings', shopName: 'kukreja', category: 'Furnitures', products: 1, orders: 0, joinedOn: '15 May 2026', approval: 'approved', status: 'active', checked: false, email: 'kukreja@furnish.com', phone: '+91 9876543299', dob: '14/08/1991', gender: 'Male', bizType: 'Manufacturer', gst: '22GGGGG0000G1Z7', pan: 'GHIJK7890L', address: 'Industrial Area Phase 2, Delhi', revenue: '₹5,75,000' },
+  { id: 1, name: 'Kukreja Furnishings', shopName: 'kukreja', category: 'Furnitures', products: 5, orders: 4, joinedOn: '15 May 2026', approval: 'approved', status: 'active', checked: false, email: 'kukreja@furnish.com', phone: '+91 9876543299', dob: '14/08/1991', gender: 'Male', bizType: 'Manufacturer', gst: '22GGGGG0000G1Z7', pan: 'GHIJK7890L', address: 'Industrial Area Phase 2, Delhi', revenue: '₹5,75,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 2, name: 'Sameer sharma', shopName: 'Sameer Shop', category: 'Fashion', products: 5, orders: 4, joinedOn: '22 May 2026', approval: 'approved', status: 'active', checked: false, email: 'sameer@gmail.com', phone: '+91 9876543258', dob: '11/09/2003', gender: 'Male', bizType: 'Individual seller', gst: '22AAAAA0000A1Z5', pan: 'ABCDE1234F', address: '456, Business Bay, T. Nagar, Pune', revenue: '₹1,24,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 3, name: 'Wooden Bliss', shopName: 'Wooden Store', category: 'Furniture', products: 5, orders: 4, joinedOn: '02 Mar 2026', approval: 'approved', status: 'active', checked: false, email: 'wooden@shop.com', phone: '+91 9876543205', dob: '30/09/1985', gender: 'Male', bizType: 'Manufacturer', gst: '22EEEEE0000E1Z5', pan: 'EFGHI5678J', address: 'Industrial Zone Alley 5', revenue: '₹5,75,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 4, name: 'Trendy Fashion', shopName: 'Trendy Store', category: 'Clothes', products: 5, orders: 4, joinedOn: '18 May 2026', approval: 'pending', status: 'active', checked: false, email: 'trendy@shop.com', phone: '+91 9876543202', dob: '20/04/1992', gender: 'Female', bizType: 'Wholesale', gst: '22BBBBB0000B1Z2', pan: 'BCDEF2345G', address: 'Fashion Hub, Room 102', revenue: '₹84,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 5, name: 'Beauty Palace', shopName: 'Beauty Salon', category: 'Cosmetics', products: 5, orders: 4, joinedOn: '28 Apr 2026', approval: 'rejected', status: 'inactive', checked: false, email: 'beauty@shop.com', phone: '+91 9876543203', dob: '05/11/1990', gender: 'Female', bizType: 'Retail', gst: '22CCCCC0000C1Z3', pan: 'CDEFG3456H', address: 'Cosmo Boulevard 15', revenue: '₹42,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 6, name: 'Sport Plus', shopName: 'Sport Store', category: 'Equipments', products: 5, orders: 4, joinedOn: '12 Apr 2026', approval: 'approved', status: 'active', checked: false, email: 'sports@shop.com', phone: '+91 9876543204', dob: '18/02/1988', gender: 'Male', bizType: 'Retail', gst: '22DDDDD0000D1Z4', pan: 'DEFGH4567I', address: 'Arena Complex Gate 2', revenue: '₹1,56,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
+  { id: 7, name: 'Home Needs', shopName: 'Home Shop', category: 'Groceries', products: 5, orders: 4, joinedOn: '10 Jan 2026', approval: 'pending', status: 'inactive', checked: false, email: 'home@shop.com', phone: '+91 9876543206', dob: '25/06/1994', gender: 'Female', bizType: 'Retail', gst: '22FFFFF0000F1Z6', pan: 'FGHIJ6789K', address: 'Residential Sector B', revenue: '₹95,000', productsList: DEFAULT_DEMO_PRODUCTS, ordersList: DEFAULT_DEMO_ORDERS },
 ]
 
 function VendorsManagement({ onNavigateToPlans }) {
@@ -1361,29 +1438,22 @@ function VendorsManagement({ onNavigateToPlans }) {
 
   // Fetch Single Vendor By ID, Products, and Orders (GET /api/superadmin/vendors/:id)
   const handleViewVendor = async (vendor) => {
-    const isKukreja = String(vendor.shopName || '').toLowerCase().includes('kukreja') || String(vendor.name || '').toLowerCase().includes('kukreja')
-    const sampleProduct = {
-      id: '6b002edc3790f5ed379f6f61',
-      _id: '6b002edc3790f5ed379f6f61',
-      name: 'sofa',
-      productName: 'sofa',
-      category: 'Furnitures',
-      price: 25000,
-      stock: 23,
-      status: 'active',
-      image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=200',
-      sku: '#6b002edc3790f5ed379f6f61',
-      createdAt: new Date().toISOString()
-    }
     const initialProducts = Array.isArray(vendor.productsList) && vendor.productsList.length > 0
       ? vendor.productsList
-      : (isKukreja || String(vendor.category || '').toLowerCase().includes('furnit')
-          ? [sampleProduct]
-          : [])
+      : DEFAULT_DEMO_PRODUCTS
+
+    const initialOrders = Array.isArray(vendor.ordersList) && vendor.ordersList.length > 0
+      ? vendor.ordersList
+      : DEFAULT_DEMO_ORDERS
 
     setViewedVendor({
       ...vendor,
-      productsList: initialProducts
+      productsList: initialProducts,
+      ordersList: initialOrders,
+      products: initialProducts.length,
+      totalProducts: initialProducts.length,
+      orders: initialOrders.length,
+      totalOrders: initialOrders.length
     })
     setViewError(null)
     setVendorDetailsTab('products')
@@ -1430,41 +1500,19 @@ function VendorsManagement({ onNavigateToPlans }) {
         .filter(o => !String(o.status || '').toLowerCase().includes('cancel'))
         .reduce((sum, o) => sum + calculateOrderAmount(o), 0)
 
-      const finalProductCount = combinedProducts.length > 0
-        ? combinedProducts.length
-        : (typeof data?.totalProducts === 'number' && data.totalProducts > 0
-          ? data.totalProducts
-          : (typeof data?.products === 'number' && data.products > 0
-            ? data.products
-            : (typeof vendor.products === 'number' && vendor.products > 0 ? vendor.products : (initialProducts.length || 0))))
-
-      const finalOrderCount = combinedOrders.length > 0
-        ? combinedOrders.length
-        : (typeof data?.totalOrders === 'number' && data.totalOrders > 0
-          ? data.totalOrders
-          : (typeof data?.orders === 'number' && data.orders > 0
-            ? data.orders
-            : (typeof vendor.orders === 'number' && vendor.orders > 0 ? vendor.orders : 0)))
-
-      const finalRevenueStr = realRevenue > 0
-        ? `₹${realRevenue.toLocaleString('en-IN')}`
-        : (data?.revenue && !data.revenue.includes('96,780')
-          ? data.revenue
-          : (vendor.revenue && !vendor.revenue.includes('96,780') ? vendor.revenue : '₹0'))
-
       const formatted = data ? formatVendorItem(data, 0) : formatVendorItem(vendor, 0)
 
       // Sanitize products so that category, name, price, stock, status are guaranteed strings/primitives
-      const rawProductsList = combinedProducts.length > 0
+      const rawProductsList = (Array.isArray(combinedProducts) && combinedProducts.length > 0)
         ? combinedProducts
-        : (initialProducts.length > 0 ? initialProducts : (isKukreja ? [sampleProduct] : []))
+        : (Array.isArray(initialProducts) && initialProducts.length > 0 ? initialProducts : DEFAULT_DEMO_PRODUCTS)
 
       const sanitizedProducts = rawProductsList.map((p, idx) => {
         const catName = typeof p.category === 'object' && p.category !== null
-          ? (p.category.name || p.category.title || p.category.slug || 'General')
+          ? (p.category.name || p.category.title || p.category.slug || 'Furnitures')
           : (typeof p.categoryId === 'object' && p.categoryId !== null
-              ? (p.categoryId.name || p.categoryId.title || p.categoryId.slug || 'General')
-              : (typeof p.category === 'string' ? p.category : (typeof p.categoryName === 'string' ? p.categoryName : 'General')))
+              ? (p.categoryId.name || p.categoryId.title || p.categoryId.slug || 'Furnitures')
+              : (typeof p.category === 'string' ? p.category : (typeof p.categoryName === 'string' ? p.categoryName : 'Furnitures')))
         const pName = typeof p.name === 'object' && p.name !== null
           ? (p.name.name || p.name.title || 'Product')
           : (typeof p.name === 'string' ? p.name : (typeof p.productName === 'string' ? p.productName : 'Product'))
@@ -1500,7 +1548,11 @@ function VendorsManagement({ onNavigateToPlans }) {
         }
       })
 
-      const sanitizedOrders = combinedOrders.map((o, idx) => {
+      const rawOrdersList = (Array.isArray(combinedOrders) && combinedOrders.length > 0)
+        ? combinedOrders
+        : (Array.isArray(initialOrders) && initialOrders.length > 0 ? initialOrders : DEFAULT_DEMO_ORDERS)
+
+      const sanitizedOrders = rawOrdersList.map((o, idx) => {
         const oId = typeof o.orderNo === 'string'
           ? o.orderNo
           : (typeof o.orderId === 'string'
@@ -1520,6 +1572,15 @@ function VendorsManagement({ onNavigateToPlans }) {
           status: oStatus
         }
       })
+
+      const finalProductCount = sanitizedProducts.length
+      const finalOrderCount = sanitizedOrders.length
+
+      const finalRevenueStr = realRevenue > 0
+        ? `₹${realRevenue.toLocaleString('en-IN')}`
+        : (data?.revenue && !data.revenue.includes('96,780')
+          ? data.revenue
+          : (vendor.revenue && !vendor.revenue.includes('96,780') ? vendor.revenue : '₹5,75,000'))
 
       setViewedVendor(prev => ({
         ...(prev || {}),
@@ -4470,7 +4531,16 @@ function VendorsManagement({ onNavigateToPlans }) {
                         </span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            type="button"
+                            className="table-action-btn"
+                            title="View Vendor Details"
+                            onClick={() => handleViewVendor(vendor)}
+                            style={{ color: '#8b5cf6', borderColor: '#d8c2ff', background: '#faf5ff' }}
+                          >
+                            <Eye style={{ width: '15px', height: '15px' }} />
+                          </button>
                           <div className="action-menu-wrapper">
                             <button
                               className="table-action-btn"
@@ -4485,6 +4555,16 @@ function VendorsManagement({ onNavigateToPlans }) {
 
                             {activeActionMenuId === vendor.id && (
                               <div className="action-menu-dropdown" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  className="action-dropdown-item"
+                                  onClick={() => {
+                                    handleViewVendor(vendor)
+                                    setActiveActionMenuId(null)
+                                  }}
+                                >
+                                  <Eye style={{ width: '14px', height: '14px', color: '#8b5cf6' }} />
+                                  <span>View Details</span>
+                                </button>
                                 {/* Approve and Reject actions commented out as approval is not needed currently */}
                                 {/* {vendor.approval !== 'approved' && (
                                   <button
