@@ -3197,8 +3197,8 @@ function AdminsManagement() {
                   style={{
                     width: '50%',
                     padding: '12px 24px',
-                    backgroundColor: '#a8d572',
-                    color: '#0e1e05',
+                    backgroundColor: '#8b5cf6',
+                    color: '#ffffff',
                     border: 'none',
                     borderRadius: '8px',
                     fontSize: '13px',

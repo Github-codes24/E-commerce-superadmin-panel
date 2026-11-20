@@ -1168,7 +1168,7 @@ function CustomersManagement({ initialFilter = 'all' }) {
                     height: '96px',
                     borderRadius: '50%',
                     objectFit: 'cover',
-                    border: '2.5px solid #a8d572',
+                    border: '2.5px solid #8b5cf6',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                   }}
                   onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }}
@@ -1393,7 +1393,7 @@ function CustomersManagement({ initialFilter = 'all' }) {
                 type="submit" 
                 className="btn-save-green" 
                 disabled={editLoading}
-                style={{ padding: '8px 20px', borderRadius: '8px', backgroundColor: '#388e3c', color: '#ffffff', border: 'none', fontWeight: '600', cursor: editLoading ? 'not-allowed' : 'pointer' }}
+                style={{ padding: '8px 20px', borderRadius: '8px', backgroundColor: '#8b5cf6', color: '#ffffff', border: 'none', fontWeight: '600', cursor: editLoading ? 'not-allowed' : 'pointer' }}
               >
                 {editLoading ? 'Saving...' : 'Save Changes'}
               </button>

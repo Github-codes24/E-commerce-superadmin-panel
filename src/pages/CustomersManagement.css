@@ -88,8 +88,8 @@
 }
 
 .calendar-day-cell.selected {
-  background-color: #a8d572;
-  color: #0e1e05;
+  background-color: #8b5cf6;
+  color: #ffffff;
 }
 
 .calendar-day-cell.empty {

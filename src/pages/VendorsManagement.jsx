@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power, Briefcase, Eye, EyeOff } from 'lucide-react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
+import { Users, UserCheck, UserMinus, Search, MoreVertical, Plus, ArrowLeft, Upload, Calendar, X, Edit2, Trash2, DollarSign, Box, ShoppingCart, Mail, Phone, Package, Store, RotateCw, AlertCircle, CheckCircle2, XCircle, Power, Briefcase, Eye, EyeOff, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getAllVendors, getVendorById, createVendor, registerVendor, updateVendorBusinessProfile, updateVendor, approveVendor, rejectVendor, updateVendorStatus, deleteVendor, getOrdersByVendor, getProductsByVendor, getAllProducts, getAllOrders, getCloudVendorSync, saveCloudVendorSync } from '../services/superAdminService'
 import './VendorsManagement.css'
 
@@ -616,6 +616,209 @@ function VendorsManagement({ onNavigateToPlans }) {
   const [viewedVendor, setViewedVendor] = useState(null)
   const [viewLoading, setViewLoading] = useState(false)
   const [viewError, setViewError] = useState(null)
+  const [vendorDetailsTab, setVendorDetailsTab] = useState('products')
+
+  // Calendar Date Filter State for Products & Orders Tab
+  const MONTHS_LIST = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ]
+  const YEARS_LIST = [2023, 2024, 2025, 2026, 2027, 2028]
+  const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+
+  const [showTabCalendar, setShowTabCalendar] = useState(false)
+  const tabCalendarRef = useRef(null)
+  const [tabCalMonth, setTabCalMonth] = useState(() => new Date().getMonth())
+  const [tabCalYear, setTabCalYear] = useState(() => new Date().getFullYear())
+  const [tabDatePreset, setTabDatePreset] = useState('all')
+  const [tabStartDate, setTabStartDate] = useState(null)
+  const [tabEndDate, setTabEndDate] = useState(null)
+  const [tabSearchQuery, setTabSearchQuery] = useState('')
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (tabCalendarRef.current && !tabCalendarRef.current.contains(e.target)) {
+        setShowTabCalendar(false)
+      }
+    }
+    if (showTabCalendar) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showTabCalendar])
+
+  const getTabCalendarCells = () => {
+    const totalDays = new Date(tabCalYear, tabCalMonth + 1, 0).getDate()
+    const startingDayIndex = new Date(tabCalYear, tabCalMonth, 1).getDay()
+    const emptyDaysBefore = Array(startingDayIndex).fill(null)
+    const monthDays = Array.from({ length: totalDays }, (_, i) => i + 1)
+    return [...emptyDaysBefore, ...monthDays]
+  }
+
+  const handlePrevCalMonth = () => {
+    if (tabCalMonth === 0) {
+      setTabCalMonth(11)
+      setTabCalYear(prev => prev - 1)
+    } else {
+      setTabCalMonth(prev => prev - 1)
+    }
+  }
+
+  const handleNextCalMonth = () => {
+    if (tabCalMonth === 11) {
+      setTabCalMonth(0)
+      setTabCalYear(prev => prev + 1)
+    } else {
+      setTabCalMonth(prev => prev + 1)
+    }
+  }
+
+  const handleSelectCalDay = (day) => {
+    const pad = (n) => String(n).padStart(2, '0')
+    const clickedDateStr = `${tabCalYear}-${pad(tabCalMonth + 1)}-${pad(day)}`
+
+    if (!tabStartDate || (tabStartDate && tabEndDate)) {
+      setTabStartDate(clickedDateStr)
+      setTabEndDate(null)
+      setTabDatePreset('custom')
+    } else {
+      if (clickedDateStr < tabStartDate) {
+        setTabEndDate(tabStartDate)
+        setTabStartDate(clickedDateStr)
+      } else {
+        setTabEndDate(clickedDateStr)
+      }
+      setTabDatePreset('custom')
+    }
+  }
+
+  const handleTabDatePresetChange = (preset) => {
+    setTabDatePreset(preset)
+    const now = new Date()
+    const pad = (n) => String(n).padStart(2, '0')
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+
+    if (preset === 'all') {
+      setTabStartDate(null)
+      setTabEndDate(null)
+    } else if (preset === 'today') {
+      setTabStartDate(todayStr)
+      setTabEndDate(todayStr)
+      setTabCalMonth(now.getMonth())
+      setTabCalYear(now.getFullYear())
+    } else if (preset === 'last7') {
+      const d7 = new Date()
+      d7.setDate(d7.getDate() - 6)
+      const d7Str = `${d7.getFullYear()}-${pad(d7.getMonth() + 1)}-${pad(d7.getDate())}`
+      setTabStartDate(d7Str)
+      setTabEndDate(todayStr)
+    } else if (preset === 'thisMonth') {
+      const firstDayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`
+      setTabStartDate(firstDayStr)
+      setTabEndDate(todayStr)
+      setTabCalMonth(now.getMonth())
+      setTabCalYear(now.getFullYear())
+    }
+  }
+
+  const handleClearTabDateFilter = (e) => {
+    if (e) e.stopPropagation()
+    setTabDatePreset('all')
+    setTabStartDate(null)
+    setTabEndDate(null)
+    setShowTabCalendar(false)
+  }
+
+  const isTabDateFilterActive = Boolean(tabStartDate) || Boolean(tabEndDate) || tabDatePreset !== 'all'
+  const isTabFilterActive = isTabDateFilterActive || Boolean(tabSearchQuery.trim())
+
+  const handleResetTabFilters = () => {
+    handleClearTabDateFilter()
+    setTabSearchQuery('')
+  }
+
+  const getTabDateDisplayLabel = () => {
+    if (!isTabDateFilterActive || tabDatePreset === 'all' || (!tabStartDate && !tabEndDate)) {
+      return 'Date Range'
+    }
+    if (tabDatePreset === 'today') return 'Today'
+    if (tabDatePreset === 'last7') return 'Last 7 Days'
+    if (tabDatePreset === 'thisMonth') return 'This Month'
+    if (tabStartDate && (!tabEndDate || tabStartDate === tabEndDate)) {
+      const d = new Date(tabStartDate + 'T00:00:00')
+      return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+    }
+    if (tabStartDate && tabEndDate) {
+      const s = new Date(tabStartDate + 'T00:00:00')
+      const e = new Date(tabEndDate + 'T00:00:00')
+      return `${s.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })} - ${e.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}`
+    }
+    return 'Date Range'
+  }
+
+  const filterItemByDate = (rawDate) => {
+    if (!isTabDateFilterActive) return true
+    if (!rawDate) return false
+    const itemDate = new Date(rawDate)
+    const itemTime = itemDate.getTime()
+    if (isNaN(itemTime)) return true
+
+    if (tabStartDate && tabEndDate) {
+      const startMs = new Date(tabStartDate + 'T00:00:00').getTime()
+      const endMs = new Date(tabEndDate + 'T23:59:59.999').getTime()
+      if (!isNaN(startMs) && itemTime < startMs) return false
+      if (!isNaN(endMs) && itemTime > endMs) return false
+      return true
+    }
+
+    if (tabStartDate && !tabEndDate) {
+      const startMs = new Date(tabStartDate + 'T00:00:00').getTime()
+      const endMs = new Date(tabStartDate + 'T23:59:59.999').getTime()
+      if (!isNaN(startMs) && itemTime < startMs) return false
+      if (!isNaN(endMs) && itemTime > endMs) return false
+      return true
+    }
+
+    return true
+  }
+
+  const filteredVendorProducts = useMemo(() => {
+    let list = viewedVendor?.productsList || []
+    if (isTabDateFilterActive) {
+      list = list.filter(p => filterItemByDate(p.createdAt || p.date || p.createdDate || p.updatedAt))
+    }
+    const q = tabSearchQuery.trim().toLowerCase()
+    if (q) {
+      list = list.filter(p => {
+        const name = String(p.name || p.productName || '').toLowerCase()
+        const cat = String(typeof p.category === 'object' ? (p.category?.name || '') : (p.category || p.categoryName || '')).toLowerCase()
+        const sku = String(p.sku || '').toLowerCase()
+        const price = String(typeof p.price === 'object' ? (p.price?.current || '') : (p.price || ''))
+        const status = String(typeof p.status === 'object' ? (p.status?.name || '') : (p.status || '')).toLowerCase()
+        return name.includes(q) || cat.includes(q) || sku.includes(q) || price.includes(q) || status.includes(q)
+      })
+    }
+    return list
+  }, [viewedVendor?.productsList, isTabDateFilterActive, tabDatePreset, tabCalMonth, tabCalYear, tabStartDate, tabEndDate, tabSearchQuery])
+
+  const filteredVendorOrders = useMemo(() => {
+    let list = viewedVendor?.ordersList || []
+    if (isTabDateFilterActive) {
+      list = list.filter(o => filterItemByDate(o.createdAt || o.date || o.orderDate || o.created_at))
+    }
+    const q = tabSearchQuery.trim().toLowerCase()
+    if (q) {
+      list = list.filter(o => {
+        const orderNo = String(o.orderNo || o.orderId || o._id || o.id || '').toLowerCase()
+        const status = String(typeof o.status === 'object' ? (o.status?.name || '') : (o.status || '')).toLowerCase()
+        const amount = String(o.totalAmount || o.amount || '')
+        return orderNo.includes(q) || status.includes(q) || amount.includes(q)
+      })
+    }
+    return list
+  }, [viewedVendor?.ordersList, isTabDateFilterActive, tabDatePreset, tabCalMonth, tabCalYear, tabStartDate, tabEndDate, tabSearchQuery])
 
   // Update / Submit State (PUT /api/superadmin/vendors/:id)
   const [submitLoading, setSubmitLoading] = useState(false)
@@ -1057,6 +1260,11 @@ function VendorsManagement({ onNavigateToPlans }) {
   const handleViewVendor = async (vendor) => {
     setViewedVendor(vendor)
     setViewError(null)
+    setVendorDetailsTab('products')
+    setTabDatePreset('all')
+    setTabStartDate(null)
+    setTabEndDate(null)
+    setTabSearchQuery('')
 
     const targetUserId = isMongoId(vendor.userId) ? vendor.userId : (isMongoId(vendor._id) ? vendor._id : (isMongoId(vendor.id) ? vendor.id : null))
     const targetVendorId = isMongoId(vendor.vendorId) ? vendor.vendorId : null
@@ -1147,7 +1355,8 @@ function VendorsManagement({ onNavigateToPlans }) {
           category: catName,
           price: pPrice,
           stock: pStock,
-          status: pStatus
+          status: pStatus,
+          createdAt: p.createdAt || p.createdDate || p.date || p.updatedAt
         }
       })
 
@@ -2756,11 +2965,11 @@ function VendorsManagement({ onNavigateToPlans }) {
     ]
 
     return (
-      <div className="vendor-profile-view" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div className="vendor-profile-view" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
         {renderToast()}
 
         {/* Header section with back chevron button */}
-        <div className="form-workspace-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="form-workspace-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '12px', boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <button
               className="back-circle-btn"
@@ -2909,8 +3118,8 @@ function VendorsManagement({ onNavigateToPlans }) {
         )}
 
         {/* Top Details Card */}
-        <div className="admin-profile-card">
-          <div className="admin-profile-row" style={{ borderBottom: 'none', paddingBottom: 0, marginBottom: 0 }}>
+        <div className="admin-profile-card" style={{ width: '100%', boxSizing: 'border-box' }}>
+          <div className="admin-profile-row" style={{ borderBottom: 'none', paddingBottom: 0, marginBottom: 0, width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
             <div className="admin-profile-left">
               <VendorAvatar
                 vendor={viewedVendor}
@@ -2920,33 +3129,39 @@ function VendorsManagement({ onNavigateToPlans }) {
                 <h3 style={{ fontSize: '18px', fontWeight: '700', textTransform: 'capitalize' }}>
                   {viewedVendor.name} {viewLoading && <span style={{ fontSize: '12px', color: '#90a4ae', fontWeight: '400' }}>(fetching latest...)</span>}
                 </h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#555555', fontSize: '12px', fontWeight: '500' }}>
-                  <Mail style={{ width: '14px', height: '14px', color: '#78909c' }} />
-                  <span>{viewedVendor.email}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#555555', fontSize: '12px', fontWeight: '500' }}>
-                  <Phone style={{ width: '14px', height: '14px', color: '#78909c' }} />
-                  <span>{viewedVendor.phone}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: '#555555', fontSize: '12px', fontWeight: '500', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Mail style={{ width: '14px', height: '14px', color: '#78909c' }} />
+                    <span>{viewedVendor.email}</span>
+                  </div>
+                  {viewedVendor.phone && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Phone style={{ width: '14px', height: '14px', color: '#78909c' }} />
+                      <span>{viewedVendor.phone}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Approval badge commented out as approval is not needed currently */}
-            {/* <span className={`vendor-badge ${viewedVendor.approval}`} style={{ padding: '6px 16px', fontSize: '12px' }}>
-              {viewedVendor.approval}
-            </span> */}
+            {viewedVendor.shopName && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'var(--bg-primary, #f8fafc)', padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border-light, #e2e8f0)', fontSize: '13px', fontWeight: '600', color: 'var(--text-dark, #334155)' }}>
+                <Store style={{ width: '15px', height: '15px', color: '#64748b' }} />
+                <span>{viewedVendor.shopName}</span>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Mini Stats Row */}
-        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', width: '100%', boxSizing: 'border-box', marginBottom: 0 }}>
           {miniStats.map((stat) => {
             const Icon = stat.icon
             return (
               <div
                 key={stat.id}
                 className="stat-card"
-                style={{ backgroundColor: stat.background, padding: '16px 20px', flexDirection: 'row', alignItems: 'center', gap: '16px' }}
+                style={{ backgroundColor: stat.background, padding: '16px 20px', flexDirection: 'row', alignItems: 'center', gap: '16px', boxSizing: 'border-box', width: '100%' }}
               >
                 <div
                   className="stat-icon-wrapper"
@@ -2963,286 +3178,542 @@ function VendorsManagement({ onNavigateToPlans }) {
           })}
         </div>
 
-        {/* Split View Content */}
-        <div className="dashboard-grid-columns" style={{ gridTemplateColumns: '2fr 1fr' }}>
-          {/* Left Column Info Blocks */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* Account Status Card */}
-            <div className="dashboard-card-panel" style={{ padding: '20px 24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '14px', fontWeight: '700' }}>
-                  <span>Account Status</span>
-                  <span className={`vendor-badge ${viewedVendor.status}`} style={{ textTransform: 'capitalize' }}>
-                    {viewedVendor.status}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="btn-link-action"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: '#ffffff',
-                    border: '1px solid var(--border-light)',
-                    padding: '6px 14px',
-                    borderRadius: '8px',
-                    color: viewedVendor.status === 'active' ? '#e74c3c' : '#2ecc71',
-                    fontSize: '12px'
-                  }}
-                  onClick={() => handleToggleVendorStatus(viewedVendor)}
-                  disabled={statusUpdatingVendorId === (viewedVendor._id || viewedVendor.id)}
-                >
-                  {statusUpdatingVendorId === (viewedVendor._id || viewedVendor.id) ? (
-                    <RotateCw className="spinning-icon" style={{ width: '14px', height: '14px' }} />
-                  ) : (
-                    <Power style={{ width: '14px', height: '14px' }} />
-                  )}
-                  {statusUpdatingVendorId === (viewedVendor._id || viewedVendor.id) ? 'Updating...' : (viewedVendor.status === 'active' ? 'Deactivate Account' : 'Activate Account')}
-                </button>
-              </div>
-            </div>
-
-            {/* Personal Information */}
-            <div className="dashboard-card-panel">
-              <div className="form-section-title" style={{ fontSize: '14px', marginBottom: '16px' }}>Personal Information</div>
-              <div className="admin-details-fields-grid" style={{ rowGap: '16px' }}>
-                <div className="admin-detail-item">
-                  <span className="label">Name</span>
-                  <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.name}</span>
-                </div>
-                <div className="admin-detail-item">
-                  <span className="label">Email Address</span>
-                  <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.email}</span>
-                </div>
-                <div className="admin-detail-item">
-                  <span className="label">Phone</span>
-                  <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.phone}</span>
-                </div>
-                <div className="admin-detail-item">
-                  <span className="label">Date Of Birth</span>
-                  <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.dob}</span>
-                </div>
-                <div className="admin-detail-item">
-                  <span className="label">Gender</span>
-                  <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.gender || 'Male'}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Business Details */}
-            <div className="dashboard-card-panel">
-              <div className="form-section-title" style={{ fontSize: '14px', marginBottom: '16px' }}>Business Details</div>
-              <div className="admin-details-fields-grid" style={{ rowGap: '16px' }}>
-                <div className="admin-detail-item">
-                  <span className="label">Store Name</span>
-                  <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.shopName}</span>
-                </div>
-                <div className="admin-detail-item">
-                  <span className="label">Business Type</span>
-                  <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.bizType || 'Individual seller'}</span>
-                </div>
-                <div className="admin-detail-item">
-                  <span className="label">GST Number</span>
-                  <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.gst || '22AAAAA0000A1Z5'}</span>
-                </div>
-                <div className="admin-detail-item">
-                  <span className="label">PAN Number</span>
-                  <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.pan || 'ABCDE1234F'}</span>
-                </div>
-                <div className="admin-detail-item" style={{ gridColumn: 'span 2' }}>
-                  <span className="label">Business Address</span>
-                  <span className="value" style={{ fontSize: '13px' }}>
-                    {typeof viewedVendor.address === 'object' && viewedVendor.address !== null
-                      ? (viewedVendor.address.fullAddress || [viewedVendor.address.street, viewedVendor.address.city, viewedVendor.address.state].filter(Boolean).join(', ') || 'Pune')
-                      : (viewedVendor.address || '456, Business Bay, T. Nagar, Pune')}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Vendor Products Section */}
-            <div className="dashboard-card-panel">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <div className="form-section-title" style={{ fontSize: '14px', margin: 0 }}>
-                  Products ({viewedVendor.products || 0})
-                </div>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>
-                  {viewedVendor.productsList && viewedVendor.productsList.length > 0
-                    ? `Showing ${viewedVendor.productsList.length} products`
-                    : '0 products listed'}
+        {/* Details Cards Container (Fluid, stretched to the right edge covering the entire tab) */}
+        <div className="vendor-details-cards-stack" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
+          {/* Account Status Card */}
+          <div className="dashboard-card-panel" style={{ padding: '20px 24px', width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '14px', fontWeight: '700' }}>
+                <span>Account Status</span>
+                <span className={`vendor-badge ${viewedVendor.status}`} style={{ textTransform: 'capitalize' }}>
+                  {viewedVendor.status}
                 </span>
               </div>
-              {viewedVendor.productsList && viewedVendor.productsList.length > 0 ? (
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="admin-table" style={{ fontSize: '12px' }}>
-                    <thead>
-                      <tr>
-                        <th>Product</th>
-                        <th>Category</th>
-                        <th>Price</th>
-                        <th>Stock</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {viewedVendor.productsList.slice(0, 10).map((prod, pIdx) => {
-                        const prodName = typeof prod.name === 'object' && prod.name !== null
-                          ? (prod.name.name || prod.name.title || 'Product')
-                          : (typeof prod.name === 'string' ? prod.name : (typeof prod.productName === 'string' ? prod.productName : 'Product'))
-                        const catDisplay = typeof prod.category === 'object' && prod.category !== null
-                          ? (prod.category.name || prod.category.title || prod.category.slug || 'General')
-                          : (typeof prod.categoryId === 'object' && prod.categoryId !== null
-                              ? (prod.categoryId.name || prod.categoryId.title || prod.categoryId.slug || 'General')
-                              : (typeof prod.category === 'string' ? prod.category : (typeof prod.categoryName === 'string' ? prod.categoryName : 'General')))
-                        const priceDisplay = typeof prod.price === 'object' && prod.price !== null
-                          ? (prod.price.current || prod.price.amount || 0)
-                          : (typeof prod.price === 'number' || typeof prod.price === 'string' ? prod.price : 0)
-                        const stockDisplay = typeof prod.stock === 'object' && prod.stock !== null
-                          ? (prod.stock.quantity ?? 'N/A')
-                          : (prod.stock !== undefined ? prod.stock : 'N/A')
-                        const statusDisplay = typeof prod.status === 'object' && prod.status !== null
-                          ? (prod.status.name || 'active')
-                          : (typeof prod.status === 'string' ? prod.status : 'active')
-
-                        return (
-                          <tr key={prod._id || prod.id || pIdx}>
-                            <td style={{ fontWeight: '600', color: '#1e293b' }}>
-                              {prodName}
-                            </td>
-                            <td>{catDisplay}</td>
-                            <td style={{ fontWeight: '600' }}>₹{priceDisplay}</td>
-                            <td>{stockDisplay}</td>
-                            <td>
-                              <span className={`vendor-badge ${String(statusDisplay).toLowerCase()}`} style={{ textTransform: 'capitalize' }}>
-                                {String(statusDisplay)}
-                              </span>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '24px 16px', color: '#94a3b8', fontSize: '13px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
-                  <Box style={{ width: '28px', height: '28px', margin: '0 auto 8px', color: '#cbd5e1' }} />
-                  <div>No products listed by this vendor yet.</div>
-                </div>
-              )}
-            </div>
-
-            {/* Vendor Orders Section */}
-            <div className="dashboard-card-panel">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <div className="form-section-title" style={{ fontSize: '14px', margin: 0 }}>
-                  Orders ({viewedVendor.orders || 0})
-                </div>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>
-                  {viewedVendor.ordersList && viewedVendor.ordersList.length > 0
-                    ? `Showing ${viewedVendor.ordersList.length} orders`
-                    : '0 orders placed'}
-                </span>
-              </div>
-              {viewedVendor.ordersList && viewedVendor.ordersList.length > 0 ? (
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="admin-table" style={{ fontSize: '12px' }}>
-                    <thead>
-                      <tr>
-                        <th>Order ID</th>
-                        <th>Date</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {viewedVendor.ordersList.slice(0, 10).map((ord, oIdx) => {
-                        const ordNoDisplay = typeof ord.orderNo === 'string'
-                          ? ord.orderNo
-                          : (typeof ord.orderId === 'string'
-                              ? ord.orderId
-                              : (typeof ord._id === 'string'
-                                  ? ord._id
-                                  : (typeof ord.id === 'string'
-                                      ? ord.id
-                                      : `#ORD-${oIdx + 1}`)))
-                        const ordDate = ord.createdAt || ord.date || ord.orderDate
-                        const ordDateDisplay = ordDate ? new Date(ordDate).toLocaleDateString() : 'N/A'
-                        const ordAmountDisplay = typeof ord.totalAmount === 'number'
-                          ? `₹${ord.totalAmount.toLocaleString('en-IN')}`
-                          : (typeof ord.amount === 'number'
-                              ? `₹${ord.amount.toLocaleString('en-IN')}`
-                              : (typeof ord.amount === 'string'
-                                  ? ord.amount
-                                  : `₹${calculateOrderAmount(ord)}`))
-                        const ordStatusDisplay = typeof ord.status === 'object' && ord.status !== null
-                          ? (ord.status.name || ord.status.title || 'Pending')
-                          : (typeof ord.status === 'string' ? ord.status : 'Pending')
-
-                        return (
-                          <tr key={ord._id || ord.id || ord.orderNo || oIdx}>
-                            <td style={{ fontWeight: '600', color: '#1e293b' }}>
-                              {ordNoDisplay}
-                            </td>
-                            <td>{ordDateDisplay}</td>
-                            <td style={{ fontWeight: '600', color: '#16a34a' }}>
-                              {ordAmountDisplay}
-                            </td>
-                            <td>
-                              <span className={`vendor-badge ${String(ordStatusDisplay).toLowerCase()}`} style={{ textTransform: 'capitalize' }}>
-                                {String(ordStatusDisplay)}
-                              </span>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '24px 16px', color: '#94a3b8', fontSize: '13px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
-                  <Package style={{ width: '28px', height: '28px', margin: '0 auto 8px', color: '#cbd5e1' }} />
-                  <div>No orders placed for this vendor yet.</div>
-                </div>
-              )}
+              <button
+                type="button"
+                className="btn-link-action"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: '#ffffff',
+                  border: '1px solid var(--border-light)',
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  color: viewedVendor.status === 'active' ? '#e74c3c' : '#2ecc71',
+                  fontSize: '12px'
+                }}
+                onClick={() => handleToggleVendorStatus(viewedVendor)}
+                disabled={statusUpdatingVendorId === (viewedVendor._id || viewedVendor.id)}
+              >
+                {statusUpdatingVendorId === (viewedVendor._id || viewedVendor.id) ? (
+                  <RotateCw className="spinning-icon" style={{ width: '14px', height: '14px' }} />
+                ) : (
+                  <Power style={{ width: '14px', height: '14px' }} />
+                )}
+                {statusUpdatingVendorId === (viewedVendor._id || viewedVendor.id) ? 'Updating...' : (viewedVendor.status === 'active' ? 'Deactivate Account' : 'Activate Account')}
+              </button>
             </div>
           </div>
 
-          {/* Right Column Audit Panels - Approval cards commented out */}
-          <div>
-            {/* {viewedVendor.approval === 'approved' && (
-              <div className="vendor-audit-card approved">
-                <span className="vendor-audit-title">Approved By</span>
-                <div className="audit-user-row">
-                  <img
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=64&h=64"
-                    alt="Super Admin"
-                    className="audit-avatar"
+          {/* Personal Information */}
+          <div className="dashboard-card-panel" style={{ width: '100%', boxSizing: 'border-box' }}>
+            <div className="form-section-title" style={{ fontSize: '14px', marginBottom: '16px' }}>Personal Information</div>
+            <div className="vendor-details-fields-grid admin-details-fields-grid" style={{ rowGap: '16px', width: '100%' }}>
+              <div className="vendor-detail-item admin-detail-item">
+                <span className="label">Name</span>
+                <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.name || 'N/A'}</span>
+              </div>
+              <div className="vendor-detail-item admin-detail-item">
+                <span className="label">Email Address</span>
+                <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.email || 'N/A'}</span>
+              </div>
+              <div className="vendor-detail-item admin-detail-item">
+                <span className="label">Phone</span>
+                <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.phone || 'N/A'}</span>
+              </div>
+              <div className="vendor-detail-item admin-detail-item">
+                <span className="label">Date Of Birth</span>
+                <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.dob || 'N/A'}</span>
+              </div>
+              <div className="vendor-detail-item admin-detail-item">
+                <span className="label">Gender</span>
+                <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.gender || 'Male'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Business Details */}
+          <div className="dashboard-card-panel" style={{ width: '100%', boxSizing: 'border-box' }}>
+            <div className="form-section-title" style={{ fontSize: '14px', marginBottom: '16px' }}>Business Details</div>
+            <div className="vendor-details-fields-grid admin-details-fields-grid" style={{ rowGap: '16px', width: '100%' }}>
+              <div className="vendor-detail-item admin-detail-item">
+                <span className="label">Store Name</span>
+                <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.shopName || 'N/A'}</span>
+              </div>
+              <div className="vendor-detail-item admin-detail-item">
+                <span className="label">Business Type</span>
+                <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.bizType || 'Individual seller'}</span>
+              </div>
+              <div className="vendor-detail-item admin-detail-item">
+                <span className="label">GST Number</span>
+                <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.gst || '22AAAAA0000A1Z5'}</span>
+              </div>
+              <div className="vendor-detail-item admin-detail-item">
+                <span className="label">PAN Number</span>
+                <span className="value" style={{ fontSize: '13px' }}>{viewedVendor.pan || 'ABCDE1234F'}</span>
+              </div>
+              <div className="vendor-detail-item admin-detail-item full-width" style={{ gridColumn: '1 / -1' }}>
+                <span className="label">Business Address</span>
+                <span className="value" style={{ fontSize: '13px' }}>
+                  {typeof viewedVendor.address === 'object' && viewedVendor.address !== null
+                    ? (viewedVendor.address.fullAddress || [viewedVendor.address.street, viewedVendor.address.city, viewedVendor.address.state, viewedVendor.address.pincode].filter(Boolean).join(', ') || 'Pune')
+                    : (viewedVendor.address || '456, Business Bay, T. Nagar, Pune')}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Vendor Products & Orders Tabbed Section */}
+          <div className="dashboard-card-panel vendor-tabs-card" style={{ width: '100%', boxSizing: 'border-box' }}>
+            <div className="vendor-tabs-header-row">
+              <div className="vendor-tab-headers-nav">
+                <button
+                  type="button"
+                  className={`vendor-tab-nav-btn ${vendorDetailsTab === 'products' ? 'active' : ''}`}
+                  onClick={() => {
+                    setVendorDetailsTab('products')
+                    setTabSearchQuery('')
+                  }}
+                >
+                  <Box style={{ width: '16px', height: '16px' }} />
+                  <span>Products</span>
+                  <span className="vendor-tab-count-badge">
+                    {isTabFilterActive
+                      ? `${filteredVendorProducts.length} / ${(viewedVendor.productsList || []).length}`
+                      : (viewedVendor.products || (viewedVendor.productsList ? viewedVendor.productsList.length : 0))}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`vendor-tab-nav-btn ${vendorDetailsTab === 'orders' ? 'active' : ''}`}
+                  onClick={() => {
+                    setVendorDetailsTab('orders')
+                    setTabSearchQuery('')
+                  }}
+                >
+                  <Package style={{ width: '16px', height: '16px' }} />
+                  <span>Orders</span>
+                  <span className="vendor-tab-count-badge">
+                    {isTabFilterActive
+                      ? `${filteredVendorOrders.length} / ${(viewedVendor.ordersList || []).length}`
+                      : (viewedVendor.orders || (viewedVendor.ordersList ? viewedVendor.ordersList.length : 0))}
+                  </span>
+                </button>
+              </div>
+
+              {/* Filter Controls: Search Box + Interactive Calendar Popup */}
+              <div className="vendor-tab-date-controls" ref={tabCalendarRef}>
+                {/* Search Bar */}
+                <div className="vendor-tab-search-box">
+                  <Search size={14} className="vendor-tab-search-icon" />
+                  <input
+                    type="text"
+                    placeholder={vendorDetailsTab === 'products' ? 'Search product, category, SKU...' : 'Search order ID, status, amount...'}
+                    value={tabSearchQuery}
+                    onChange={(e) => setTabSearchQuery(e.target.value)}
+                    className="vendor-tab-search-input"
+                    aria-label="Search items in tab"
                   />
-                  <div className="audit-user-details">
-                    <span className="audit-user-name">Super Admin</span>
-                    <span className="audit-user-role">Super Admin</span>
-                  </div>
+                  {tabSearchQuery && (
+                    <button
+                      type="button"
+                      className="vendor-tab-search-clear-btn"
+                      onClick={() => setTabSearchQuery('')}
+                      title="Clear search"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
                 </div>
+
+                <div className="vendor-date-trigger-anchor">
+                  <button
+                    type="button"
+                    className={`vendor-date-pill-btn ${isTabDateFilterActive ? 'active' : ''}`}
+                    onClick={() => setShowTabCalendar(prev => !prev)}
+                    title="Open calendar date filter"
+                  >
+                    <Calendar size={15} className="vendor-date-icon" />
+                    <span className="vendor-date-label-text">{getTabDateDisplayLabel()}</span>
+                    <ChevronDown size={14} className="vendor-date-chevron" />
+                  </button>
+
+                  {isTabDateFilterActive && (
+                    <button
+                      type="button"
+                      className="vendor-date-clear-inline-btn"
+                      onClick={handleClearTabDateFilter}
+                      title="Clear date filter"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+
+                  {/* Single Interactive Calendar Popup Card */}
+                  {showTabCalendar && (
+                    <div className="vendor-calendar-dropdown-card" onClick={(e) => e.stopPropagation()}>
+                      {/* Presets Row */}
+                      <div className="vendor-cal-presets-row">
+                        <button
+                          type="button"
+                          className={`vendor-cal-preset-chip ${tabDatePreset === 'all' ? 'active' : ''}`}
+                          onClick={() => handleClearTabDateFilter()}
+                        >
+                          All Dates
+                        </button>
+                        <button
+                          type="button"
+                          className={`vendor-cal-preset-chip ${tabDatePreset === 'today' ? 'active' : ''}`}
+                          onClick={() => {
+                            handleTabDatePresetChange('today')
+                            setShowTabCalendar(false)
+                          }}
+                        >
+                          Today
+                        </button>
+                        <button
+                          type="button"
+                          className={`vendor-cal-preset-chip ${tabDatePreset === 'last7' ? 'active' : ''}`}
+                          onClick={() => {
+                            handleTabDatePresetChange('last7')
+                            setShowTabCalendar(false)
+                          }}
+                        >
+                          Last 7 Days
+                        </button>
+                        <button
+                          type="button"
+                          className={`vendor-cal-preset-chip ${tabDatePreset === 'thisMonth' ? 'active' : ''}`}
+                          onClick={() => {
+                            handleTabDatePresetChange('thisMonth')
+                            setShowTabCalendar(false)
+                          }}
+                        >
+                          This Month
+                        </button>
+                      </div>
+
+                      {/* Selected Range Guide / Hint */}
+                      <div className="vendor-cal-selected-hint">
+                        {tabStartDate && tabEndDate ? (
+                          <span>
+                            Range: <strong>{tabStartDate}</strong> to <strong>{tabEndDate}</strong>
+                          </span>
+                        ) : tabStartDate ? (
+                          <span>
+                            Start: <strong>{tabStartDate}</strong> (click another day for range)
+                          </span>
+                        ) : (
+                          <span>Click a date to filter by day, or two dates for a range</span>
+                        )}
+                      </div>
+
+                      {/* Calendar Navigation Header */}
+                      <div className="calendar-header" style={{ marginBottom: '10px' }}>
+                        <button
+                          type="button"
+                          className="calendar-btn-nav"
+                          onClick={handlePrevCalMonth}
+                          title="Previous Month"
+                        >
+                          <ChevronLeft style={{ width: '16px', height: '16px' }} />
+                        </button>
+                        <div className="calendar-selects">
+                          <select
+                            className="calendar-select"
+                            value={MONTHS_LIST[tabCalMonth]}
+                            onChange={(e) => setTabCalMonth(MONTHS_LIST.indexOf(e.target.value))}
+                          >
+                            {MONTHS_LIST.map(m => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                          <select
+                            className="calendar-select"
+                            value={tabCalYear}
+                            onChange={(e) => setTabCalYear(parseInt(e.target.value, 10))}
+                          >
+                            {YEARS_LIST.map(y => (
+                              <option key={y} value={y}>{y}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          className="calendar-btn-nav"
+                          onClick={handleNextCalMonth}
+                          title="Next Month"
+                        >
+                          <ChevronRight style={{ width: '16px', height: '16px' }} />
+                        </button>
+                      </div>
+
+                      {/* Weekday Labels */}
+                      <div className="calendar-weekdays">
+                        {WEEKDAYS.map(d => <span key={d}>{d}</span>)}
+                      </div>
+
+                      {/* Days Grid */}
+                      <div className="calendar-days-grid">
+                        {getTabCalendarCells().map((day, index) => {
+                          if (day === null) {
+                            return <div key={`empty-${index}`} className="calendar-day-cell empty" />
+                          }
+                          const pad = (n) => String(n).padStart(2, '0')
+                          const cellDateStr = `${tabCalYear}-${pad(tabCalMonth + 1)}-${pad(day)}`
+                          const isStart = tabStartDate === cellDateStr
+                          const isEnd = tabEndDate === cellDateStr
+                          const isSelected = isStart || isEnd
+                          const isInRange = Boolean(tabStartDate && tabEndDate && cellDateStr > tabStartDate && cellDateStr < tabEndDate)
+
+                          const now = new Date()
+                          const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+                          const isToday = cellDateStr === todayStr
+
+                          let cellClasses = 'calendar-day-cell'
+                          if (isSelected) cellClasses += ' selected'
+                          if (isInRange) cellClasses += ' in-range'
+                          if (isToday && !isSelected) cellClasses += ' today'
+
+                          return (
+                            <div
+                              key={`day-${day}`}
+                              className={cellClasses}
+                              onClick={() => handleSelectCalDay(day)}
+                              title={`Select ${day} ${MONTHS_LIST[tabCalMonth]} ${tabCalYear}`}
+                            >
+                              {day}
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {/* Calendar Footer Actions */}
+                      <div className="vendor-cal-footer-actions">
+                        <button
+                          type="button"
+                          className="vendor-cal-reset-btn"
+                          onClick={handleClearTabDateFilter}
+                        >
+                          Clear
+                        </button>
+                        <button
+                          type="button"
+                          className="vendor-cal-apply-btn"
+                          onClick={() => setShowTabCalendar(false)}
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <span className="vendor-tab-summary-text">
+                  {vendorDetailsTab === 'products' ? (
+                    isTabFilterActive
+                      ? `Showing ${filteredVendorProducts.length} of ${(viewedVendor.productsList || []).length} products`
+                      : (viewedVendor.productsList && viewedVendor.productsList.length > 0
+                          ? `Showing ${viewedVendor.productsList.length} products`
+                          : '0 products listed')
+                  ) : (
+                    isTabFilterActive
+                      ? `Showing ${filteredVendorOrders.length} of ${(viewedVendor.ordersList || []).length} orders`
+                      : (viewedVendor.ordersList && viewedVendor.ordersList.length > 0
+                          ? `Showing ${viewedVendor.ordersList.length} orders`
+                          : '0 orders placed')
+                  )}
+                </span>
+              </div>
+            </div>
+
+            {/* Tab 1: Products Content */}
+            {vendorDetailsTab === 'products' && (
+              <div>
+                {filteredVendorProducts.length > 0 ? (
+                  <div className="vendor-table-container" style={{ overflowX: 'auto', width: '100%' }}>
+                    <table className="admin-table" style={{ fontSize: '12px', width: '100%' }}>
+                      <thead>
+                        <tr>
+                          <th>Product</th>
+                          <th>Category</th>
+                          <th>Price</th>
+                          <th>Stock</th>
+                          <th>Date</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredVendorProducts.slice(0, 15).map((prod, pIdx) => {
+                          const prodName = typeof prod.name === 'object' && prod.name !== null
+                            ? (prod.name.name || prod.name.title || 'Product')
+                            : (typeof prod.name === 'string' ? prod.name : (typeof prod.productName === 'string' ? prod.productName : 'Product'))
+                          const catDisplay = typeof prod.category === 'object' && prod.category !== null
+                            ? (prod.category.name || prod.category.title || prod.category.slug || 'General')
+                            : (typeof prod.categoryId === 'object' && prod.categoryId !== null
+                                ? (prod.categoryId.name || prod.categoryId.title || prod.categoryId.slug || 'General')
+                                : (typeof prod.category === 'string' ? prod.category : (typeof prod.categoryName === 'string' ? prod.categoryName : 'General')))
+                          const priceDisplay = typeof prod.price === 'object' && prod.price !== null
+                            ? (prod.price.current || prod.price.amount || 0)
+                            : (typeof prod.price === 'number' || typeof prod.price === 'string' ? prod.price : 0)
+                          const stockDisplay = typeof prod.stock === 'object' && prod.stock !== null
+                            ? (prod.stock.quantity ?? 'N/A')
+                            : (prod.stock !== undefined ? prod.stock : 'N/A')
+                          const pDate = prod.createdAt || prod.date || prod.createdDate
+                          const pDateDisplay = pDate ? new Date(pDate).toLocaleDateString() : 'N/A'
+                          const statusDisplay = typeof prod.status === 'object' && prod.status !== null
+                            ? (prod.status.name || 'active')
+                            : (typeof prod.status === 'string' ? prod.status : 'active')
+
+                          return (
+                            <tr key={prod._id || prod.id || pIdx}>
+                              <td style={{ fontWeight: '600', color: '#1e293b' }}>
+                                {prodName}
+                              </td>
+                              <td>{catDisplay}</td>
+                              <td style={{ fontWeight: '600' }}>₹{priceDisplay}</td>
+                              <td>{stockDisplay}</td>
+                              <td style={{ color: '#64748b' }}>{pDateDisplay}</td>
+                              <td>
+                                <span className={`vendor-badge ${String(statusDisplay).toLowerCase()}`} style={{ textTransform: 'capitalize' }}>
+                                  {String(statusDisplay)}
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '36px 16px', color: '#94a3b8', fontSize: '13px', backgroundColor: '#f8fafc', borderRadius: '12px', width: '100%', boxSizing: 'border-box' }}>
+                    <Box style={{ width: '36px', height: '36px', margin: '0 auto 10px', color: '#cbd5e1' }} />
+                    <div style={{ fontWeight: '600', color: '#475569', marginBottom: '4px' }}>
+                      {isTabFilterActive ? 'No products match the selected search/date filters' : 'No products listed by this vendor yet'}
+                    </div>
+                    {isTabFilterActive && (
+                      <button
+                        type="button"
+                        onClick={handleResetTabFilters}
+                        style={{
+                          marginTop: '8px',
+                          background: '#8b5cf6',
+                          color: '#ffffff',
+                          border: 'none',
+                          padding: '6px 14px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Reset Filters
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
-            {viewedVendor.approval === 'rejected' && (
-              <div className="vendor-audit-card rejected">
-                <span className="vendor-audit-title">Rejected By</span>
-                <div className="audit-user-row">
-                  <img
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=64&h=64"
-                    alt="Super Admin"
-                    className="audit-avatar"
-                  />
-                  <div className="audit-user-details">
-                    <span className="audit-user-name">Super Admin</span>
-                    <span className="audit-user-role">Super Admin</span>
+            {/* Tab 2: Orders Content */}
+            {vendorDetailsTab === 'orders' && (
+              <div>
+                {filteredVendorOrders.length > 0 ? (
+                  <div className="vendor-table-container" style={{ overflowX: 'auto', width: '100%' }}>
+                    <table className="admin-table" style={{ fontSize: '12px', width: '100%' }}>
+                      <thead>
+                        <tr>
+                          <th>Order ID</th>
+                          <th>Date</th>
+                          <th>Amount</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredVendorOrders.slice(0, 15).map((ord, oIdx) => {
+                          const ordNoDisplay = typeof ord.orderNo === 'string'
+                            ? ord.orderNo
+                            : (typeof ord.orderId === 'string'
+                                ? ord.orderId
+                                : (typeof ord._id === 'string'
+                                    ? ord._id
+                                    : (typeof ord.id === 'string'
+                                        ? ord.id
+                                        : `#ORD-${oIdx + 1}`)))
+                          const ordDate = ord.createdAt || ord.date || ord.orderDate
+                          const ordDateDisplay = ordDate ? new Date(ordDate).toLocaleDateString() : 'N/A'
+                          const ordAmountDisplay = typeof ord.totalAmount === 'number'
+                            ? `₹${ord.totalAmount.toLocaleString('en-IN')}`
+                            : (typeof ord.amount === 'number'
+                                ? `₹${ord.amount.toLocaleString('en-IN')}`
+                                : (typeof ord.amount === 'string'
+                                    ? ord.amount
+                                    : `₹${calculateOrderAmount(ord)}`))
+                          const ordStatusDisplay = typeof ord.status === 'object' && ord.status !== null
+                            ? (ord.status.name || ord.status.title || 'Pending')
+                            : (typeof ord.status === 'string' ? ord.status : 'Pending')
+
+                          return (
+                            <tr key={ord._id || ord.id || ord.orderNo || oIdx}>
+                              <td style={{ fontWeight: '600', color: '#1e293b' }}>
+                                {ordNoDisplay}
+                              </td>
+                              <td style={{ color: '#475569' }}>{ordDateDisplay}</td>
+                              <td style={{ fontWeight: '600', color: '#16a34a' }}>
+                                {ordAmountDisplay}
+                              </td>
+                              <td>
+                                <span className={`vendor-badge ${String(ordStatusDisplay).toLowerCase()}`} style={{ textTransform: 'capitalize' }}>
+                                  {String(ordStatusDisplay)}
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '36px 16px', color: '#94a3b8', fontSize: '13px', backgroundColor: '#f8fafc', borderRadius: '12px', width: '100%', boxSizing: 'border-box' }}>
+                    <Package style={{ width: '36px', height: '36px', margin: '0 auto 10px', color: '#cbd5e1' }} />
+                    <div style={{ fontWeight: '600', color: '#475569', marginBottom: '4px' }}>
+                      {isTabFilterActive ? 'No orders match the selected search/date filters' : 'No orders placed for this vendor yet'}
+                    </div>
+                    {isTabFilterActive && (
+                      <button
+                        type="button"
+                        onClick={handleResetTabFilters}
+                        style={{
+                          marginTop: '8px',
+                          background: '#8b5cf6',
+                          color: '#ffffff',
+                          border: 'none',
+                          padding: '6px 14px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Reset Filters
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-            )} */}
+            )}
           </div>
         </div>
 
