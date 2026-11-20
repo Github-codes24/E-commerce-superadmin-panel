@@ -84,8 +84,8 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: #a8d572;
-  color: #0e1e05;
+  background: #8b5cf6;
+  color: #ffffff;
   border: none;
   padding: 10px 20px;
   border-radius: 9px;
@@ -93,13 +93,13 @@
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 14px rgba(168, 213, 114, 0.4);
+  box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);
 }
 
 .sg-btn-primary:hover {
-  background: #96c460;
+  background: #7c3aed;
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(168, 213, 114, 0.5);
+  box-shadow: 0 6px 18px rgba(139, 92, 246, 0.45);
 }
 
 .sg-btn-primary:active {

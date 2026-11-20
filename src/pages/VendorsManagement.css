@@ -311,3 +311,485 @@
   border-color: #dc2626 !important;
   box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2) !important;
 }
+
+/* =========================================================
+   Vendor Details View & Fluid Details Cards
+   ========================================================= */
+
+.vendor-profile-view {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-sizing: border-box;
+}
+
+.vendor-profile-view .form-workspace-header {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.vendor-profile-view .admin-profile-card {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background-color: var(--bg-card, #ffffff);
+  border-radius: 12px;
+  border: 1px solid var(--border-light, #e0e0e0);
+  padding: 24px;
+}
+
+.vendor-profile-view .stats-grid {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.vendor-details-cards-stack {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-sizing: border-box;
+}
+
+.vendor-profile-view .dashboard-card-panel {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  box-sizing: border-box;
+  background-color: var(--bg-card, #ffffff);
+  border-radius: 14px;
+  border: 1px solid var(--border-light, #e2e8f0);
+  padding: 24px;
+}
+
+/* Fluid responsive grid for vendor detail fields */
+.vendor-details-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.vendor-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.vendor-detail-item .label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted, #78909c);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.vendor-detail-item .value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dark, #1e293b);
+  word-break: break-word;
+}
+
+.vendor-detail-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.vendor-table-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+}
+
+.vendor-table-container table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* Vendor Details Tab Bar for Products & Orders */
+.vendor-tabs-card {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.vendor-tabs-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-light, #e2e8f0);
+  margin-bottom: 20px;
+  padding-bottom: 2px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.vendor-tab-headers-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vendor-tab-nav-btn {
+  background: none;
+  border: none;
+  padding: 10px 16px;
+  font-family: var(--admin-font);
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 2.5px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  border-radius: 6px 6px 0 0;
+  margin-bottom: -3px;
+}
+
+.vendor-tab-nav-btn:hover {
+  color: #1e293b;
+  background-color: #f8fafc;
+}
+
+.vendor-tab-nav-btn.active {
+  color: #8b5cf6;
+  font-weight: 700;
+  border-bottom-color: #8b5cf6;
+  background-color: transparent;
+}
+
+.vendor-tab-count-badge {
+  background-color: #f1f5f9;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.vendor-tab-nav-btn.active .vendor-tab-count-badge {
+  background-color: #ede9fe;
+  color: #6d28d9;
+}
+
+/* Filter & Search Controls at Tab Bar */
+.vendor-tab-date-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Search Box at Tab Bar */
+.vendor-tab-search-box {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  background-color: #ffffff;
+  border: 1px solid var(--border-light, #e2e8f0);
+  border-radius: 8px;
+  padding: 0 10px;
+  min-width: 240px;
+  height: 36px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  box-sizing: border-box;
+}
+
+.vendor-tab-search-box:hover {
+  border-color: #cbd5e1;
+}
+
+.vendor-tab-search-box:focus-within {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12);
+}
+
+.vendor-tab-search-icon {
+  color: #94a3b8;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.vendor-tab-search-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--admin-font);
+  font-size: 13px;
+  color: #1e293b;
+}
+
+.vendor-tab-search-input::placeholder {
+  color: #94a3b8;
+}
+
+.vendor-tab-search-clear-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.15s ease;
+}
+
+.vendor-tab-search-clear-btn:hover {
+  color: #ef4444;
+  background-color: #fee2e2;
+}
+
+.vendor-date-trigger-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.vendor-date-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #ffffff;
+  border: 1px solid var(--border-light, #e2e8f0);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-family: var(--admin-font);
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.vendor-date-pill-btn:hover {
+  border-color: #8b5cf6;
+  background-color: #fcfaff;
+}
+
+.vendor-date-pill-btn.active {
+  border-color: #8b5cf6;
+  background-color: #f5f3ff;
+  color: #6d28d9;
+  font-weight: 600;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12);
+}
+
+.vendor-date-icon {
+  color: #8b5cf6;
+  flex-shrink: 0;
+}
+
+.vendor-date-label-text {
+  user-select: none;
+}
+
+.vendor-date-chevron {
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+}
+
+.vendor-date-pill-btn:hover .vendor-date-chevron {
+  color: #64748b;
+}
+
+.vendor-date-clear-inline-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  margin-left: -6px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.vendor-date-clear-inline-btn:hover {
+  color: #ef4444;
+  background-color: #fee2e2;
+}
+
+/* Calendar Dropdown Card in Tab Bar */
+.vendor-calendar-dropdown-card {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background-color: #ffffff;
+  border: 1px solid var(--border-light, #e2e8f0);
+  border-radius: 14px;
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.12);
+  width: 290px;
+  padding: 16px;
+  z-index: 1000;
+  animation: fadeIn 0.18s ease-out;
+  box-sizing: border-box;
+}
+
+/* Presets row */
+.vendor-cal-presets-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.vendor-cal-preset-chip {
+  flex: 1;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-family: var(--admin-font);
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.vendor-cal-preset-chip:hover {
+  background: #ede9fe;
+  color: #6d28d9;
+  border-color: #ddd6fe;
+}
+
+.vendor-cal-preset-chip.active {
+  background: #8b5cf6;
+  color: #ffffff;
+  border-color: #8b5cf6;
+}
+
+/* Selected hint text */
+.vendor-cal-selected-hint {
+  font-size: 11px;
+  color: #64748b;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 12px;
+  text-align: center;
+  border: 1px dashed #cbd5e1;
+}
+
+.vendor-cal-selected-hint strong {
+  color: #6d28d9;
+}
+
+/* Calendar Day Cell Styles for Vendors View */
+.vendor-calendar-dropdown-card .calendar-day-cell.today {
+  border: 1.5px solid #8b5cf6;
+  color: #8b5cf6;
+  font-weight: 700;
+}
+
+.vendor-calendar-dropdown-card .calendar-day-cell.selected {
+  background-color: #8b5cf6;
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 50%;
+}
+
+.vendor-calendar-dropdown-card .calendar-day-cell.in-range {
+  background-color: #ede9fe;
+  color: #6d28d9;
+  border-radius: 4px;
+}
+
+/* Footer Actions */
+.vendor-cal-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.vendor-cal-reset-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-family: var(--admin-font);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.vendor-cal-reset-btn:hover {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+.vendor-cal-apply-btn {
+  background: #8b5cf6;
+  color: #ffffff;
+  border: none;
+  font-family: var(--admin-font);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+}
+
+.vendor-cal-apply-btn:hover {
+  background: #7c3aed;
+}
+
+.vendor-tab-summary-text {
+  font-size: 12px;
+  color: #64748b;
+  margin-left: 4px;
+}
+
+@media (max-width: 640px) {
+  .vendor-tabs-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .vendor-tab-date-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+
+@media (max-width: 768px) {
+  .vendor-profile-view .dashboard-card-panel {
+    padding: 16px;
+  }
+
+  .vendor-details-fields-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+

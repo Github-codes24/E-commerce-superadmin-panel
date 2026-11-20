@@ -210,7 +210,7 @@
 }
 
 .product-thumbnail-item.active {
-  border-color: #a8d572;
+  border-color: #8b5cf6;
   border-width: 2.5px;
 }
 
@@ -403,7 +403,7 @@
 }
 
 .lightbox-thumbnail-box.active {
-  border-color: #a8d572;
+  border-color: #8b5cf6;
   opacity: 1;
   transform: scale(1.05);
 }
@@ -539,20 +539,38 @@
 }
 
 .btn-save-green {
-  background-color: #a8d572;
-  color: #0e1e05;
+  background-color: var(--primary-color, #8b5cf6);
+  color: #ffffff;
   border: none;
   padding: 12px 48px;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   font-family: var(--admin-font);
-  transition: background-color 0.2s, opacity 0.2s;
+  box-shadow: 0 4px 14px rgba(139, 92, 246, 0.25);
+  transition: all 0.2s ease;
 }
 
 .btn-save-green:hover {
-  background-color: #97c362;
+  background-color: var(--primary-hover, #7c3aed);
+  box-shadow: 0 6px 18px rgba(139, 92, 246, 0.35);
+  transform: translateY(-1px);
+}
+
+/* ShopNow4u Theme Stat Card */
+.stat-card-shopnow {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat-card-shopnow:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.06) !important;
+}
+
+.stat-card-shopnow.active-filter {
+  border: 1.5px solid #1e1b4b !important;
+  box-shadow: 0 6px 18px rgba(30, 27, 75, 0.12) !important;
 }
 
 /* Form Field Validation Error Styles */

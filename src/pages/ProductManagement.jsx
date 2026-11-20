@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { LayoutGrid, Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, X, ChevronLeft, ChevronRight, ChevronDown, Palette, Calendar, Layers, Tag, Package, CheckCircle2, RotateCw, Mail, Phone, AlertCircle, ToggleLeft, ToggleRight, Check, Maximize2, ZoomIn, ZoomOut, Star, ThumbsUp, MessageSquare, Filter, Sparkles, PackageX, Truck, Clock } from 'lucide-react'
+import { LayoutGrid, Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, X, ChevronLeft, ChevronRight, ChevronDown, Palette, Calendar, Layers, Tag, Package, CheckCircle2, RotateCw, Mail, Phone, AlertCircle, ToggleLeft, ToggleRight, Check, Maximize2, ZoomIn, ZoomOut, Star, ThumbsUp, MessageSquare, Filter, Sparkles, PackageX, Truck, Clock, DollarSign, EyeOff } from 'lucide-react'
 import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, updateProductStatus, getAllCategories, createCategory, getAllVendors } from '../services/superAdminService'
 import { uploadFileToS3 } from '../services/s3Service'
 import './ProductManagement.css'
@@ -2436,11 +2436,6 @@ function ProductManagement() {
     return list
   }, [backendVendors, productsList])
 
-  // Derive counts
-  const totalCount = productsList.length
-  const activeCount = productsList.filter(p => p.status === 'active').length
-  const outOfStockCount = productsList.filter(p => p.status === 'out-of-stock').length
-
   const handleSelectAll = (e) => {
     const isChecked = e.target.checked
     setProductsList(productsList.map(p => ({ ...p, checked: isChecked })))
@@ -4833,49 +4828,83 @@ function ProductManagement() {
 
 
   // 3. Default List View
+  const totalCount = productsList.length
+  const activeCount = productsList.filter(p => p.status === 'active').length
+  const activePercent = totalCount > 0 ? Math.round((activeCount / totalCount) * 100) : 0
+  const inactiveCount = productsList.filter(p => p.status === 'inactive').length
+  const outOfStockCount = productsList.filter(p => p.status === 'out-of-stock' || Number(p.stock) === 0).length
+  const categoryCount = categoriesList.length > 0 ? categoriesList.length : new Set(productsList.map(p => (p.category || '').trim()).filter(Boolean)).size
+
   const stats = [
-    { id: 'total', filterVal: 'all', label: 'Total Products', value: productsList.length, icon: Package, background: '#ffecb3', color: '#3b82f6' },
-    { id: 'active', filterVal: 'active', label: 'Active Products', value: productsList.filter(p => p.status === 'active').length, icon: CheckCircle2, background: '#c8e6c9', color: '#2ecc71' },
-    { id: 'inactive', filterVal: 'inactive', label: 'Inactive Products', value: productsList.filter(p => p.status === 'inactive').length, icon: PackageX, background: '#fee2e2', color: '#ef4444' },
-    { id: 'outofstock', filterVal: 'out-of-stock', label: 'Out Of Stock', value: productsList.filter(p => p.status === 'out-of-stock' || Number(p.stock) === 0).length, icon: ShieldAlert, background: '#ffcdd2', color: '#f43f5e' },
-    { id: 'category', filterVal: 'category', label: 'Product Category', value: categoriesList.length > 0 ? categoriesList.length : new Set(productsList.map(p => (p.category || '').trim()).filter(Boolean)).size, icon: LayoutGrid, background: '#b2dfdb', color: '#3b82f6' }
+    {
+      id: 'total',
+      filterVal: 'all',
+      label: 'Total Products',
+      value: totalCount,
+      icon: Package,
+      background: '#dee0ff',
+      pill: 'All Items ↗',
+      subtitle: `${totalCount} items in catalogue`,
+      color: '#1e1b4b',
+      iconColor: '#8b5cf6'
+    },
+    {
+      id: 'active',
+      filterVal: 'active',
+      label: 'Active Products',
+      value: activeCount,
+      icon: DollarSign,
+      background: '#edf6de',
+      pill: `${activePercent}% Live ↗`,
+      subtitle: `${activeCount} of ${totalCount} items selling`,
+      color: '#166534',
+      iconColor: '#16a34a'
+    },
+    {
+      id: 'inactive',
+      filterVal: 'inactive',
+      label: 'Inactive Products',
+      value: inactiveCount,
+      icon: EyeOff,
+      background: '#e8eaf0',
+      pill: 'Not Live ↗',
+      subtitle: 'Not currently available in your store',
+      color: '#334155',
+      iconColor: '#64748b'
+    },
+    {
+      id: 'outofstock',
+      filterVal: 'out-of-stock',
+      label: 'Out Of Stock',
+      value: outOfStockCount,
+      icon: RotateCw,
+      background: '#ffeaea',
+      pill: 'Optimal ↗',
+      subtitle: outOfStockCount === 0 ? 'All items currently in stock' : `${outOfStockCount} items out of stock`,
+      color: '#991b1b',
+      iconColor: '#ef4444'
+    },
+    {
+      id: 'category',
+      filterVal: 'category',
+      label: 'Total Categories',
+      value: categoryCount,
+      icon: LayoutGrid,
+      background: '#def7e8',
+      pill: 'Top: Electronic Items ↗',
+      subtitle: `Across ${categoryCount} active departments`,
+      color: '#065f46',
+      iconColor: '#10b981'
+    }
   ]
 
   return (
-    <div className="product-management-view" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="product-management-view" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {renderToast()}
-      {/* Title Header with Add and Refresh buttons */}
+      {/* Title Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '4px' }}>Products</h1>
-          <p style={{ color: '#607d8b', fontSize: '13px' }}>
-            Manage all Products available on the platform.
-          </p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button
-            type="button"
-            className="btn-reset-white"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px' }}
-            onClick={fetchProducts}
-            disabled={loading}
-            title="Refresh Products"
-          >
-            <RotateCw style={{ width: '15px', height: '15px', animation: loading ? 'spin 1s linear infinite' : 'none' }} />
-            <span>Refresh</span>
-          </button>
-          <button
-            className="edit-profile-btn"
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
-            onClick={() => {
-              setEditingProduct(null)
-              handleResetForm()
-              setIsAdding(true)
-            }}
-          >
-            <Plus style={{ width: '16px', height: '16px' }} />
-            Add New Product
-          </button>
+          <h1 style={{ fontSize: '26px', fontWeight: '800', marginBottom: '2px', color: '#0f172a' }}>Products</h1>
         </div>
       </div>
 
@@ -4932,16 +4961,44 @@ function ProductManagement() {
         </div>
       )}
 
-      {/* Stats Cards Row */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+      {/* Section Tracker: PRODUCT STATISTICS + Sync Stats */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+        <span style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '0.6px', textTransform: 'uppercase', color: '#64748b' }}>
+          PRODUCT STATISTICS
+        </span>
+        <button
+          type="button"
+          onClick={fetchProducts}
+          disabled={loading}
+          style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+          title="Sync Statistics"
+        >
+          <RotateCw style={{ width: '14px', height: '14px', animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+          <span>Sync Stats</span>
+        </button>
+      </div>
+
+      {/* Stats Cards Row matching the ShopNow4u design */}
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
         {stats.map((stat) => {
           const Icon = stat.icon
           const isActive = stat.filterVal === 'category' ? false : statusFilter === stat.filterVal
           return (
             <div
               key={stat.id}
-              className={`stat-card clickable ${isActive ? 'active-filter' : ''}`}
-              style={{ backgroundColor: stat.background, borderColor: stat.color, color: stat.color }}
+              className={`stat-card-shopnow clickable ${isActive ? 'active-filter' : ''}`}
+              style={{
+                backgroundColor: stat.background,
+                border: isActive ? '1.5px solid #1e1b4b' : '1px solid rgba(0,0,0,0.04)',
+                borderRadius: '16px',
+                padding: '18px 20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: isActive ? '0 6px 16px rgba(0,0,0,0.06)' : '0 2px 6px rgba(0,0,0,0.02)'
+              }}
               onClick={() => {
                 if (stat.filterVal !== 'category') {
                   setStatusFilter(stat.filterVal)
@@ -4949,28 +5006,71 @@ function ProductManagement() {
               }}
               title={`Click to filter by ${stat.label}`}
             >
-              <div
-                className="stat-icon-wrapper"
-                style={{ backgroundColor: 'rgba(255,255,255,0.7)', color: stat.color }}
-              >
-                <Icon />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <div style={{ backgroundColor: '#ffffff', color: stat.iconColor || stat.color, width: '38px', height: '38px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                  <Icon style={{ width: '20px', height: '20px' }} />
+                </div>
+                {stat.pill && (
+                  <span style={{ backgroundColor: '#ffffff', color: '#475569', fontSize: '11px', fontWeight: '600', padding: '3px 10px', borderRadius: '9999px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                    {stat.pill}
+                  </span>
+                )}
               </div>
-              <div className="stat-value" style={{ fontSize: '24px', fontWeight: '700' }}>{stat.value}</div>
-              <div className="stat-label" style={{ color: '#546e7a', fontWeight: '500' }}>{stat.label}</div>
+              <div style={{ fontSize: '26px', fontWeight: '800', color: '#0f172a', lineHeight: 1.2, marginTop: '8px' }}>
+                {stat.value}
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>
+                {stat.label}
+              </div>
+              {stat.subtitle && (
+                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {stat.subtitle}
+                </div>
+              )}
             </div>
           )
         })}
       </div>
 
+      {/* All Products Header Row with Add Product Button */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+        <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a' }}>All Products</h2>
+        <button
+          className="edit-profile-btn"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 22px',
+            backgroundColor: '#8b5cf6',
+            color: '#ffffff',
+            borderRadius: '10px',
+            fontWeight: '700',
+            fontSize: '14px',
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 4px 14px rgba(139, 92, 246, 0.3)'
+          }}
+          onClick={() => {
+            setEditingProduct(null)
+            handleResetForm()
+            setIsAdding(true)
+          }}
+        >
+          <Plus style={{ width: '16px', height: '16px', strokeWidth: 2.5 }} />
+          Add Product
+        </button>
+      </div>
+
       {/* Products Table Card */}
-      <div className="dashboard-card-panel">
+      <div className="dashboard-card-panel" style={{ borderRadius: '16px', padding: '24px' }}>
         {/* Table Filters */}
-        <div className="table-filter-bar">
-          <div className="table-search-wrapper">
+        <div className="table-filter-bar" style={{ marginBottom: '20px' }}>
+          <div className="table-search-wrapper" style={{ width: '280px' }}>
             <Search />
             <input
               type="text"
-              placeholder="Search Product..."
+              placeholder="Search product..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -5157,8 +5257,12 @@ function ProductManagement() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: '#90a4ae' }}>
-                    No products found matching criteria.
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      <Search style={{ width: '42px', height: '42px', color: '#94a3b8', strokeWidth: 1.5, marginBottom: '4px' }} />
+                      <div style={{ fontSize: '16px', fontWeight: '700', color: '#1e293b' }}>No products found</div>
+                      <div style={{ fontSize: '13px', color: '#94a3b8' }}>Try a different search or category.</div>
+                    </div>
                   </td>
                 </tr>
               )}

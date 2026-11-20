@@ -743,7 +743,7 @@
 }
 
 .orders-action-select:focus {
-  border-color: #a8d572;
+  border-color: #8b5cf6;
 }
 
 /* Interactive Card Effects */
@@ -755,7 +755,7 @@
 .orders-product-card.interactive:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
-  border-color: rgba(168, 213, 114, 0.5);
+  border-color: rgba(139, 92, 246, 0.5);
 }
 
 .orders-side-card.interactive {
@@ -766,7 +766,7 @@
 .orders-side-card.interactive:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.04);
-  border-color: rgba(168, 213, 114, 0.3);
+  border-color: rgba(139, 92, 246, 0.3);
 }
 
 /* Custom Floating Toast */
@@ -948,12 +948,12 @@
 }
 
 .orders-modal-btn.approve {
-  background-color: #a8d572;
-  color: #0e1e05;
+  background-color: #8b5cf6;
+  color: #ffffff;
 }
 
 .orders-modal-btn.approve:hover {
-  background-color: #97c363;
+  background-color: #7c3aed;
 }
 
 .orders-modal-btn.reject {

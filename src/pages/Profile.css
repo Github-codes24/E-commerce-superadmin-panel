@@ -96,22 +96,22 @@
 }
 
 .edit-profile-btn {
-  background-color: rgba(168, 204, 106, 1) !important;
-  color: #0e1e05 !important;
+  background-color: var(--primary-color, #8b5cf6) !important;
+  color: #ffffff !important;
   border: none;
   padding: 12px 28px;
   border-radius: 10px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 10px rgba(168, 204, 106, 0.2);
+  box-shadow: 0 4px 14px rgba(139, 92, 246, 0.25);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .edit-profile-btn:hover {
-  background-color: #97c362;
+  background-color: var(--primary-hover, #7c3aed) !important;
   transform: translateY(-2px);
-  box-shadow: 0 6px 14px rgba(168, 204, 106, 0.3);
+  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.35);
 }
 
 .edit-profile-btn:active {
@@ -234,14 +234,16 @@
 }
 
 .save-changes-btn {
-  background-color: var(--active-tab-bg);
-  color: var(--active-tab-text);
+  background-color: var(--primary-color, #8b5cf6);
+  color: #ffffff;
   border: none;
   padding: 10px 20px;
   border-radius: 8px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   font-size: 14px;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25);
+  transition: all 0.2s ease;
 }
 
 .cancel-edit-btn {
@@ -255,7 +257,7 @@
   font-size: 14px;
 }
 
-.save-changes-btn:hover { background-color: #97c362; }
+.save-changes-btn:hover { background-color: var(--primary-hover, #7c3aed); }
 .cancel-edit-btn:hover { background-color: #cfd8dc; }
 
 /* Responsive */
