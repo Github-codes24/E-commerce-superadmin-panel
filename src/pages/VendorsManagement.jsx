@@ -3817,7 +3817,7 @@ function VendorsManagement({ onNavigateToPlans }) {
         </div>
 
         {/* Mini Stats Row */}
-        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', width: '100%', boxSizing: 'border-box', marginBottom: 0 }}>
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(225px, 1fr))', gap: '18px', width: '100%', boxSizing: 'border-box', marginBottom: 0 }}>
           {miniStats.map((stat) => {
             const Icon = stat.icon
             return (
@@ -3827,7 +3827,7 @@ function VendorsManagement({ onNavigateToPlans }) {
                 style={{ width: '100%', boxSizing: 'border-box' }}
               >
                 <div className="stat-icon-wrapper">
-                  <Icon style={{ width: '22px', height: '22px' }} />
+                  <Icon style={{ width: '26px', height: '26px' }} />
                 </div>
                 <div className="stat-label">{stat.label}</div>
                 <div className="stat-value">{stat.value}</div>

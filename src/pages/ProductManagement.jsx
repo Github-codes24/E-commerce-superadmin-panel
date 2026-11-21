@@ -4979,7 +4979,7 @@ function ProductManagement() {
       </div>
 
       {/* Stats Cards Row matching the ShopNow4u design */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(215px, 1fr))', gap: '18px' }}>
         {stats.map((stat) => {
           const Icon = stat.icon
           const isActive = stat.filterVal === 'category' ? false : statusFilter === stat.filterVal
@@ -4991,11 +4991,11 @@ function ProductManagement() {
                 backgroundColor: '#ffffff',
                 border: isActive ? '1.5px solid #a36da6' : '1px solid #eef2f6',
                 borderRadius: '18px',
-                padding: '20px 24px',
-                minHeight: '100px',
+                padding: '18px 22px',
+                minHeight: '98px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '4px',
+                gap: '5px',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
                 boxShadow: isActive ? '0 6px 16px rgba(163,109,166,0.15)' : '0 2px 8px rgba(0,0,0,0.02)'
@@ -5007,24 +5007,24 @@ function ProductManagement() {
               }}
               title={`Click to filter by ${stat.label}`}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
-                <div style={{ backgroundColor: '#a36da6', color: '#ffffff', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 8px rgba(163,109,166,0.25)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '2px' }}>
+                <div style={{ backgroundColor: '#a36da6', color: '#ffffff', width: '54px', height: '54px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(163,109,166,0.22)' }}>
                   <Icon style={{ width: '26px', height: '26px' }} />
                 </div>
                 {stat.pill && (
-                  <span style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '11.5px', fontWeight: '600', padding: '4px 12px', borderRadius: '9999px', border: '1px solid #e2e8f0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ backgroundColor: '#f8fafc', color: '#64748b', fontSize: '11px', fontWeight: '600', padding: '3px 10px', borderRadius: '9999px', border: '1px solid #e2e8f0', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                     {stat.pill}
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: '14px', fontWeight: '500', color: '#64748b', marginTop: '4px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '500', color: '#64748b', marginTop: '2px', textAlign: 'left' }}>
                 {stat.label}
               </div>
-              <div style={{ fontSize: '28px', fontWeight: '700', color: '#0f172a', lineHeight: 1.2 }}>
+              <div style={{ fontSize: '28px', fontWeight: '700', color: '#0f172a', lineHeight: 1.2, textAlign: 'left' }}>
                 {stat.value}
               </div>
               {stat.subtitle && (
-                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}>
                   {stat.subtitle}
                 </div>
               )}
