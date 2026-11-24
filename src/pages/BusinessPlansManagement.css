@@ -87,18 +87,20 @@
 /* Stats Row */
 .plans-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
+  gap: 18px;
   margin-bottom: 24px;
 }
 
 .plans-stat-card {
   background-color: #ffffff;
   border: 1px solid #eef2f6;
-  border-radius: 16px;
-  padding: 16px 20px;
+  border-radius: 18px;
+  padding: 18px 22px;
+  min-height: 98px;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -111,23 +113,23 @@
 }
 
 .stat-icon-box {
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
-  min-height: 48px;
-  border-radius: 14px;
+  width: 54px;
+  height: 54px;
+  min-width: 54px;
+  min-height: 54px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   background-color: #a36da6 !important;
   color: #ffffff !important;
-  box-shadow: 0 2px 5px rgba(163, 109, 166, 0.22);
+  box-shadow: 0 2px 6px rgba(163, 109, 166, 0.22);
 }
 
 .stat-icon-box svg {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   color: #ffffff !important;
   stroke: #ffffff !important;
   stroke-width: 2.2 !important;
@@ -136,22 +138,26 @@
 .stat-info-box {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  text-align: left;
+  align-items: flex-start;
 }
 
 .stat-info-box .stat-text {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 500;
   color: #64748b;
   order: 1;
+  text-align: left;
 }
 
 .stat-info-box .stat-number {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 700;
   color: #0f172a;
   line-height: 1.2;
   order: 2;
+  text-align: left;
 }
 
 /* Filter Bar & Controls */
