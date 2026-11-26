@@ -573,6 +573,17 @@ export const updateProductStatus = async (id, status) => {
   }
 };
 
+// 20b. Approve / reject a product submitted for SuperAdmin review
+export const approveProduct = async (id) => {
+  const response = await api.patch(`http://localhost:5000/api/superadmin/products/${id}/approve`);
+  return response.data;
+};
+
+export const rejectProduct = async (id) => {
+  const response = await api.patch(`http://localhost:5000/api/superadmin/products/${id}/reject`);
+  return response.data;
+};
+
 // 21. Get All Customers (GET /api/superadmin/customers)
 export const getAllCustomers = async (params = {}) => {
   const response = await api.get('/superadmin/customers', { params });
@@ -2386,6 +2397,8 @@ export default {
   updateProduct,
   deleteProduct,
   updateProductStatus,
+  approveProduct,
+  rejectProduct,
   getAllCustomers,
   getCustomerById,
   updateCustomer,
