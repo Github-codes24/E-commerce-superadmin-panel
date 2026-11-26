@@ -61,6 +61,41 @@
   border: 1px solid #ffcdd2;
 }
 
+.product-approval-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.product-approval-badge.pending { background: #fff7ed; color: #c2410c; }
+.product-approval-badge.approved { background: #ecfdf5; color: #047857; }
+.product-approval-badge.rejected { background: #fef2f2; color: #b91c1c; }
+
+.product-review-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 7px;
+  padding: 7px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .15s ease, opacity .15s ease;
+}
+.product-review-action:hover:not(:disabled) { transform: translateY(-1px); }
+.product-review-action:disabled { opacity: .6; cursor: wait; }
+.product-review-action.approve { background: #ecfdf5; color: #047857; }
+.product-review-action.reject { background: #fef2f2; color: #b91c1c; }
+.product-review-spinner { width: 14px; height: 14px; animation: spin 1s linear infinite; }
+
 @keyframes slideInToast {
   from {
     opacity: 0;

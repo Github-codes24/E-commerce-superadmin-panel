@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { LayoutGrid, Users, UserCheck, ShieldAlert, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, X, ChevronLeft, ChevronRight, ChevronDown, Palette, Calendar, Layers, Tag, Package, CheckCircle2, RotateCw, Mail, Phone, AlertCircle, ToggleLeft, ToggleRight, Check, Maximize2, ZoomIn, ZoomOut, Star, ThumbsUp, MessageSquare, Filter, Sparkles, PackageX, Truck, Clock, DollarSign, EyeOff } from 'lucide-react'
-import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, updateProductStatus, getAllCategories, createCategory, getAllVendors } from '../services/superAdminService'
+import { getAllProducts, getProductById, createProduct, updateProduct, deleteProduct, updateProductStatus, approveProduct, rejectProduct, getAllCategories, createCategory, getAllVendors } from '../services/superAdminService'
 import { uploadFileToS3 } from '../services/s3Service'
 import './ProductManagement.css'
 
@@ -1960,6 +1960,7 @@ function ProductManagement() {
       vendorId: p.vendorId,
       categoryId: p.categoryId,
       status: rawStatus,
+      approvalStatus: p.adminApprovalStatus || p.approvalStatus || p.productApprovalStatus || (['pending', 'approved', 'rejected'].includes(String(p.status || '').toLowerCase()) ? String(p.status).toLowerCase() : ''),
       tag: Array.isArray(p.tags) ? p.tags.join(', ') : (p.tag || `${rawCategory}, ${rawBrand}`),
       returnPolicy: p.returnPolicy || '7 Days Replacement',
       deliveryTime: p.deliveryTime || p.estimatedDelivery || (rawCategory.toLowerCase().includes('furniture') ? 'Delivery within 5–7 business days' : rawCategory.toLowerCase().includes('jewel') ? 'Delivery within 2–3 business days' : 'Delivery within 3–5 business days'),
@@ -2111,6 +2112,7 @@ function ProductManagement() {
   const [productDetailsLoading, setProductDetailsLoading] = useState(false)
   const [productDetailsError, setProductDetailsError] = useState(null)
   const [statusUpdatingId, setStatusUpdatingId] = useState(null)
+  const [approvalUpdatingId, setApprovalUpdatingId] = useState(null)
   const [toastMessage, setToastMessage] = useState(null)
 
   // Customer Reviews & Ratings state for View Details page
@@ -2150,6 +2152,26 @@ function ProductManagement() {
     setTimeout(() => {
       setToastMessage(prev => (prev?.text === text ? null : prev))
     }, 4000)
+  }
+
+  const handleProductApproval = async (product, action) => {
+    const productId = product._id || product.id
+    if (!productId) return
+    setApprovalUpdatingId(productId)
+    try {
+      const result = action === 'approve' ? await approveProduct(productId) : await rejectProduct(productId)
+      const approvalStatus = action === 'approve' ? 'approved' : 'rejected'
+      setProductsList(prev => prev.map(item =>
+        String(item._id || item.id) === String(productId) ? { ...item, approvalStatus } : item
+      ))
+      showToast(result?.message || `Product ${approvalStatus} successfully.`, 'success')
+      await fetchProducts()
+    } catch (err) {
+      console.error(`Failed to ${action} product:`, err)
+      showToast(err?.response?.data?.message || err?.message || `Failed to ${action} product.`, 'error')
+    } finally {
+      setApprovalUpdatingId(null)
+    }
   }
 
   const renderToast = () => {
@@ -2291,6 +2313,7 @@ function ProductManagement() {
   // Filter lists
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [approvalFilter, setApprovalFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState(() => {
     try {
       const initial = sessionStorage.getItem('products_initial_filter')
@@ -2332,7 +2355,7 @@ function ProductManagement() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, categoryFilter, statusFilter])
+  }, [searchQuery, categoryFilter, statusFilter, approvalFilter])
 
   // Form input states
   const [formData, setFormData] = useState({
@@ -3269,7 +3292,12 @@ function ProductManagement() {
         : getCanonicalCategoryKey(product.category) === getCanonicalCategoryKey(categoryFilter)
     const matchesStatus =
       statusFilter === 'all' ? true : (product.status || '').trim().toLowerCase() === statusFilter.trim().toLowerCase()
-    return matchesSearch && matchesCategory && matchesStatus
+    const rawApproval = String(product.approvalStatus || product.adminApprovalStatus || '').trim().toLowerCase()
+    const approval = ['pending', 'approved', 'rejected'].includes(rawApproval)
+      ? rawApproval
+      : (['pending', 'approved', 'rejected'].includes(String(product.status || '').trim().toLowerCase()) ? String(product.status).trim().toLowerCase() : '')
+    const matchesApproval = approvalFilter === 'all' || approval === approvalFilter
+    return matchesSearch && matchesCategory && matchesStatus && matchesApproval
   })
 
   // Pagination index slicing
@@ -5136,6 +5164,24 @@ function ProductManagement() {
               </select>
               <ChevronDown className="product-filter-chevron" style={{ position: 'absolute', right: '10px', pointerEvents: 'none', width: '14px', height: '14px', color: '#64748b' }} />
             </div>
+
+            {/* Product approval filter */}
+            <div className="product-filter-select-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <select
+                className="status-select status-select-input"
+                value={approvalFilter}
+                onChange={(e) => setApprovalFilter(e.target.value)}
+                style={{ width: '155px', maxWidth: '155px', minWidth: '140px', paddingRight: '30px', textTransform: 'capitalize', appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer' }}
+                title="Filter by approval status"
+                aria-label="Filter by approval status"
+              >
+                <option value="all">All approvals</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              <ChevronDown className="product-filter-chevron" style={{ position: 'absolute', right: '10px', pointerEvents: 'none', width: '14px', height: '14px', color: '#64748b' }} />
+            </div>
           </div>
         </div>
 
@@ -5150,13 +5196,14 @@ function ProductManagement() {
                 <th>Vendor</th>
                 <th>Category</th>
                 <th>Status</th>
+                <th>Approval</th>
                 <th style={{ width: '150px', textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                       <RotateCw style={{ width: '18px', height: '18px', animation: 'spin 1s linear infinite' }} />
                       <span>Loading products...</span>
@@ -5224,8 +5271,36 @@ function ProductManagement() {
                         <span>{product.status === 'out-of-stock' ? 'Out Of Stock' : product.status}</span>
                       </button>
                     </td>
+                    <td>
+                      {(() => {
+                        const approval = String(product.approvalStatus || '').toLowerCase()
+                        const pending = approval === 'pending' || (!approval && String(product.status || '').toLowerCase() === 'pending')
+                        return (
+                          <span className={`product-approval-badge ${pending ? 'pending' : approval}`}>
+                            {approval ? approval : '—'}
+                          </span>
+                        )
+                      })()}
+                    </td>
                     <td style={{ textAlign: 'center' }}>
                       <div className="action-icon-group">
+                        {(() => {
+                          const approval = String(product.approvalStatus || '').toLowerCase()
+                          const pending = approval === 'pending' || (!approval && String(product.status || '').toLowerCase() === 'pending')
+                          if (!pending) return null
+                          const isUpdating = approvalUpdatingId === (product._id || product.id)
+                          return (
+                            <>
+                              <button type="button" className="product-review-action approve" disabled={isUpdating} title="Approve product" onClick={() => handleProductApproval(product, 'approve')}>
+                                {isUpdating ? <RotateCw className="product-review-spinner" /> : <Check style={{ width: '14px', height: '14px' }} />}
+                                Approve
+                              </button>
+                              <button type="button" className="product-review-action reject" disabled={isUpdating} title="Reject product" onClick={() => handleProductApproval(product, 'reject')}>
+                                Reject
+                              </button>
+                            </>
+                          )
+                        })()}
                         {/* Eye View details icon */}
                         <button
                           className="btn-action-icon view-details"
@@ -5258,7 +5333,7 @@ function ProductManagement() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                       <Search style={{ width: '42px', height: '42px', color: '#94a3b8', strokeWidth: 1.5, marginBottom: '4px' }} />
                       <div style={{ fontSize: '16px', fontWeight: '700', color: '#1e293b' }}>No products found</div>
