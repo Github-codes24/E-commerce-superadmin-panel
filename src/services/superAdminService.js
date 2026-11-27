@@ -1023,18 +1023,35 @@ export const getCategoryById = async (id) => {
 export const updateCategory = async (id, data) => {
   const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
   const reqHeaders = isFormData ? { 'Content-Type': 'multipart/form-data' } : { 'Content-Type': 'application/json' };
-  const routes = [`/superadmin/categories/${id}`, `/categories/${id}`, `/admin/categories/${id}`];
+  const routes = [`/superadmin/categories/${id}`, `/categories/${id}`, `/admin/categories/${id}`, `/super-admin/categories/${id}`];
   let lastErr = null;
   for (const route of routes) {
     try {
       const response = await api.put(route, data, { headers: reqHeaders });
       return response.data;
     } catch (err) {
-      if (err?.response?.status === 404) {
-        lastErr = err;
-        continue;
+      if (err?.response?.status === 404 || err?.response?.status === 405) {
+        try {
+          const patchRes = await api.patch(route, data, { headers: reqHeaders });
+          return patchRes.data;
+        } catch (patchErr) {
+          lastErr = patchErr;
+          continue;
+        }
       }
-      throw err;
+      if (!isFormData && (err?.response?.status === 415 || (err?.response?.status === 400 && String(err?.response?.data?.message).toLowerCase().includes('multipart')))) {
+        try {
+          const fd = new FormData();
+          Object.keys(data).forEach(k => {
+            if (data[k] !== undefined && data[k] !== null) {
+              fd.append(k, data[k]);
+            }
+          });
+          const fdRes = await api.put(route, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+          return fdRes.data;
+        } catch {}
+      }
+      lastErr = err;
     }
   }
   throw lastErr;

@@ -44,6 +44,63 @@ export const toSafeNumber = (val, fallback = 0) => {
 }
 
 // Helper for local persistence of custom created / edited categories
+export const CATEGORY_OVERRIDES_KEY = 'zyvora_category_overrides'
+
+export const getStoredCategoryOverrides = () => {
+  try {
+    const saved = localStorage.getItem(CATEGORY_OVERRIDES_KEY)
+    return saved ? JSON.parse(saved) : {}
+  } catch {
+    return {}
+  }
+}
+
+export const saveCategoryOverride = (key, data) => {
+  if (!key) return
+  try {
+    const overrides = getStoredCategoryOverrides()
+    const cleanKey = String(key).trim().toLowerCase()
+    overrides[cleanKey] = {
+      ...(overrides[cleanKey] || {}),
+      ...data
+    }
+    localStorage.setItem(CATEGORY_OVERRIDES_KEY, JSON.stringify(overrides))
+  } catch (e) {
+    console.warn('Failed to save category override:', e)
+  }
+}
+
+export const getCategoryOverride = (id, rawId, _id, name, slug) => {
+  try {
+    const overrides = getStoredCategoryOverrides()
+    const keys = [
+      id && String(id).trim().toLowerCase(),
+      rawId && String(rawId).trim().toLowerCase(),
+      _id && String(_id).trim().toLowerCase(),
+      name && String(name).trim().toLowerCase(),
+      name && getCanonicalCategoryKey(name),
+      slug && String(slug).trim().toLowerCase()
+    ].filter(Boolean)
+
+    for (const k of keys) {
+      if (overrides[k]) return overrides[k]
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+export const removeCategoryOverride = (key) => {
+  if (!key) return
+  try {
+    const overrides = getStoredCategoryOverrides()
+    const cleanKey = String(key).trim().toLowerCase()
+    delete overrides[cleanKey]
+    localStorage.setItem(CATEGORY_OVERRIDES_KEY, JSON.stringify(overrides))
+  } catch {}
+}
+
 const getStoredCustomCategories = () => {
   try {
     const saved = localStorage.getItem('zyvora_custom_categories')
@@ -292,18 +349,26 @@ function CategoryManagement() {
       status = cat.status.toLowerCase() === 'inactive' ? 'inactive' : 'active'
     }
 
-    const rawImg = cat.image || cat.imageUrl || cat.categoryImage || cat.icon
-    const image = rawImg ? getFullImageUrl(rawImg) : 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200'
-
     const catName = normalizeCategoryName(toSafeString(cat.name || cat.categoryName, 'Unnamed Category'))
     const catId = toSafeString(cat._id || cat.id || `cat-${idx + 1}`)
     const catSlug = toSafeString(cat.slug, catName.toLowerCase().replace(/\s+/g, '-'))
     const catDesc = toSafeString(cat.description, '')
+
+    // Check category override FIRST!
+    const override = getCategoryOverride(catId, cat._id, cat.id, catName, catSlug)
+    const effectiveName = override?.name ? normalizeCategoryName(override.name) : catName
+    const effectiveDesc = override?.description !== undefined ? override.description : catDesc
+    const effectiveStatus = override?.status ? override.status : status
+    const effectiveIsActive = override?.isActive !== undefined ? override.isActive : (effectiveStatus === 'active')
+
+    const rawImg = override?.image || cat.image || cat.imageUrl || cat.categoryImage || cat.icon
+    const image = rawImg ? getFullImageUrl(rawImg) : 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200'
+
     const subcatsCount = toSafeNumber(cat.subcategoriesCount ?? cat.subcatsCount ?? (Array.isArray(cat.subcategories) ? cat.subcategories.length : 0), 0)
 
     // Live product count from cross-referenced products map or backend
-    const mappedByName = productCountsMap[catName.toLowerCase()]
-    const mappedByCanonical = productCountsMap[getCanonicalCategoryKey(catName)]
+    const mappedByName = productCountsMap[effectiveName.toLowerCase()]
+    const mappedByCanonical = productCountsMap[getCanonicalCategoryKey(effectiveName)]
     const mappedById = productCountsMap[catId.toLowerCase()]
     const liveCalculatedCount = mappedByCanonical !== undefined ? mappedByCanonical : (mappedByName !== undefined ? mappedByName : (mappedById !== undefined ? mappedById : undefined))
 
@@ -314,13 +379,13 @@ function CategoryManagement() {
       id: catId,
       rawId: cat._id || cat.id,
       _id: cat._id || cat.id,
-      name: catName,
+      name: effectiveName,
       slug: catSlug,
-      description: catDesc,
+      description: effectiveDesc,
       subcatsCount: typeof subcatsCount === 'number' ? subcatsCount : 0,
       productsCount: typeof productsCount === 'number' ? productsCount : 0,
-      status: status,
-      isActive: status === 'active',
+      status: effectiveStatus,
+      isActive: effectiveIsActive,
       image: image,
       checked: false,
       rawData: cat,
@@ -445,17 +510,20 @@ function CategoryManagement() {
               const catStatus = (catObj?.isActive !== undefined ? catObj.isActive : (p.status !== 'inactive' && p.status !== 'INACTIVE')) ? 'active' : 'inactive'
               const prodImg = (Array.isArray(p.images) && p.images[0]) || p.image || ''
 
+              const override = getCategoryOverride(catId, catObj?._id, catObj?.id, catName)
+              const finalImg = override?.image || (catObj?.image ? getFullImageUrl(catObj.image) : (prodImg ? getFullImageUrl(prodImg) : 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200'))
+
               if (!catMap.has(catKey)) {
                 catMap.set(catKey, {
                   _id: catId,
                   id: catId,
                   rawId: catId,
-                  name: catName,
+                  name: override?.name || catName,
                   subcatsCount: 0,
                   productsCount: 1,
-                  status: catStatus,
-                  isActive: catStatus === 'active',
-                  image: catObj?.image ? getFullImageUrl(catObj.image) : (prodImg ? getFullImageUrl(prodImg) : 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=200&h=200'),
+                  status: override?.status || catStatus,
+                  isActive: override?.isActive !== undefined ? override.isActive : (catStatus === 'active'),
+                  image: finalImg,
                   checked: false,
                   rawData: p
                 })
@@ -463,7 +531,7 @@ function CategoryManagement() {
                 const existing = catMap.get(catKey)
                 existing.productsCount += 1
                 if (!existing.image && prodImg) {
-                  existing.image = getFullImageUrl(prodImg)
+                  existing.image = finalImg
                 }
               }
             })
@@ -484,20 +552,25 @@ function CategoryManagement() {
         const canonicalKey = getCanonicalCategoryKey(c.name)
         if (canonicalKey) {
           const canonicalName = normalizeCategoryName(c.name)
+          const override = getCategoryOverride(c.id, c.rawId, c._id, c.name, canonicalKey)
+          const effectiveImage = override?.image || c.image
+
           if (mergedMap.has(canonicalKey)) {
             const existing = mergedMap.get(canonicalKey)
+            const existingOverride = getCategoryOverride(existing.id, existing.rawId, existing._id, existing.name, canonicalKey)
             mergedMap.set(canonicalKey, {
               ...existing,
               name: canonicalName,
               productsCount: Math.max(existing.productsCount || 0, c.productsCount || 0) || ((existing.productsCount || 0) + (c.productsCount || 0)),
               subcatsCount: Math.max(existing.subcatsCount || 0, c.subcatsCount || 0),
-              image: existing.image || c.image,
-              status: existing.status === 'active' || c.status === 'active' ? 'active' : 'inactive'
+              image: existingOverride?.image || override?.image || existing.image || effectiveImage,
+              status: existingOverride?.status || override?.status || (existing.status === 'active' || c.status === 'active' ? 'active' : 'inactive')
             })
           } else {
             mergedMap.set(canonicalKey, {
               ...c,
-              name: canonicalName
+              name: canonicalName,
+              image: effectiveImage
             })
           }
         }
@@ -508,20 +581,24 @@ function CategoryManagement() {
         const canonicalKey = getCanonicalCategoryKey(c.name)
         if (canonicalKey) {
           const canonicalName = normalizeCategoryName(c.name)
+          const override = getCategoryOverride(c.id, c.rawId, c._id, c.name, canonicalKey)
+          const effectiveImage = override?.image || c.image
+
           const existing = mergedMap.get(canonicalKey)
           if (existing) {
             mergedMap.set(canonicalKey, {
               ...existing,
               ...c,
               name: canonicalName,
-              image: c.image || existing.image,
+              image: effectiveImage || existing.image,
               productsCount: Math.max(c.productsCount || 0, existing.productsCount || 0)
             })
           } else {
             const formattedCustom = formatCategoryItem(c, mergedMap.size, productCountsMap)
             mergedMap.set(canonicalKey, {
               ...formattedCustom,
-              name: canonicalName
+              name: canonicalName,
+              image: effectiveImage || formattedCustom.image
             })
           }
         }
@@ -782,6 +859,7 @@ function CategoryManagement() {
 
   const handleImageClick = () => {
     if (fileInputRef.current) {
+      fileInputRef.current.value = ''
       fileInputRef.current.click()
     }
   }
@@ -803,6 +881,9 @@ function CategoryManagement() {
   }
 
   const handleResetForm = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
     setFormData({
       name: '',
       description: '',
@@ -859,6 +940,24 @@ function CategoryManagement() {
           status: targetStatus
         }
 
+        // Save persistent override across all identifiers and canonical keys
+        const overrideData = {
+          image: finalImage,
+          name: payload.name,
+          description: payload.description,
+          status: targetStatus,
+          isActive: formData.isVisible
+        }
+        if (catId) saveCategoryOverride(catId, overrideData)
+        if (editingCategory.id) saveCategoryOverride(editingCategory.id, overrideData)
+        if (editingCategory._id) saveCategoryOverride(editingCategory._id, overrideData)
+        if (editingCategory.name) saveCategoryOverride(editingCategory.name, overrideData)
+        if (payload.name) saveCategoryOverride(payload.name, overrideData)
+        const canonicalKey = getCanonicalCategoryKey(payload.name)
+        if (canonicalKey) saveCategoryOverride(canonicalKey, overrideData)
+        const oldCanonicalKey = getCanonicalCategoryKey(editingCategory.name)
+        if (oldCanonicalKey) saveCategoryOverride(oldCanonicalKey, overrideData)
+
         if (catId && typeof catId !== 'number' && !catId.toString().startsWith('cat-')) {
           try {
             await updateCategory(catId, payload)
@@ -868,7 +967,14 @@ function CategoryManagement() {
         }
 
         const updatedCategories = categoriesList.map(c => {
-          if (c.id === editingCategory.id || c.rawId === catId || c._id === catId) {
+          const isMatch = (
+            c.id === editingCategory.id ||
+            c.rawId === catId ||
+            c._id === catId ||
+            (c.name && c.name.toLowerCase() === editingCategory.name?.toLowerCase()) ||
+            getCanonicalCategoryKey(c.name) === canonicalKey
+          )
+          if (isMatch) {
             return {
               ...c,
               name: payload.name,
@@ -882,16 +988,62 @@ function CategoryManagement() {
         })
         setCategoriesList(updatedCategories)
 
-        // Save to custom categories
+        if (viewedCategory && (
+          viewedCategory.id === editingCategory.id ||
+          viewedCategory.rawId === catId ||
+          viewedCategory._id === catId ||
+          (viewedCategory.name && viewedCategory.name.toLowerCase() === editingCategory.name?.toLowerCase())
+        )) {
+          setViewedCategory(prev => prev ? ({
+            ...prev,
+            name: payload.name,
+            description: payload.description,
+            status: targetStatus,
+            isActive: formData.isVisible,
+            image: finalImage
+          }) : null)
+        }
+
+        // Save to custom categories (ensure it's persisted even if originally an API category)
         const storedCustom = getStoredCustomCategories()
-        const updatedCustom = storedCustom.map(c => (c.id === editingCategory.id || c.rawId === catId || c._id === catId) ? {
-          ...c,
-          name: payload.name,
-          description: payload.description,
-          status: targetStatus,
-          isActive: formData.isVisible,
-          image: finalImage
-        } : c)
+        let foundInCustom = false
+        const updatedCustom = storedCustom.map(c => {
+          const isMatch = (
+            c.id === editingCategory.id ||
+            c.rawId === catId ||
+            c._id === catId ||
+            (c.name && c.name.toLowerCase() === editingCategory.name?.toLowerCase()) ||
+            getCanonicalCategoryKey(c.name) === canonicalKey
+          )
+          if (isMatch) {
+            foundInCustom = true
+            return {
+              ...c,
+              name: payload.name,
+              description: payload.description,
+              status: targetStatus,
+              isActive: formData.isVisible,
+              image: finalImage
+            }
+          }
+          return c
+        })
+        if (!foundInCustom) {
+          updatedCustom.push({
+            id: catId || editingCategory.id,
+            rawId: catId || editingCategory.rawId,
+            _id: catId || editingCategory._id,
+            name: payload.name,
+            slug: payload.slug,
+            description: payload.description,
+            subcatsCount: editingCategory.subcatsCount || 0,
+            productsCount: editingCategory.productsCount || 0,
+            status: targetStatus,
+            isActive: formData.isVisible,
+            image: finalImage,
+            checked: false
+          })
+        }
         saveCustomCategories(updatedCustom)
 
         try {
@@ -982,6 +1134,19 @@ function CategoryManagement() {
           rawData: backendItem
         }
 
+        // Save override for newly created category
+        const overrideData = {
+          image: finalImage,
+          name: finalName,
+          description: newCat.description,
+          status: targetStatus,
+          isActive: formData.isVisible
+        }
+        saveCategoryOverride(generatedId, overrideData)
+        saveCategoryOverride(finalName, overrideData)
+        const canonicalKey = getCanonicalCategoryKey(finalName)
+        if (canonicalKey) saveCategoryOverride(canonicalKey, overrideData)
+
         // Persist to custom categories
         const storedCustom = getStoredCustomCategories()
         const updatedCustom = [newCat, ...storedCustom.filter(c => c.name.toLowerCase() !== newCat.name.toLowerCase() && c.id !== newCat.id)]
@@ -1026,16 +1191,19 @@ function CategoryManagement() {
   // Live fetch category by ID
   const handleViewCategory = async (category) => {
     if (!category) return
+    const catId = toSafeString(category.rawId || category._id || category.id)
+    const override = getCategoryOverride(catId, category._id, category.id, category.name, category.slug)
+
     const safeCat = {
       ...category,
       id: toSafeString(category.id || category._id || category.rawId),
-      rawId: toSafeString(category.rawId || category._id || category.id),
+      rawId: catId,
       _id: toSafeString(category._id || category.id || category.rawId),
-      name: normalizeCategoryName(toSafeString(category.name || category.categoryName, 'Unnamed Category')),
+      name: override?.name ? normalizeCategoryName(override.name) : normalizeCategoryName(toSafeString(category.name || category.categoryName, 'Unnamed Category')),
       slug: toSafeString(category.slug, ''),
-      description: toSafeString(category.description, ''),
-      status: toSafeString(category.status, 'active') === 'inactive' ? 'inactive' : 'active',
-      image: toSafeString(category.image, ''),
+      description: override?.description !== undefined ? override.description : toSafeString(category.description, ''),
+      status: override?.status || (toSafeString(category.status, 'active') === 'inactive' ? 'inactive' : 'active'),
+      image: override?.image || toSafeString(category.image, ''),
     }
 
     const liveSubcats = getCategorySubcatsCount(safeCat)
@@ -1050,7 +1218,6 @@ function CategoryManagement() {
     setAssociatedProdSearch('')
     setAssociatedProdStatusFilter('all')
 
-    const catId = safeCat.rawId || safeCat._id || safeCat.id
     if (!catId || typeof catId === 'number' || (typeof catId === 'string' && catId.startsWith('cat-'))) {
       return
     }
@@ -1068,7 +1235,8 @@ function CategoryManagement() {
         const rawStatus = typeof data.isActive === 'boolean'
           ? (data.isActive ? 'active' : 'inactive')
           : (data.status ? toSafeString(data.status).toLowerCase() : safeCat.status)
-        const rawImg = data.image || data.imageUrl || data.categoryImage || safeCat.image
+        const liveOverride = getCategoryOverride(rawId, data._id, data.id, rawName, rawSlug)
+        const rawImg = liveOverride?.image || data.image || data.imageUrl || data.categoryImage || safeCat.image
 
         setViewedCategory(prev => {
           const updated = {
@@ -1076,10 +1244,10 @@ function CategoryManagement() {
             id: rawId,
             _id: rawId,
             rawId: rawId,
-            name: rawName,
+            name: liveOverride?.name || rawName,
             slug: rawSlug,
-            description: rawDesc,
-            status: rawStatus,
+            description: liveOverride?.description !== undefined ? liveOverride.description : rawDesc,
+            status: liveOverride?.status || rawStatus,
             image: rawImg ? getFullImageUrl(rawImg) : safeCat.image,
             rawData: data
           }
@@ -1099,28 +1267,31 @@ function CategoryManagement() {
 
   const handleOpenEdit = async (category) => {
     setEditingCategory(category)
+    const catId = category.rawId || category._id || category.id
+    const override = getCategoryOverride(catId, category._id, category.id, category.name, category.slug)
+
     setFormData({
-      name: category.name || '',
-      description: category.description || category.rawData?.description || '',
-      isVisible: category.status === 'active',
-      imagePreview: category.image || '',
+      name: override?.name || category.name || '',
+      description: override?.description !== undefined ? override.description : (category.description || category.rawData?.description || ''),
+      isVisible: override?.isActive !== undefined ? override.isActive : (category.status === 'active'),
+      imagePreview: override?.image || category.image || '',
       imageName: ''
     })
     setFormError('')
     setIsAdding(true)
 
-    const catId = category.rawId || category._id || category.id
     if (catId && typeof catId !== 'number' && !catId.toString().startsWith('cat-')) {
       try {
         const res = await getCategoryById(catId)
         const data = res?.data || res?.category || res
         if (data) {
+          const liveOverride = getCategoryOverride(catId, data._id, data.id, data.name, data.slug)
           setFormData(prev => ({
             ...prev,
-            name: data.name || prev.name,
-            description: data.description || prev.description,
-            isVisible: typeof data.isActive === 'boolean' ? data.isActive : prev.isVisible,
-            imagePreview: data.image || prev.imagePreview
+            name: liveOverride?.name || prev.name || data.name || '',
+            description: liveOverride?.description !== undefined ? liveOverride.description : (prev.description || data.description || ''),
+            isVisible: liveOverride?.isActive !== undefined ? liveOverride.isActive : (typeof prev.isVisible === 'boolean' ? prev.isVisible : (typeof data.isActive === 'boolean' ? data.isActive : true)),
+            imagePreview: liveOverride?.image || prev.imagePreview || (data.image ? getFullImageUrl(data.image) : '')
           }))
         }
       } catch (err) {
@@ -1234,6 +1405,15 @@ function CategoryManagement() {
 
     const categoryToDelete = categoriesList.find((c) => c.id === deletingCategoryId || c.rawId === deletingCategoryId || c._id === deletingCategoryId)
     const catId = categoryToDelete?.rawId || categoryToDelete?._id || categoryToDelete?.id || deletingCategoryId
+
+    // Clean up persistent overrides
+    const catKeys = [
+      deletingCategoryId,
+      catId,
+      categoryToDelete?.name,
+      categoryToDelete?.name && getCanonicalCategoryKey(categoryToDelete.name)
+    ].filter(Boolean)
+    catKeys.forEach(k => removeCategoryOverride(k))
 
     setDeleteLoading(true)
     setDeleteError('')
@@ -2549,24 +2729,40 @@ function CategoryManagement() {
                   <img
                     src={formData.imagePreview}
                     alt="Preview"
-                    style={{ width: '150px', height: '100px', borderRadius: '12px', objectFit: 'cover', border: '1px solid #cfd8dc' }}
+                    onClick={handleImageClick}
+                    title="Click to change image"
+                    style={{ width: '150px', height: '100px', borderRadius: '12px', objectFit: 'cover', border: '1px solid #cfd8dc', cursor: 'pointer' }}
                   />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {formData.imageName && (
                       <span style={{ fontSize: '12px', color: '#607d8b' }}>{formData.imageName}</span>
                     )}
-                    <button
-                      type="button"
-                      className="btn-cancel-red"
-                      style={{ padding: '8px 16px', fontSize: '12px' }}
-                      onClick={() => setFormData(prev => ({ ...prev, imagePreview: '', imageName: '' }))}
-                    >
-                      Remove Image
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-outline-purple"
+                        style={{ padding: '8px 14px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                        onClick={handleImageClick}
+                      >
+                        <Upload style={{ width: '14px', height: '14px' }} />
+                        Change Image
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-cancel-red"
+                        style={{ padding: '8px 14px', fontSize: '12px', cursor: 'pointer' }}
+                        onClick={() => {
+                          if (fileInputRef.current) fileInputRef.current.value = ''
+                          setFormData(prev => ({ ...prev, imageFile: null, imagePreview: '', imageName: '' }))
+                        }}
+                      >
+                        Remove Image
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (
-                <div className="image-upload-box" style={{ height: '140px' }} onClick={handleImageClick}>
+                <div className="image-upload-box" style={{ height: '140px', cursor: 'pointer' }} onClick={handleImageClick}>
                   <Upload className="upload-icon-cloud" />
                   <span className="upload-primary-text" style={{ fontSize: '13px' }}>Upload Category Image</span>
                 </div>

@@ -29,6 +29,32 @@ import {
 } from 'lucide-react'
 import './ShopnowShoppingGuide.css'
 import { createBlog, getAllBlogs, getBlogById, updateBlog, updateBlogStatus, deleteBlog, extractBlogCoverImage } from '../services/superAdminService'
+import RichTextEditor from '../components/RichTextEditor'
+
+// Helper to strip HTML tags for clean text previews & card excerpts
+const stripHtml = (html) => {
+  if (!html) return ''
+  return String(html)
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Helper to format blog content for display in reader preview
+const formatBlogContentForDisplay = (content) => {
+  if (!content) return ''
+  const trimmed = String(content).trim()
+  if (/<[a-z][\s\S]*>/i.test(trimmed)) {
+    return trimmed
+  }
+  return trimmed
+    .split(/\n\s*\n/)
+    .map(para => `<p>${para.replace(/\n/g, '<br/>')}</p>`)
+    .join('')
+}
 
 // Import asset images
 import blog1Img from '../assets/Blog 1.jpeg'
@@ -688,7 +714,7 @@ export default function ShopnowShoppingGuide() {
           readTime: b.readTime || '4 min read',
           coverImage: extractBlogCoverImage(b) || b.coverImage || '',
           coverImageKey: b.coverImageKey,
-          excerpt: b.shortDescription || b.excerpt || (b.content ? b.content.slice(0, 160) + '...' : ''),
+          excerpt: b.shortDescription || b.excerpt || (b.content ? stripHtml(b.content).slice(0, 160) + '...' : ''),
           shortDescription: b.shortDescription || '',
           content: b.content || '',
           status: (b.status || 'DRAFT').toUpperCase() === 'PUBLISHED' ? 'Published' : 'Draft',
@@ -896,7 +922,7 @@ export default function ShopnowShoppingGuide() {
 
     const blogStatus = formStatus.toUpperCase() === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT'
     const finalAuthor = formAuthor.trim() || 'Admin'
-    const finalShortDesc = formExcerpt.trim() || formContent.slice(0, 160) + '...'
+    const finalShortDesc = formExcerpt.trim() || (formContent ? stripHtml(formContent).slice(0, 160) + '...' : '')
     const finalSeoTitle = formSeoTitle.trim() || formTitle.trim()
     const finalSeoDesc = formSeoDescription.trim() || finalShortDesc
     const finalTags = formTags.length > 0 ? formTags : ['Shopping Tips', 'Guide']
@@ -1609,7 +1635,7 @@ export default function ShopnowShoppingGuide() {
       ───────────────────────────────────────── */}
       {isUploadModalOpen && (
         <div className="sg-modal-overlay" onClick={() => setIsUploadModalOpen(false)}>
-          <div className="sg-modal-container large" onClick={(e) => e.stopPropagation()}>
+          <div className="sg-modal-container extra-large" onClick={(e) => e.stopPropagation()}>
             <div className="sg-modal-header">
               <h2>
                 <BookOpen size={22} color="#84cc16" />
@@ -1769,18 +1795,19 @@ export default function ShopnowShoppingGuide() {
                     />
                   </div>
 
-                  {/* Full Article Content */}
+                  {/* Full Article Content with RichText Editor */}
                   <div className="sg-form-group full">
-                    <label className="sg-label">
+                    <label className="sg-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span>Full Blog Content <span className="required">*</span></span>
+                      <span style={{ fontSize: '11px', fontWeight: 500, color: '#64748b' }}>
+                        Rich Text Editor &bull; Exact spaces, fonts &amp; colors preserved
+                      </span>
                     </label>
-                    <textarea
-                      className="sg-textarea large"
-                      placeholder="Write your shopping advice, tips, recommendations, and reviews here..."
-                      rows={8}
+                    <RichTextEditor
                       value={formContent}
-                      onChange={(e) => setFormContent(e.target.value)}
-                      required
+                      onChange={setFormContent}
+                      placeholder="Write your shopping advice, tips, recommendations, and reviews here..."
+                      minHeight="320px"
                     />
                   </div>
 
@@ -1955,9 +1982,10 @@ export default function ShopnowShoppingGuide() {
                   <p className="sg-preview-excerpt">{previewGuide.excerpt}</p>
                 )}
 
-                <div className="sg-preview-content">
-                  {previewGuide.content}
-                </div>
+                <div
+                  className="sg-preview-content customer-blog-render"
+                  dangerouslySetInnerHTML={{ __html: formatBlogContentForDisplay(previewGuide.content) }}
+                />
 
                 {Array.isArray(previewGuide.tags) && previewGuide.tags.length > 0 && (
                   <div className="sg-preview-tags-section">
