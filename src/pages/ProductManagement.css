@@ -77,24 +77,71 @@
 .product-approval-badge.approved { background: #ecfdf5; color: #047857; }
 .product-approval-badge.rejected { background: #fef2f2; color: #b91c1c; }
 
-.product-review-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  border: 0;
+.product-review-select {
+  min-width: 112px;
+  padding: 7px 24px 7px 9px;
+  border: 1px solid #cbd5e1;
   border-radius: 7px;
-  padding: 7px 9px;
+  background: #fff;
+  color: #334155;
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform .15s ease, opacity .15s ease;
 }
-.product-review-action:hover:not(:disabled) { transform: translateY(-1px); }
-.product-review-action:disabled { opacity: .6; cursor: wait; }
-.product-review-action.approve { background: #ecfdf5; color: #047857; }
-.product-review-action.reject { background: #fef2f2; color: #b91c1c; }
-.product-review-spinner { width: 14px; height: 14px; animation: spin 1s linear infinite; }
+.product-review-select:focus { outline: 2px solid rgba(100, 116, 139, .2); border-color: #64748b; }
+.product-review-select:disabled { opacity: .65; cursor: wait; }
+
+.product-rejection-modal {
+  width: 100%;
+  max-width: 400px;
+  padding: 22px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, .18);
+}
+.product-rejection-modal h2 {
+  margin: 0 0 14px;
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 700;
+}
+.product-rejection-modal textarea {
+  display: block;
+  width: 100%;
+  min-height: 100px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.product-rejection-modal textarea:focus {
+  border-color: #64748b;
+  outline: 2px solid rgba(100, 116, 139, .15);
+}
+.product-rejection-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.product-rejection-actions button {
+  min-width: 82px;
+  padding: 8px 13px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.product-rejection-actions button:disabled { opacity: .6; cursor: not-allowed; }
+.product-rejection-cancel { background: #f1f5f9; color: #334155; }
+.product-rejection-submit { background: #b91c1c; color: #fff; }
+.product-rejection-submit:hover:not(:disabled) { background: #991b1b; }
 
 @keyframes slideInToast {
   from {

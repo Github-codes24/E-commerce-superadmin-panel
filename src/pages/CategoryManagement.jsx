@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { LayoutGrid, Package, CheckSquare, AlertTriangle, Eye, Edit, Trash2, Search, ArrowLeft, Upload, Plus, ChevronDown, Check, X, ChevronRight, ChevronLeft, Loader2, RefreshCw, AlertCircle, Maximize2, ZoomIn, ZoomOut, CheckCircle2 } from 'lucide-react'
-import { getAllCategories, createCategory, getCategoryById, updateCategory, deleteCategory, updateCategoryStatus, getAllProducts } from '../services/superAdminService'
+import { getAllCategories, createCategory, getCategoryById, updateCategory, deleteCategory, updateCategoryStatus, getAllProducts, getSuperAdminSubcategories, getSuperAdminSubcategoryById, createSuperAdminSubcategory, updateSuperAdminSubcategory, updateSuperAdminSubcategoryStatus, deleteSuperAdminSubcategory } from '../services/superAdminService'
 import { uploadFileToS3 } from '../services/s3Service'
 import './CategoryManagement.css'
 
@@ -41,6 +41,53 @@ export const toSafeNumber = (val, fallback = 0) => {
     if (typeof val.length === 'number') return val.length
   }
   return fallback
+}
+
+const extractSubcategoriesList = (res) => {
+  if (Array.isArray(res)) return res
+  const candidates = [
+    res?.subcategories, res?.data?.subcategories, res?.data?.data,
+    res?.data?.items, res?.data, res?.message?.subcategories,
+    res?.message?.data, res?.message?.items, res?.message
+  ]
+  return candidates.find(Array.isArray) || []
+}
+
+const formatSubcategoryItem = (item, index, category) => {
+  const parent = item.categoryId || item.parentCategoryId || item.category || item.parentCategory || {}
+  const parentId = typeof parent === 'object' ? (parent._id || parent.id) : parent
+  const parentName = typeof parent === 'object'
+    ? (parent.name || parent.categoryName || item.parentCategoryName || category.name)
+    : (item.parentCategoryName || category.name)
+  const rawStatus = String(item.status || (item.isActive === false ? 'inactive' : 'active')).toLowerCase()
+
+  return {
+    ...item,
+    id: String(item._id || item.id || `subcategory-${index}`),
+    _id: item._id || item.id,
+    parentCategory: toSafeString(parentName, category.name),
+    parentCategoryId: parentId || category.rawId || category.id,
+    name: toSafeString(item.name || item.subcategoryName || item.title, 'Unnamed Sub-Category'),
+    // Menu grouping lets the storefront place this item in a specific mega-menu column.
+    group: toSafeString(item.group || item.menuGroup || item.groupName || item.section || item.column, 'General'),
+    productsCount: toSafeNumber(item.productsCount ?? item.productCount, 0),
+    status: rawStatus === 'inactive' || rawStatus === 'false' ? 'inactive' : 'active',
+    image: resolveSubcategoryImage(item.image || item.imageUrl || item.imageURL || item.subcategoryImage || item.icon),
+    createdDate: toSafeString(item.createdDate || item.createdAt, '')
+  }
+}
+
+const getDefaultSubcategoryGroup = (categoryName) =>
+  getCanonicalCategoryKey(categoryName) === 'fashion' ? 'Fashion Subcategories' : 'General'
+
+const resolveSubcategoryImage = (image) => {
+  const value = toSafeString(image, '').trim()
+  if (!value || /^(https?:|data:|blob:)/i.test(value)) return value
+
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'https://e-commerce-backend-1-we80.onrender.com/api'
+  const backendBase = apiBase.replace(/\/api\/?$/, '')
+  const imagePath = value.startsWith('/') ? value : `/${value}`
+  return `${backendBase}${imagePath}`
 }
 
 // Helper for local persistence of custom created / edited categories
@@ -704,8 +751,12 @@ function CategoryManagement() {
   // Sub-category form states
   const [isAddingSubcat, setIsAddingSubcat] = useState(false)
   const [editingSubcat, setEditingSubcat] = useState(null)
+  const [subcatLoading, setSubcatLoading] = useState(false)
+  const [subcatListLoading, setSubcatListLoading] = useState(false)
+  const [subcatError, setSubcatError] = useState('')
   const [subcatFormData, setSubcatFormData] = useState({
     name: '',
+    group: 'General',
     imagePreview: '',
     isVisible: true
   })
@@ -757,8 +808,60 @@ function CategoryManagement() {
   }, [categoriesList])
 
   useEffect(() => {
-    localStorage.setItem('zyvora_subcategoriesData', JSON.stringify(subcategoriesData))
+    try {
+      localStorage.setItem('zyvora_subcategoriesData', JSON.stringify(subcategoriesData))
+    } catch (error) {
+      console.warn('Failed to persist sub-categories:', error)
+    }
   }, [subcategoriesData])
+
+  useEffect(() => {
+    if (!viewedCategory) return undefined
+    const categoryId = viewedCategory.rawId || viewedCategory._id || viewedCategory.id
+    if (!categoryId || typeof categoryId === 'number' || String(categoryId).startsWith('cat-')) return undefined
+
+    let isCurrent = true
+    const loadSubcategories = async () => {
+      setSubcatListLoading(true)
+      setSubcatError('')
+      try {
+        const response = await getSuperAdminSubcategories({ categoryId })
+        const allItems = extractSubcategoriesList(response)
+        const categoryKey = getCanonicalCategoryKey(viewedCategory.name)
+        const matchingItems = allItems.filter(item => {
+          const parent = item.categoryId || item.parentCategoryId || item.category || item.parentCategory
+          const parentId = typeof parent === 'object' && parent !== null ? parent._id || parent.id : parent
+          const parentName = typeof parent === 'object' && parent !== null
+            ? parent.name || parent.categoryName
+            : (item.parentCategoryName || parent)
+          if (parentId && String(parentId) !== String(categoryId)) return false
+          if (!parentId && parentName && getCanonicalCategoryKey(parentName) !== categoryKey) return false
+          return true
+        }).map((item, index) => formatSubcategoryItem(item, index, viewedCategory))
+
+        if (isCurrent) {
+          // Keep persisted rows when the API returns no matching entries.
+          if (matchingItems.length === 0) return
+          setSubcategoriesData(previous => {
+            const otherCategories = previous.filter(item =>
+              String(item.parentCategoryId || '') !== String(categoryId) &&
+              getCanonicalCategoryKey(item.parentCategory) !== categoryKey
+            )
+            return [...matchingItems, ...otherCategories]
+          })
+        }
+      } catch (error) {
+        if (isCurrent) {
+          setSubcatError(error?.response?.data?.message || error?.message || 'Failed to load sub-categories.')
+        }
+      } finally {
+        if (isCurrent) setSubcatListLoading(false)
+      }
+    }
+
+    loadSubcategories()
+    return () => { isCurrent = false }
+  }, [viewedCategory?.rawId, viewedCategory?._id, viewedCategory?.id, viewedCategory?.name])
 
   useEffect(() => {
     localStorage.setItem('zyvora_productsData', JSON.stringify(productsData))
@@ -1209,14 +1312,65 @@ function CategoryManagement() {
     }
   }
 
-  const handleToggleSubcatStatus = (id) => {
-    setSubcategoriesData(prev => prev.map(sc => {
-      if (sc.id === id) {
-        const nextStatus = sc.status === 'active' ? 'inactive' : 'active'
-        return { ...sc, status: nextStatus }
+  const handleToggleSubcatStatus = async (id) => {
+    const current = subcategoriesData.find(sc => String(sc.id) === String(id))
+    if (!current) return
+    const nextStatus = current.status === 'active' ? 'inactive' : 'active'
+    setSubcatError('')
+    try {
+      if (current._id && /^[0-9a-fA-F]{24}$/.test(String(current._id))) {
+        await updateSuperAdminSubcategoryStatus(current._id, nextStatus)
       }
-      return sc
-    }))
+      setSubcategoriesData(prev => prev.map(sc =>
+        String(sc.id) === String(id) ? { ...sc, status: nextStatus } : sc
+      ))
+    } catch (error) {
+      setSubcatError(error?.response?.data?.message || error?.message || 'Failed to update sub-category status.')
+    }
+  }
+
+  const handleDeleteSubcategory = async (subcategory) => {
+    if (!window.confirm('Are you sure you want to delete this sub-category?')) return
+    setSubcatError('')
+    try {
+      if (subcategory._id && /^[0-9a-fA-F]{24}$/.test(String(subcategory._id))) {
+        await deleteSuperAdminSubcategory(subcategory._id)
+      }
+      setSubcategoriesData(prev => prev.filter(item => String(item.id) !== String(subcategory.id)))
+      setCategoriesList(prev => prev.map(category =>
+        String(category.rawId || category._id || category.id) === String(viewedCategory?.rawId || viewedCategory?._id || viewedCategory?.id)
+          ? { ...category, subcatsCount: Math.max(0, toSafeNumber(category.subcatsCount) - 1) }
+          : category
+      ))
+      setViewedCategory(prev => prev ? ({ ...prev, subcatsCount: Math.max(0, toSafeNumber(prev.subcatsCount) - 1) }) : null)
+    } catch (error) {
+      setSubcatError(error?.response?.data?.message || error?.message || 'Failed to delete sub-category.')
+    }
+  }
+
+  const handleEditSubcategory = async (subcategory) => {
+    setSubcatError('')
+    let source = subcategory
+    if (subcategory._id && /^[0-9a-fA-F]{24}$/.test(String(subcategory._id))) {
+      setSubcatLoading(true)
+      try {
+        const response = await getSuperAdminSubcategoryById(subcategory._id)
+        source = response?.subcategory || response?.data?.subcategory || response?.data || response
+      } catch (error) {
+        setSubcatError(error?.response?.data?.message || error?.message || 'Failed to load sub-category details.')
+        setSubcatLoading(false)
+        return
+      }
+      setSubcatLoading(false)
+    }
+    setEditingSubcat(subcategory)
+    setSubcatFormData({
+      name: toSafeString(source.name || source.subcategoryName || subcategory.name),
+      group: toSafeString(source.group || source.menuGroup || source.groupName || source.section || source.column || subcategory.group, getDefaultSubcategoryGroup(viewedCategory?.name)),
+      imagePreview: toSafeString(source.image || source.imageUrl || subcategory.image),
+      isVisible: String(source.status || subcategory.status || 'active').toLowerCase() !== 'inactive'
+    })
+    setIsAddingSubcat(true)
   }
 
   const handleToggleProductStatus = (id) => {
@@ -1317,11 +1471,64 @@ function CategoryManagement() {
   }
 
   // Sub-category form submit handler
-  const handleSubcatSubmit = (e) => {
+  const handleSubcatSubmit = async (e) => {
     e.preventDefault()
     if (!subcatFormData.name.trim()) return
 
     const targetStatus = subcatFormData.isVisible ? 'active' : 'inactive'
+    const categoryId = viewedCategory?.rawId || viewedCategory?._id || viewedCategory?.id
+    const isBackendSubcategory = Boolean(categoryId && /^[0-9a-fA-F]{24}$/.test(String(categoryId)))
+    const subcategoryId = editingSubcat?._id || editingSubcat?.id
+
+    if (isBackendSubcategory && (!editingSubcat || /^[0-9a-fA-F]{24}$/.test(String(subcategoryId)))) {
+      setSubcatLoading(true)
+      setSubcatError('')
+      try {
+        let image = subcatFormData.imagePreview || ''
+        if (image.startsWith('data:')) {
+          const upload = await uploadFileToS3(image, 'subcategories')
+          if (upload?.url) image = upload.url
+        }
+        const payload = {
+          name: subcatFormData.name.trim(),
+          // Persist the selected mega-menu column with the subcategory.
+          group: subcatFormData.group.trim() || getDefaultSubcategoryGroup(viewedCategory?.name),
+          categoryId,
+          status: targetStatus.toUpperCase(),
+          image
+        }
+        const response = editingSubcat
+          ? await updateSuperAdminSubcategory(subcategoryId, payload)
+          : await createSuperAdminSubcategory(payload)
+        const item = response?.subcategory || response?.data?.subcategory || response?.data || response
+        const savedSubcategory = formatSubcategoryItem({
+          ...payload,
+          ...(item && typeof item === 'object' ? item : {}),
+          _id: item?._id || item?.id || subcategoryId || `subcategory-${Date.now()}`
+        }, 0, viewedCategory)
+
+        setSubcategoriesData(prev => editingSubcat
+          ? prev.map(sc => String(sc.id) === String(editingSubcat.id) ? savedSubcategory : sc)
+          : [savedSubcategory, ...prev]
+        )
+        if (!editingSubcat) {
+          setCategoriesList(prev => prev.map(category =>
+            String(category.rawId || category._id || category.id) === String(categoryId)
+              ? { ...category, subcatsCount: toSafeNumber(category.subcatsCount) + 1 }
+              : category
+          ))
+          setViewedCategory(prev => prev ? ({ ...prev, subcatsCount: toSafeNumber(prev.subcatsCount) + 1 }) : null)
+        }
+        setIsAddingSubcat(false)
+        setEditingSubcat(null)
+        setSubcatFormData({ name: '', group: getDefaultSubcategoryGroup(viewedCategory?.name), imagePreview: '', isVisible: true })
+      } catch (error) {
+        setSubcatError(error?.response?.data?.message || error?.message || 'Failed to save sub-category.')
+      } finally {
+        setSubcatLoading(false)
+      }
+      return
+    }
 
     if (editingSubcat) {
       const updatedSubcats = subcategoriesData.map(sc => {
@@ -1329,6 +1536,7 @@ function CategoryManagement() {
           return {
             ...sc,
             name: subcatFormData.name.trim(),
+            group: subcatFormData.group.trim() || getDefaultSubcategoryGroup(viewedCategory?.name),
             status: targetStatus,
             image: subcatFormData.imagePreview || sc.image
           }
@@ -1347,6 +1555,7 @@ function CategoryManagement() {
         parentCategory: viewedCategory ? viewedCategory.name : '',
         parentCategoryId: viewedCategory ? (viewedCategory.id || viewedCategory.rawId) : '',
         name: subcatFormData.name.trim(),
+        group: subcatFormData.group.trim() || getDefaultSubcategoryGroup(viewedCategory?.name),
         productsCount: 0,
         status: targetStatus,
         image: subcatFormData.imagePreview || 'https://via.placeholder.com/150',
@@ -1838,7 +2047,9 @@ function CategoryManagement() {
               className="edit-profile-btn"
               style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '13px' }}
               onClick={() => {
-                setSubcatFormData({ name: '', imagePreview: '', isVisible: true })
+                setSubcatError('')
+                // New subcategories start in the general column, or the Fashion default when applicable.
+                setSubcatFormData({ name: '', group: getDefaultSubcategoryGroup(viewedCategory?.name), imagePreview: '', isVisible: true })
                 setEditingSubcat(null)
                 setIsAddingSubcat(true)
               }}
@@ -1847,6 +2058,12 @@ function CategoryManagement() {
               Add Sub-Category
             </button>
           </div>
+
+          {subcatError && (
+            <div role="alert" style={{ marginBottom: '14px', padding: '10px 12px', borderRadius: '7px', color: '#b91c1c', background: '#fef2f2', fontSize: '13px' }}>
+              {subcatError}
+            </div>
+          )}
 
           {/* Filters Bar for Sub-categories */}
           <div className="table-filter-bar" style={{ marginBottom: '20px' }}>
@@ -1887,7 +2104,9 @@ function CategoryManagement() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedSubcats.length > 0 ? (
+                {subcatListLoading && paginatedSubcats.length === 0 ? (
+                  <tr><td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>Loading sub-categories…</td></tr>
+                ) : paginatedSubcats.length > 0 ? (
                   paginatedSubcats.map(sc => {
                     const isExpanded = expandedSubcatId === sc.id
 
@@ -1936,7 +2155,10 @@ function CategoryManagement() {
                                 onClick={() => setFullscreenImage({ url: toSafeString(sc.image), title: `${toSafeString(viewedCategory.name)} - ${toSafeString(sc.name)}` })}
                                 onError={(e) => { e.target.src = 'https://via.placeholder.com/32' }}
                               />
-                              {toSafeString(sc.name)}
+                              <div>
+                                <div>{toSafeString(sc.name)}</div>
+                                <span className="subcategory-menu-group">{toSafeString(sc.group, 'General')}</span>
+                              </div>
                             </div>
                           </td>
                           <td>{Math.max(rawProducts.length, toSafeNumber(sc.productsCount))} Products</td>
@@ -1955,29 +2177,14 @@ function CategoryManagement() {
                               <button
                                 className="btn-action-icon view-details"
                                 title="Edit Sub-Category"
-                                onClick={() => {
-                                  setEditingSubcat(sc)
-                                  setSubcatFormData({ name: toSafeString(sc.name), imagePreview: toSafeString(sc.image), isVisible: sc.status === 'active' })
-                                  setIsAddingSubcat(true)
-                                }}
+                                onClick={() => handleEditSubcategory(sc)}
                               >
                                 <Edit style={{ width: '15px', height: '15px' }} />
                               </button>
                               <button
                                 className="btn-action-icon delete-record"
                                 title="Delete Sub-Category"
-                                onClick={() => {
-                                  if (window.confirm("Are you sure you want to delete this sub-category?")) {
-                                    setSubcategoriesData(subcategoriesData.filter(item => item.id !== sc.id))
-                                    setCategoriesList(categoriesList.map(c => {
-                                      if (toSafeString(c.name) === toSafeString(viewedCategory.name)) {
-                                        return { ...c, subcatsCount: Math.max(0, toSafeNumber(c.subcatsCount) - 1) }
-                                      }
-                                      return c
-                                    }))
-                                    setViewedCategory(prev => ({ ...prev, subcatsCount: Math.max(0, toSafeNumber(prev.subcatsCount) - 1) }))
-                                  }
-                                }}
+                                onClick={() => handleDeleteSubcategory(sc)}
                               >
                                 <Trash2 style={{ width: '15px', height: '15px' }} />
                               </button>
@@ -2317,10 +2524,11 @@ function CategoryManagement() {
 
         {/* Nested Add/Edit Sub-Category modal popup */}
         {isAddingSubcat && (
-          <div className="modal-overlay" onClick={() => setIsAddingSubcat(false)}>
+          <div className="modal-overlay" onClick={() => !subcatLoading && setIsAddingSubcat(false)}>
             <div className="modal-card" onClick={(e) => e.stopPropagation()}>
               <h3 className="modal-title">{editingSubcat ? 'Edit Sub-Category' : 'Add Sub-Category'}</h3>
               <form onSubmit={handleSubcatSubmit}>
+                {subcatError && <div role="alert" style={{ color: '#b91c1c', fontSize: '13px' }}>{subcatError}</div>}
                 <div className="modal-field">
                   <label className="modal-label">Parent Category</label>
                   <input type="text" className="modal-input" value={toSafeString(viewedCategory.name)} disabled />
@@ -2334,6 +2542,17 @@ function CategoryManagement() {
                     value={subcatFormData.name}
                     onChange={(e) => setSubcatFormData({ ...subcatFormData, name: e.target.value })}
                     required
+                  />
+                </div>
+                {/* Optional menu column name consumed by the storefront navigation. */}
+                <div className="modal-field">
+                  <label className="modal-label">Menu Group / Column</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Women's Fashion, Men's Fashion, Kids"
+                    className="modal-input"
+                    value={subcatFormData.group}
+                    onChange={event => setSubcatFormData(prev => ({ ...prev, group: event.target.value }))}
                   />
                 </div>
                 <div className="modal-field">
@@ -2376,8 +2595,8 @@ function CategoryManagement() {
                   </div>
                 </div>
                 <div className="modal-actions">
-                  <button type="button" className="modal-btn cancel-btn" onClick={() => setIsAddingSubcat(false)}>Cancel</button>
-                  <button type="submit" className="modal-btn submit-btn">{editingSubcat ? 'Save' : 'Add'}</button>
+                  <button type="button" className="modal-btn cancel-btn" onClick={() => setIsAddingSubcat(false)} disabled={subcatLoading}>Cancel</button>
+                  <button type="submit" className="modal-btn submit-btn" disabled={subcatLoading}>{subcatLoading ? 'Saving…' : editingSubcat ? 'Save' : 'Add'}</button>
                 </div>
               </form>
             </div>

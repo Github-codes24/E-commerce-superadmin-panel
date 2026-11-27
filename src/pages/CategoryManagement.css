@@ -236,3 +236,15 @@
   animation: fadeInLightbox 0.2s ease-out;
 }
 
+/* Optional group label used to organize subcategories in storefront mega-menu columns. */
+.subcategory-menu-group {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 600;
+}
+
