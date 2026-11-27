@@ -574,14 +574,25 @@ export const updateProductStatus = async (id, status) => {
 };
 
 // 20b. Approve / reject a product submitted for SuperAdmin review
-export const approveProduct = async (id) => {
-  const response = await api.patch(`http://localhost:5000/api/superadmin/products/${id}/approve`);
+const reviewProduct = async (id, action) => {
+  if (!id) throw new Error('A product ID is required to update its review status.');
+
+  const encodedId = encodeURIComponent(String(id));
+  const response = await api.patch(`/superadmin/products/${encodedId}/${action}`);
   return response.data;
 };
 
-export const rejectProduct = async (id) => {
-  const response = await api.patch(`http://localhost:5000/api/superadmin/products/${id}/reject`);
-  return response.data;
+export const approveProduct = (id) => reviewProduct(id, 'approve');
+
+export const rejectProduct = (id, rejectionReason) => {
+  const reason = String(rejectionReason || '').trim();
+  if (!reason) throw new Error('A rejection reason is required.');
+  if (!id) throw new Error('A product ID is required to update its review status.');
+
+  return api.patch(
+    `/superadmin/products/${encodeURIComponent(String(id))}/reject`,
+    { reason, rejectionReason: reason }
+  ).then(response => response.data);
 };
 
 // 21. Get All Customers (GET /api/superadmin/customers)
@@ -1009,6 +1020,41 @@ export const createCategory = async (categoryData) => {
     }
   }
   throw lastErr || new Error('Failed to create category');
+};
+
+// Subcategories used by Category Management
+export const getSuperAdminSubcategories = async (params = {}) => {
+  const response = await api.get('/superadmin/subcategories', { params });
+  return response.data;
+};
+
+export const getSuperAdminSubcategoryById = async (id) => {
+  const response = await api.get(`/superadmin/subcategories/${encodeURIComponent(String(id))}`);
+  return response.data;
+};
+
+export const createSuperAdminSubcategory = async (data) => {
+  const response = await api.post('/superadmin/subcategories', data);
+  return response.data;
+};
+
+export const updateSuperAdminSubcategory = async (id, data) => {
+  const response = await api.put(`/superadmin/subcategories/${encodeURIComponent(String(id))}`, data);
+  return response.data;
+};
+
+export const updateSuperAdminSubcategoryStatus = async (id, status) => {
+  const normalizedStatus = String(status).toLowerCase() === 'active' ? 'ACTIVE' : 'INACTIVE';
+  const response = await api.patch(
+    `/superadmin/subcategories/${encodeURIComponent(String(id))}/status`,
+    { status: normalizedStatus }
+  );
+  return response.data;
+};
+
+export const deleteSuperAdminSubcategory = async (id) => {
+  const response = await api.delete(`/superadmin/subcategories/${encodeURIComponent(String(id))}`);
+  return response.data;
 };
 
 // 35. Get Category By ID (GET /api/superadmin/categories/:id with fallbacks)
@@ -2434,6 +2480,12 @@ export default {
   deleteVendor,
   getAllCategories,
   createCategory,
+  getSuperAdminSubcategories,
+  getSuperAdminSubcategoryById,
+  createSuperAdminSubcategory,
+  updateSuperAdminSubcategory,
+  updateSuperAdminSubcategoryStatus,
+  deleteSuperAdminSubcategory,
   getCategoryById,
   updateCategory,
   deleteCategory,

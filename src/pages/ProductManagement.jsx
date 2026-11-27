@@ -1960,7 +1960,7 @@ function ProductManagement() {
       vendorId: p.vendorId,
       categoryId: p.categoryId,
       status: rawStatus,
-      approvalStatus: p.adminApprovalStatus || p.approvalStatus || p.productApprovalStatus || (['pending', 'approved', 'rejected'].includes(String(p.status || '').toLowerCase()) ? String(p.status).toLowerCase() : ''),
+      approvalStatus: p.adminApprovalStatus || p.approvalStatus || p.productApprovalStatus || (['pending', 'approved', 'rejected'].includes(String(p.status || '').toLowerCase()) ? String(p.status).toLowerCase() : 'pending'),
       tag: Array.isArray(p.tags) ? p.tags.join(', ') : (p.tag || `${rawCategory}, ${rawBrand}`),
       returnPolicy: p.returnPolicy || '7 Days Replacement',
       deliveryTime: p.deliveryTime || p.estimatedDelivery || (rawCategory.toLowerCase().includes('furniture') ? 'Delivery within 5–7 business days' : rawCategory.toLowerCase().includes('jewel') ? 'Delivery within 2–3 business days' : 'Delivery within 3–5 business days'),
@@ -2113,6 +2113,8 @@ function ProductManagement() {
   const [productDetailsError, setProductDetailsError] = useState(null)
   const [statusUpdatingId, setStatusUpdatingId] = useState(null)
   const [approvalUpdatingId, setApprovalUpdatingId] = useState(null)
+  const [rejectionTarget, setRejectionTarget] = useState(null)
+  const [rejectionReason, setRejectionReason] = useState('')
   const [toastMessage, setToastMessage] = useState(null)
 
   // Customer Reviews & Ratings state for View Details page
@@ -2154,23 +2156,44 @@ function ProductManagement() {
     }, 4000)
   }
 
-  const handleProductApproval = async (product, action) => {
+  const handleProductApproval = async (product, action, reason = '') => {
     const productId = product._id || product.id
     if (!productId) return
     setApprovalUpdatingId(productId)
     try {
-      const result = action === 'approve' ? await approveProduct(productId) : await rejectProduct(productId)
-      const approvalStatus = action === 'approve' ? 'approved' : 'rejected'
+      const actionRequest = {
+        approved: approveProduct,
+        rejected: rejectProduct
+      }[action]
+      if (!actionRequest) throw new Error('Unsupported product review status.')
+      const result = action === 'rejected'
+        ? await actionRequest(productId, reason)
+        : await actionRequest(productId)
+      const approvalStatus = action
       setProductsList(prev => prev.map(item =>
         String(item._id || item.id) === String(productId) ? { ...item, approvalStatus } : item
       ))
       showToast(result?.message || `Product ${approvalStatus} successfully.`, 'success')
       await fetchProducts()
+      return true
     } catch (err) {
-      console.error(`Failed to ${action} product:`, err)
-      showToast(err?.response?.data?.message || err?.message || `Failed to ${action} product.`, 'error')
+      console.error(`Failed to set product review status to ${action}:`, err)
+      showToast(err?.response?.data?.message || err?.message || `Failed to set product status to ${action}.`, 'error')
+      return false
     } finally {
       setApprovalUpdatingId(null)
+    }
+  }
+
+  const handleRejectSubmit = async (event) => {
+    event.preventDefault()
+    const reason = rejectionReason.trim()
+    if (!reason || !rejectionTarget) return
+
+    const rejected = await handleProductApproval(rejectionTarget, 'rejected', reason)
+    if (rejected) {
+      setRejectionTarget(null)
+      setRejectionReason('')
     }
   }
 
@@ -5273,8 +5296,12 @@ function ProductManagement() {
                     </td>
                     <td>
                       {(() => {
-                        const approval = String(product.approvalStatus || '').toLowerCase()
-                        const pending = approval === 'pending' || (!approval && String(product.status || '').toLowerCase() === 'pending')
+                        const approvalValue = String(product.approvalStatus || '').toLowerCase()
+                        const productStatus = String(product.status || '').toLowerCase()
+                        const approval = ['pending', 'approved', 'rejected'].includes(approvalValue)
+                          ? approvalValue
+                          : (['pending', 'approved', 'rejected'].includes(productStatus) ? productStatus : 'pending')
+                        const pending = approval === 'pending'
                         return (
                           <span className={`product-approval-badge ${pending ? 'pending' : approval}`}>
                             {approval ? approval : '—'}
@@ -5285,20 +5312,32 @@ function ProductManagement() {
                     <td style={{ textAlign: 'center' }}>
                       <div className="action-icon-group">
                         {(() => {
-                          const approval = String(product.approvalStatus || '').toLowerCase()
-                          const pending = approval === 'pending' || (!approval && String(product.status || '').toLowerCase() === 'pending')
-                          if (!pending) return null
+                          const approvalValue = String(product.approvalStatus || '').toLowerCase()
+                          const productStatus = String(product.status || '').toLowerCase()
+                          const approval = ['pending', 'approved', 'rejected'].includes(approvalValue)
+                            ? approvalValue
+                            : (['pending', 'approved', 'rejected'].includes(productStatus) ? productStatus : 'pending')
                           const isUpdating = approvalUpdatingId === (product._id || product.id)
                           return (
-                            <>
-                              <button type="button" className="product-review-action approve" disabled={isUpdating} title="Approve product" onClick={() => handleProductApproval(product, 'approve')}>
-                                {isUpdating ? <RotateCw className="product-review-spinner" /> : <Check style={{ width: '14px', height: '14px' }} />}
-                                Approve
-                              </button>
-                              <button type="button" className="product-review-action reject" disabled={isUpdating} title="Reject product" onClick={() => handleProductApproval(product, 'reject')}>
-                                Reject
-                              </button>
-                            </>
+                            <select
+                              className="product-review-select"
+                              value={approval}
+                              disabled={isUpdating || approval !== 'pending'}
+                              aria-label={`Review ${product.name || 'product'}`}
+                              onChange={event => {
+                                const action = event.target.value
+                                if (action === 'rejected') {
+                                  setRejectionTarget(product)
+                                  setRejectionReason('')
+                                } else if (action === 'approved') {
+                                  handleProductApproval(product, action)
+                                }
+                              }}
+                            >
+                              <option value="pending" disabled>{isUpdating ? 'Updating…' : 'Pending'}</option>
+                              <option value="approved">{approval === 'approved' ? 'Approved' : 'Approve'}</option>
+                              <option value="rejected">{approval === 'rejected' ? 'Rejected' : 'Reject'}</option>
+                            </select>
                           )
                         })()}
                         {/* Eye View details icon */}
@@ -5407,6 +5446,59 @@ function ProductManagement() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {rejectionTarget && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!approvalUpdatingId) {
+              setRejectionTarget(null)
+              setRejectionReason('')
+            }
+          }}
+        >
+          <form
+            className="product-rejection-modal"
+            onSubmit={handleRejectSubmit}
+            onClick={event => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="product-rejection-title"
+          >
+            <h2 id="product-rejection-title">Rejection Reason</h2>
+            <textarea
+              autoFocus
+              value={rejectionReason}
+              onChange={event => setRejectionReason(event.target.value)}
+              placeholder="Enter the reason for rejecting this product"
+              aria-label="Rejection reason"
+              required
+              rows={4}
+              disabled={Boolean(approvalUpdatingId)}
+            />
+            <div className="product-rejection-actions">
+              <button
+                type="button"
+                className="product-rejection-cancel"
+                onClick={() => {
+                  setRejectionTarget(null)
+                  setRejectionReason('')
+                }}
+                disabled={Boolean(approvalUpdatingId)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="product-rejection-submit"
+                disabled={!rejectionReason.trim() || Boolean(approvalUpdatingId)}
+              >
+                {approvalUpdatingId ? 'Submitting…' : 'Submit'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>
