@@ -63,11 +63,16 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
     try {
       setLoading(true)
       setError(null)
-      const res = await getDashboardStats()
-      if (res && res.success && res.data) {
-        setStatsData(res.data)
-      } else if (res && res.data) {
-        setStatsData(res.data)
+      try {
+        const res = await getDashboardStats()
+        if (res && res.success && res.data) {
+          setStatsData(res.data)
+        } else if (res && res.data) {
+          setStatsData(res.data)
+        }
+      } catch (statsErr) {
+        // A dashboard summary outage should not prevent independent product counts from loading.
+        console.warn('Failed to load summary stats; continuing with live counts:', statsErr)
       }
 
       // Also fetch live admin counts and respect persistent overrides
@@ -142,10 +147,21 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
         console.warn('Failed to load customer stats for dashboard:', custErr)
       }
 
-      // Also fetch live product counts and respect persistent custom products
+      // Fetch every page so dashboard counts are not limited to the API's default page size.
       try {
-        const prodRes = await getAllProducts()
-        const productsData = Array.isArray(prodRes?.data) ? prodRes.data : (Array.isArray(prodRes?.products) ? prodRes.products : (Array.isArray(prodRes) ? prodRes : []))
+        const pageSize = 1000
+        const extractProductList = (response) => {
+          const candidates = [response?.data?.products, response?.products, response?.data, response]
+          return candidates.find(Array.isArray) || []
+        }
+        const firstResponse = await getAllProducts({ page: 1, limit: pageSize })
+        const productsData = extractProductList(firstResponse)
+        const totalPages = Number(firstResponse?.pagination?.totalPages || firstResponse?.data?.pagination?.totalPages || 1)
+
+        for (let page = 2; page <= Math.min(totalPages, 100); page += 1) {
+          const pageResponse = await getAllProducts({ page, limit: pageSize })
+          productsData.push(...extractProductList(pageResponse))
+        }
 
         let custom = []
         try {
@@ -153,39 +169,36 @@ function Dashboard({ onViewAllOrders, onNavigate }) {
         } catch {}
 
         const mergedMap = new Map()
-        custom.forEach(p => {
-          const key = String(p._id || p.id || p.sku || p.name)
-          mergedMap.set(key, p)
+        custom.forEach((product, index) => {
+          const key = String(product._id || product.id || product.sku || product.SKU || product.name || `custom-${index}`)
+          mergedMap.set(key, product)
         })
-        productsData.forEach(p => {
-          const key = String(p._id || p.id || p.sku || p.name)
-          if (!mergedMap.has(key)) {
-            mergedMap.set(key, p)
-          }
+        productsData.forEach((product, index) => {
+          const key = String(product._id || product.id || product.sku || product.SKU || product.name || `product-${index}`)
+          if (!mergedMap.has(key)) mergedMap.set(key, product)
         })
 
         const list = Array.from(mergedMap.values())
-        if (list.length > 0) {
-          let active = 0
-          let inactive = 0
-          let outOfStock = 0
+        let active = 0
+        let inactive = 0
+        let outOfStock = 0
 
-          list.forEach(p => {
-            const st = (p.status || '').toLowerCase()
-            const stock = Number(p.stock)
-            if (st === 'out-of-stock' || stock === 0) {
-              outOfStock++
-            } else if (st === 'inactive') {
-              inactive++
-            } else {
-              active++
-            }
-          })
+        list.forEach(product => {
+          const status = String(product.status || '').toLowerCase()
+          const stockValue = product.stockQuantity ?? product.stock ?? product.quantity ?? product.inventory?.quantity
+          const stock = stockValue === undefined || stockValue === null ? Number.NaN : Number(stockValue)
+          if (status === 'out-of-stock' || status === 'outofstock' || stock === 0) {
+            outOfStock++
+          } else if (status === 'inactive' || product.isActive === false) {
+            inactive++
+          } else {
+            active++
+          }
+        })
 
-          const counts = { total: list.length, active, inactive, outOfStock }
-          setProductCounts(counts)
-          localStorage.setItem('product_counts_summary', JSON.stringify(counts))
-        }
+        const counts = { total: list.length, active, inactive, outOfStock }
+        setProductCounts(counts)
+        localStorage.setItem('product_counts_summary', JSON.stringify(counts))
       } catch (prodErr) {
         console.warn('Failed to load product stats for dashboard:', prodErr)
       }

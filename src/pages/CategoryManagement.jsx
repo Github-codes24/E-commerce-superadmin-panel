@@ -364,6 +364,7 @@ function CategoryManagement() {
       name: catName,
       slug: catSlug,
       description: catDesc,
+      subcategories: Array.isArray(cat.subcategories) ? cat.subcategories : [],
       subcatsCount: typeof subcatsCount === 'number' ? subcatsCount : 0,
       productsCount: typeof productsCount === 'number' ? productsCount : 0,
       status: status,
@@ -825,8 +826,10 @@ function CategoryManagement() {
       setSubcatListLoading(true)
       setSubcatError('')
       try {
-        const response = await getSuperAdminSubcategories({ categoryId })
-        const allItems = extractSubcategoriesList(response)
+        const response = await getSuperAdminSubcategories()
+        const apiItems = extractSubcategoriesList(response)
+        const categoryItems = Array.isArray(viewedCategory.subcategories) ? viewedCategory.subcategories : []
+        const allItems = apiItems.length > 0 ? apiItems : categoryItems
         const categoryKey = getCanonicalCategoryKey(viewedCategory.name)
         const matchingItems = allItems.filter(item => {
           const parent = item.categoryId || item.parentCategoryId || item.category || item.parentCategory
@@ -843,11 +846,22 @@ function CategoryManagement() {
           // Keep persisted rows when the API returns no matching entries.
           if (matchingItems.length === 0) return
           setSubcategoriesData(previous => {
+            const existingForCategory = previous.filter(item =>
+              String(item.parentCategoryId || '') === String(categoryId) ||
+              getCanonicalCategoryKey(item.parentCategory) === categoryKey
+            )
             const otherCategories = previous.filter(item =>
               String(item.parentCategoryId || '') !== String(categoryId) &&
               getCanonicalCategoryKey(item.parentCategory) !== categoryKey
             )
-            return [...matchingItems, ...otherCategories]
+            const mergedForCategory = [...matchingItems, ...existingForCategory].filter((item, index, rows) => {
+              const key = item._id ? 'id:' + item._id : 'name:' + getCanonicalCategoryKey(item.name)
+              return rows.findIndex(candidate => {
+                const candidateKey = candidate._id ? 'id:' + candidate._id : 'name:' + getCanonicalCategoryKey(candidate.name)
+                return candidateKey === key
+              }) === index
+            })
+            return [...mergedForCategory, ...otherCategories]
           })
         }
       } catch (error) {
