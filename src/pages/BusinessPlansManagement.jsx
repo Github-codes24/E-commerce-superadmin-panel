@@ -249,7 +249,7 @@ export default function BusinessPlansManagement({ onNavigate }) {
     return BECOME_VENDOR_PLANS
   })
 
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [cycleFilter, setCycleFilter] = useState('ALL')
@@ -288,15 +288,15 @@ export default function BusinessPlansManagement({ onNavigate }) {
     else setLoading(true)
 
     try {
-      const response = await getAllVendorBusinessPlans()
-      let fetchedList = []
-      if (response?.data && Array.isArray(response.data)) {
-        fetchedList = response.data
-      } else if (response?.plans && Array.isArray(response.plans)) {
-        fetchedList = response.plans
-      } else if (Array.isArray(response)) {
-        fetchedList = response
-      }
+      const response = await getAllVendorBusinessPlans({ page: 1, limit: 100 })
+      const planCandidates = [
+        response?.data,
+        response?.plans,
+        response?.data?.plans,
+        response?.data?.data,
+        response?.message?.plans
+      ]
+      const fetchedList = planCandidates.find(Array.isArray) || (Array.isArray(response) ? response : [])
 
       if (fetchedList.length > 0) {
         setPlans(fetchedList)
@@ -437,10 +437,13 @@ export default function BusinessPlansManagement({ onNavigate }) {
     setQuickSubmitting(true)
 
     const id = quickEditPlan._id || quickEditPlan.id
+    const quickEditIndex = plans.findIndex(p => p === quickEditPlan)
     const payload = {
       price: Number(quickPrice),
       registrationCharges: Number(quickRegCharges)
     }
+    const optimisticPlan = { ...quickEditPlan, ...payload, updatedAt: new Date().toISOString() }
+    setPlans(prev => prev.map((p, index) => (index === quickEditIndex ? optimisticPlan : p)))
 
     try {
       let updatedRecord = null
@@ -460,7 +463,7 @@ export default function BusinessPlansManagement({ onNavigate }) {
         updatedAt: updatedRecord?.updatedAt || new Date().toISOString()
       }
 
-      setPlans(prev => prev.map(p => (p._id === id || p.id === id ? finalPlan : p)))
+      setPlans(prev => prev.map((p, index) => (index === quickEditIndex ? finalPlan : p)))
       showAlert('Vendor business plan updated successfully.', 'success')
       setQuickEditPlan(null)
     } catch (err) {
@@ -552,10 +555,15 @@ export default function BusinessPlansManagement({ onNavigate }) {
       isActive: Boolean(formData.isActive)
     }
 
+    let optimisticPlanId = null
+    let editingPlanIndex = -1
     try {
       if (editingPlan) {
         // UPDATE Existing Plan
-        const res = await updateVendorBusinessPlan(editingPlan._id || editingPlan.id, payload)
+        const planId = editingPlan._id || editingPlan.id
+        editingPlanIndex = plans.findIndex(p => p === editingPlan)
+        setPlans(prev => prev.map((p, index) => (index === editingPlanIndex ? { ...p, ...payload, updatedAt: new Date().toISOString() } : p)))
+        const res = await updateVendorBusinessPlan(planId, payload)
         let updatedRecord = null
         if (res?.data && typeof res.data === 'object') {
           updatedRecord = Array.isArray(res.data) ? res.data[0] : res.data
@@ -570,10 +578,13 @@ export default function BusinessPlansManagement({ onNavigate }) {
           updatedAt: new Date().toISOString()
         }
 
-        setPlans(prev => prev.map(p => (p._id === editingPlan._id || p.id === editingPlan.id ? finalPlan : p)))
+        setPlans(prev => prev.map((p, index) => (index === editingPlanIndex ? finalPlan : p)))
         showAlert('Vendor business plan updated successfully and synced with live database.', 'success')
       } else {
         // CREATE New Plan on Live Server
+        optimisticPlanId = `pending_plan_${Date.now()}`
+        const optimisticPlan = { _id: optimisticPlanId, ...payload, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+        setPlans(prev => [optimisticPlan, ...prev])
         const res = await createVendorBusinessPlan(payload)
         let createdRecord = null
         if (res?.data && typeof res.data === 'object') {
@@ -583,19 +594,24 @@ export default function BusinessPlansManagement({ onNavigate }) {
         }
 
         const newPlan = {
-          _id: createdRecord?._id || `plan_${Date.now()}`,
+          _id: createdRecord?._id || createdRecord?.id || `plan_${Date.now()}`,
           ...payload,
           ...(createdRecord || {}),
           createdAt: createdRecord?.createdAt || new Date().toISOString(),
           updatedAt: createdRecord?.updatedAt || new Date().toISOString()
         }
 
-        setPlans(prev => [newPlan, ...prev.filter(p => p._id !== newPlan._id)])
+        setPlans(prev => [newPlan, ...prev.filter(p => (p._id || p.id) !== optimisticPlanId && (p._id || p.id) !== (newPlan._id || newPlan.id))])
         showAlert(`Business Plan "${newPlan.name}" created successfully and live on customer website.`, 'success')
       }
 
       setIsCreateModalOpen(false)
     } catch (err) {
+      if (optimisticPlanId) {
+        setPlans(prev => prev.filter(p => (p._id || p.id) !== optimisticPlanId))
+      } else if (editingPlan) {
+        setPlans(prev => prev.map((p, index) => (index === editingPlanIndex ? editingPlan : p)))
+      }
       console.error('Plan save error:', err)
       const errorMsg = err.response?.data?.message || err.message || 'Failed to save business plan.'
       setFormError(errorMsg)
@@ -607,6 +623,7 @@ export default function BusinessPlansManagement({ onNavigate }) {
 
   // Toggle Active/Inactive (PATCH /api/super-admin/vendor-business-plans/:id/status)
   const handleToggleStatus = async (plan) => {
+    const planIndex = plans.findIndex(p => p === plan)
     const newStatus = !plan.isActive
     const id = (plan._id || plan.id).toString().trim()
     try {
@@ -621,8 +638,8 @@ export default function BusinessPlansManagement({ onNavigate }) {
       }
 
       setPlans(prev =>
-        prev.map(p => {
-          if (p._id === id || p.id === id) {
+        prev.map((p, index) => {
+          if (index === planIndex) {
             return {
               ...p,
               ...(updatedData || {}),
@@ -702,7 +719,7 @@ export default function BusinessPlansManagement({ onNavigate }) {
       )}
 
       {/* Stats Cards */}
-      <div className="plans-stats-grid">
+      <div className="plans-stats-grid" style={{ display: loading ? 'none' : undefined }}>
         <div className="plans-stat-card">
           <div className="stat-icon-box" style={{ backgroundColor: '#e8f5e9', color: '#2e7d32' }}>
             <Briefcase size={22} />
@@ -747,7 +764,7 @@ export default function BusinessPlansManagement({ onNavigate }) {
       </div>
 
       {/* Filter and Control Bar */}
-      <div className="plans-filter-card">
+      <div className="plans-filter-card" style={{ display: loading ? 'none' : undefined }}>
         <div className="filter-left-group">
           <div className="plans-search-wrapper">
             <Search className="plans-search-icon" size={17} />
@@ -800,7 +817,13 @@ export default function BusinessPlansManagement({ onNavigate }) {
       </div>
 
       {/* Content Rendering */}
-      {filteredPlans.length === 0 ? (
+      {loading ? (
+        <div className="plans-empty-state">
+          <Briefcase size={44} />
+          <h3>Loading business plans</h3>
+          <p>Fetching the latest plans…</p>
+        </div>
+      ) : filteredPlans.length === 0 ? (
         <div className="plans-empty-state">
           <Briefcase size={44} />
           <h3>No Business Plans Found</h3>
@@ -817,7 +840,7 @@ export default function BusinessPlansManagement({ onNavigate }) {
       ) : viewMode === 'grid' ? (
         /* Grid Pricing Cards View */
         <div className="plans-grid-container">
-          {filteredPlans.map((plan) => {
+          {filteredPlans.map((plan, planIndex) => {
             const planKey = (plan.planKey || 'CUSTOM').toUpperCase()
             const keyClass =
               planKey === 'PREMIUM'
@@ -834,7 +857,7 @@ export default function BusinessPlansManagement({ onNavigate }) {
 
             return (
               <div
-                key={plan._id || plan.id}
+                key={`plan-card-${planIndex}-${plan._id || plan.id || "missing"}`}
                 className={`business-plan-card ${!plan.isActive ? 'inactive-card' : ''}`}
               >
                 <div className="plan-card-header">
@@ -957,8 +980,8 @@ export default function BusinessPlansManagement({ onNavigate }) {
               </tr>
             </thead>
             <tbody>
-              {filteredPlans.map((plan) => (
-                <tr key={plan._id || plan.id}>
+              {filteredPlans.map((plan, planIndex) => (
+                <tr key={`plan-row-${planIndex}-${plan._id || plan.id || ''}`}>
                   <td>
                     <div className="table-plan-title">{plan.name}</div>
                     <span className="table-plan-key">{plan.planKey} â€¢ {plan.durationDays} Days</span>
